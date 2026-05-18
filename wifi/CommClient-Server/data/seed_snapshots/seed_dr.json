@@ -1,0 +1,251 @@
+[
+  {
+    "destination": {
+      "name": "primary-nas",
+      "type": "nfs",
+      "config": {
+        "host": "nas1.lan",
+        "path": "/exports/helen-backups"
+      },
+      "capacity_gb": 4000
+    }
+  },
+  {
+    "destination": {
+      "name": "secondary-smb",
+      "type": "smb",
+      "config": {
+        "share": "\\\\backupsrv\\helen",
+        "username": "helen_bkp"
+      },
+      "capacity_gb": 2000
+    }
+  },
+  {
+    "destination": {
+      "name": "tape-vault",
+      "type": "tape-lto",
+      "config": {
+        "library": "LTO9-1",
+        "rotation": "weekly"
+      },
+      "capacity_gb": 18000
+    }
+  },
+  {
+    "policy": {
+      "name": "nightly-full",
+      "cron": "0 2 * * *",
+      "scope": [
+        "databases",
+        "audit-chain",
+        "configs"
+      ],
+      "cadence": "full",
+      "retention_days": 30,
+      "encryption": "AES-256-GCM",
+      "enabled": true
+    }
+  },
+  {
+    "policy": {
+      "name": "hourly-incremental",
+      "cron": "15 * * * *",
+      "scope": [
+        "databases"
+      ],
+      "cadence": "incremental",
+      "retention_days": 7,
+      "encryption": "AES-256-GCM",
+      "enabled": true
+    }
+  },
+  {
+    "policy": {
+      "name": "weekly-full-archive",
+      "cron": "0 3 * * 0",
+      "scope": [
+        "all"
+      ],
+      "cadence": "full",
+      "retention_days": 365,
+      "encryption": "ChaCha20-Poly1305",
+      "enabled": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-6f35949a6dbbe409",
+      "policy": "nightly-full",
+      "destination": "primary-nas",
+      "started_at": "2026-05-13T02:08:25.340347+00:00",
+      "size_bytes": 524288000,
+      "status": "verifying",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-f57705ab9a2e632f",
+      "policy": "nightly-full",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-12T02:08:25.340364+00:00",
+      "size_bytes": 629145600,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-1a865420d6656341",
+      "policy": "nightly-full",
+      "destination": "tape-vault",
+      "started_at": "2026-05-11T02:08:25.340369+00:00",
+      "size_bytes": 734003200,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-92f87159664809ed",
+      "policy": "nightly-full",
+      "destination": "primary-nas",
+      "started_at": "2026-05-10T02:08:25.340372+00:00",
+      "size_bytes": 838860800,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-4fb7d3aa024881b1",
+      "policy": "nightly-full",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-09T02:08:25.340375+00:00",
+      "size_bytes": 943718400,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-b8bc90b6cd09c46d",
+      "policy": "hourly-incremental",
+      "destination": "primary-nas",
+      "started_at": "2026-05-13T01:08:25.340379+00:00",
+      "size_bytes": 576716800,
+      "status": "verifying",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-45688ff1a9554536",
+      "policy": "hourly-incremental",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-12T01:08:25.340383+00:00",
+      "size_bytes": 681574400,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-4673ada7efea115e",
+      "policy": "hourly-incremental",
+      "destination": "tape-vault",
+      "started_at": "2026-05-11T01:08:25.340387+00:00",
+      "size_bytes": 786432000,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-3adf700cbef8050a",
+      "policy": "hourly-incremental",
+      "destination": "primary-nas",
+      "started_at": "2026-05-10T01:08:25.340390+00:00",
+      "size_bytes": 891289600,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-43ea8e66535be44b",
+      "policy": "hourly-incremental",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-09T01:08:25.340394+00:00",
+      "size_bytes": 996147200,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-2ef15810bf2f9ccd",
+      "policy": "weekly-full-archive",
+      "destination": "primary-nas",
+      "started_at": "2026-05-13T00:08:25.340422+00:00",
+      "size_bytes": 629145600,
+      "status": "verifying",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-fdc4871f112058a4",
+      "policy": "weekly-full-archive",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-12T00:08:25.340427+00:00",
+      "size_bytes": 734003200,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-3f37460be0cc91bc",
+      "policy": "weekly-full-archive",
+      "destination": "tape-vault",
+      "started_at": "2026-05-11T00:08:25.340431+00:00",
+      "size_bytes": 838860800,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-5d32c8cd887237bb",
+      "policy": "weekly-full-archive",
+      "destination": "primary-nas",
+      "started_at": "2026-05-10T00:08:25.340434+00:00",
+      "size_bytes": 943718400,
+      "status": "succeeded",
+      "integrity_verified": false
+    }
+  },
+  {
+    "backup": {
+      "id": "backup-5dfa967d80dc70c1",
+      "policy": "weekly-full-archive",
+      "destination": "secondary-smb",
+      "started_at": "2026-05-09T00:08:25.340437+00:00",
+      "size_bytes": 1048576000,
+      "status": "succeeded",
+      "integrity_verified": true
+    }
+  },
+  {
+    "drill": {
+      "id": "drill-a640dfb23b85bc13",
+      "scope": "sandbox",
+      "started_at": "2026-05-06T02:08:25.340441+00:00",
+      "rto_measured_seconds": 1820,
+      "rpo_measured_seconds": 86400,
+      "result": "pass"
+    }
+  }
+]

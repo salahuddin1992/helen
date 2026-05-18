@@ -1,0 +1,187 @@
+name: Helen Mobile — Flutter build
+
+on:
+  push:
+    branches: [main, release/*]
+    paths:
+      - 'Helen-Mobile-Flutter/**'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    paths:
+      - 'Helen-Mobile-Flutter/**'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+
+env:
+  FLUTTER_VERSION: '3.24.0'
+  JAVA_VERSION: '17'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Android
+  # ---------------------------------------------------------------------------
+  android:
+    if: github.event.inputs.target != 'ios'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Helen-Mobile-Flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter
+        run: flutter --version
+
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            Helen-Mobile-Flutter/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Helen-Mobile-Flutter/pubspec.lock') }}
+
+      - name: pub get
+        run: flutter pub get
+
+      - name: codegen
+        run: |
+          if grep -q "build_runner" pubspec.yaml; then
+            flutter pub run build_runner build --delete-conflicting-outputs
+          fi
+
+      - name: gen-l10n
+        run: |
+          if [ -f l10n.yaml ]; then
+            flutter gen-l10n
+          fi
+
+      - name: analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: test
+        run: flutter test --reporter=expanded
+
+      - name: Decode keystore (release only)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+        run: |
+          mkdir -p android/keys
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/keys/helen.jks
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Build APKs + AAB
+        env:
+          HELEN_ANDROID_KEYSTORE_PATH: android/keys/helen.jks
+          HELEN_ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          HELEN_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          HELEN_ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          bash scripts/build_android.sh release ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' && '--no-sign' || '' }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: helen-mobile-android-${{ github.run_number }}
+          path: Helen-Mobile-Flutter/build/android-release-*/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # iOS (requires macOS runner)
+  # ---------------------------------------------------------------------------
+  ios:
+    if: github.event.inputs.target == 'ios' || github.event.inputs.target == 'both'
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: Helen-Mobile-Flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Verify
+        run: |
+          flutter --version
+          xcodebuild -version
+
+      - name: pub get
+        run: flutter pub get
+
+      - name: codegen
+        run: |
+          if grep -q "build_runner" pubspec.yaml; then
+            flutter pub run build_runner build --delete-conflicting-outputs
+          fi
+
+      - name: gen-l10n
+        run: |
+          if [ -f l10n.yaml ]; then
+            flutter gen-l10n
+          fi
+
+      - name: pod install
+        run: cd ios && pod install --repo-update
+
+      - name: analyze + test
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test --reporter=expanded
+
+      - name: Import code-signing identities
+        if: secrets.IOS_DIST_CERT_P12 != ''
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12 }}
+          P12_PASS: ${{ secrets.IOS_DIST_CERT_PASS }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASS }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$P12_BASE64" | base64 -d > /tmp/dist.p12
+          security import /tmp/dist.p12 -k build.keychain -P "$P12_PASS" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Build IPA
+        if: secrets.IOS_DIST_CERT_P12 != ''
+        env:
+          HELEN_IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          HELEN_IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
+        run: |
+          bash scripts/build_ios.sh app-store
+
+      - name: Skip build (no signing identity)
+        if: secrets.IOS_DIST_CERT_P12 == ''
+        run: |
+          echo "IOS_DIST_CERT_P12 not set — skipping signed build"
+          flutter build ios --release --no-codesign
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: helen-mobile-ios-${{ github.run_number }}
+          path: Helen-Mobile-Flutter/build/ios-release-*/
+          retention-days: 30

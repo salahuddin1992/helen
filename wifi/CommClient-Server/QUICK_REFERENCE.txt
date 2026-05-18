@@ -1,0 +1,198 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║           CommClient-Server Windows Deployment - Quick Reference            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📋 FIVE-MINUTE SETUP (Administrator PowerShell)
+
+   1. cd C:\path\to\CommClient-Server
+   2. .\scripts\install-service.ps1
+   3. .\scripts\setup-firewall.ps1
+   4. Start-Service CommClientServer
+   5. Invoke-WebRequest http://localhost:3000/api/health
+
+✅ Success if you get HTTP 200 response
+
+════════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION FILES
+
+   scripts/README.md
+      → Quick reference for all scripts
+      → Common commands
+      → Troubleshooting guide
+
+   scripts/DEPLOYMENT_GUIDE.md
+      → Comprehensive 16 KB deployment manual
+      → Detailed script documentation
+      → Production best practices
+
+   WINDOWS_DEPLOYMENT_CHECKLIST.md
+      → Step-by-step IT deployment checklist
+      → Pre-deployment requirements
+      → Post-deployment testing
+      → Operational procedures
+
+   SCRIPTS_SUMMARY.txt
+      → Overview of all files created
+      → Feature summary
+      → Common commands reference
+
+════════════════════════════════════════════════════════════════════════════
+
+🔧 DEPLOYMENT SCRIPTS
+
+   install-service.ps1
+      → Installs Windows service named "CommClientServer"
+      → Auto-downloads NSSM if needed
+      → Sets up Python venv and dependencies
+      → Usage: .\scripts\install-service.ps1
+
+   uninstall-service.ps1
+      → Safely removes Windows service
+      → Graceful shutdown before removal
+      → Usage: .\scripts\uninstall-service.ps1
+
+   start-server.ps1 / start-server.bat
+      → Starts server in development mode
+      → Full environment setup (venv, deps, migrations)
+      → Usage: .\scripts\start-server.ps1
+
+   health-check.ps1
+      → Monitors server health via /api/health endpoint
+      → Auto-restarts if down
+      → Perfect for Windows Task Scheduler
+      → Usage: .\scripts\health-check.ps1 -AutoRestart
+
+   backup-db.ps1
+      → Creates database backups
+      → Auto-rotation (keeps last N backups)
+      → Compression support
+      → Usage: .\scripts\backup-db.ps1 -Compress
+
+   setup-firewall.ps1
+      → Configures Windows Firewall
+      → Opens TCP 3000, UDP 41234, UDP 40000-49999, UDP 5353
+      → Usage: .\scripts\setup-firewall.ps1
+
+════════════════════════════════════════════════════════════════════════════
+
+💻 COMMON COMMANDS (PowerShell)
+
+   Service Management:
+      Get-Service CommClientServer                # Show status
+      Start-Service CommClientServer              # Start
+      Stop-Service CommClientServer -Force        # Stop
+      Restart-Service CommClientServer            # Restart
+
+   Logs:
+      Get-Content .\data\logs\service.log -Tail 50       # View
+      Get-Content .\data\logs\service.log -Wait -Tail 100 # Follow
+
+   Testing:
+      Invoke-WebRequest http://localhost:3000/api/health
+
+   Firewall:
+      Get-NetFirewallRule -DisplayName "*CommClient*"
+
+   Backups:
+      .\scripts\backup-db.ps1 -Compress
+
+════════════════════════════════════════════════════════════════════════════
+
+📍 FILE LOCATIONS
+
+   Server Binary:       C:\CommClient-Server\run.py
+   Configuration:      C:\CommClient-Server\.env
+   Virtual Environment: C:\CommClient-Server\venv\
+   Database:            C:\CommClient-Server\data\commclient.db
+   Service Logs:        C:\CommClient-Server\data\logs\service.log
+   Backups:             C:\CommClient-Server\data\backups\
+
+════════════════════════════════════════════════════════════════════════════
+
+⚙️ AUTOMATED MONITORING SETUP
+
+   Health Check (every 5 minutes):
+
+      $trigger = New-ScheduledTaskTrigger -Daily -At "00:00" `
+        -RepetitionInterval (New-TimeSpan -Minutes 5)
+      $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument '-ExecutionPolicy Bypass -File "C:\CommClient-Server\scripts\health-check.ps1" -AutoRestart'
+      $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+      Register-ScheduledTask -TaskName "CommClientHealthCheck" `
+        -Trigger $trigger -Action $action -Principal $principal
+
+   Daily Backup (2 AM):
+
+      $trigger = New-ScheduledTaskTrigger -Daily -At "02:00"
+      $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument '-ExecutionPolicy Bypass -File "C:\CommClient-Server\scripts\backup-db.ps1" -Compress'
+      Register-ScheduledTask -TaskName "CommClientBackup" `
+        -Trigger $trigger -Action $action
+
+════════════════════════════════════════════════════════════════════════════
+
+🔌 SERVER ENDPOINTS
+
+   HTTP:       http://localhost:3000
+   API Docs:   http://localhost:3000/docs
+   WebSocket:  ws://localhost:3000/socket.io
+   Health:     http://localhost:3000/api/health
+
+════════════════════════════════════════════════════════════════════════════
+
+⚠️ COMMON ISSUES & QUICK FIXES
+
+   Service won't start?
+      Get-Content .\data\logs\service.log
+      .\scripts\start-server.ps1  # Try manual start for diagnostics
+
+   Port 3000 in use?
+      Get-NetTCPConnection -LocalPort 3000  # Find PID
+      Stop-Process -Id <PID> -Force         # Kill process
+
+   Database locked?
+      Stop-Service CommClientServer -Force
+      Start-Sleep -Seconds 5
+      Start-Service CommClientServer
+
+   Firewall blocking?
+      .\scripts\setup-firewall.ps1 -ListRules
+      .\scripts\setup-firewall.ps1 -Enable
+
+════════════════════════════════════════════════════════════════════════════
+
+✓ REQUIREMENTS
+
+   ✓ Windows 10 or Server 2016+
+   ✓ Python 3.10+ in PATH
+   ✓ PowerShell 5.0+
+   ✓ Administrator access
+   ✓ ~500 MB disk space
+   ✓ Network connectivity
+
+════════════════════════════════════════════════════════════════════════════
+
+🚀 NEXT STEPS
+
+   1. Read WINDOWS_DEPLOYMENT_CHECKLIST.md for step-by-step setup
+   2. Run install-service.ps1 to install Windows service
+   3. Run setup-firewall.ps1 to configure firewall
+   4. Set up health-check and backup tasks for monitoring
+   5. Review DEPLOYMENT_GUIDE.md for production best practices
+
+════════════════════════════════════════════════════════════════════════════
+
+📞 SUPPORT
+
+   • Check logs in: .\data\logs\
+   • Read documentation in: scripts/
+   • See detailed troubleshooting in: scripts/DEPLOYMENT_GUIDE.md
+   • Built-in help: Get-Help .\script-name.ps1
+
+════════════════════════════════════════════════════════════════════════════
+Generated: April 8, 2024
+Project: CommClient-Server (FastAPI + Socket.IO)
+Target: Windows 10/Server 2016+
+Status: Production-Ready
+════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-05-07T03:02:41Z",
+  "cycle": 2,
+  "success_total": 0,
+  "fail_total": 2,
+  "skipped_total": 0,
+  "fail_streak": 2,
+  "last_cycle_at": "2026-05-07T03:03:00Z",
+  "last_status": "fail",
+  "last_duration_s": 0,
+  "last_exit_code": 1,
+  "last_prompt_preview": "- **[2026-05-06 22:02] [fail]** exit=1 :: === SELF-DIALOGUE TURN #1 === ⏎ أنت تعمل في وضع تطوير ذاتي مستمر. لا تطرح أسئلة على المستخدم، ⏎ ولا تطلب إذن، ولا تتوقف. نفّذ الخطوات التالية بالترتيب: ⏎  ⏎ …",
+  "avg_duration_s": 1.5,
+  "total_runtime_s": 3.0,
+  "total_output_bytes": 40,
+  "estimated_total_tokens": 1177,
+  "fingerprint": "8j4xpl",
+  "host": "DESKTOP-5O9C927",
+  "pid": 33744
+}

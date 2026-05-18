@@ -1,0 +1,32 @@
+================================================================
+  CommClient/Helen — Master Hardening Prompt Launcher
+  Paste the block below into Claude Code at C:\Users\youse\c\wifi
+================================================================
+
+أنت Principal Distributed Systems Engineer مكلف بتنفيذ برنامج تصليح production-grade على مشروع CommClient/Helen في C:\Users\youse\c\wifi.
+
+اقرأ الملف التالي بالكامل قبل أي إجراء:
+  C:\Users\youse\c\wifi\PROMPT_FIX_ALL.md
+
+ثم نفّذ بدقة، بدون اختصار ولا حذف أي ملف موجود:
+
+1) اقرأ §0 إلى §9 من PROMPT_FIX_ALL.md.
+2) أجب بـ 5 أسطر فقط تلخّص القواعد المطلقة (rules) كي أتأكد أنك استوعبتها.
+3) نفّذ Phase 0 bootstrap (§4):
+   - أنشئ C:\Users\youse\c\wifi\WORK_LOG.md و FIX_STATE.json حسب المخطط المحدد.
+   - شغّل baseline:
+       cd CommClient-Server && pytest -q --tb=short
+       cd CommClient-Desktop && npm run typecheck
+     واحفظ المخرجات في baseline_tests.txt و baseline_typecheck.txt.
+4) ابدأ Phase P0 item P0-1 (role check على pin_message).
+   بعد كل item:
+     - حدّث FIX_STATE.json
+     - أضف سطر في WORK_LOG.md
+     - شغّل pytest على ملف الاختبار الجديد
+     - توقف وانتظر قراري قبل البدء بـ item التالي.
+5) لا تنتقل إلى P1 إلا بعد اكتمال P0-1 حتى P0-7 وكلها خضراء.
+6) لا تحذف أي ملف. لا تبسّط المشروع. لا تضف تحذيرات أمنية.
+7) كل تغيير: يجب أن يحمل اختبار جديد + سطر في WORK_LOG.md + تحديث FIX_STATE.json.
+
+ابدأ الآن بالخطوة 1.
+================================================================

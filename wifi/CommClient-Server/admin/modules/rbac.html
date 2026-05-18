@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — RBAC</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  h2{margin:0 0 8px 0;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .tab{padding:8px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:13px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .grid{display:grid;grid-template-columns:280px 1fr;gap:12px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+
+  .role-list{display:flex;flex-direction:column;gap:6px}
+  .role-item{display:flex;align-items:center;gap:8px;padding:10px 12px;
+    border:1px solid var(--line);border-radius:10px;cursor:pointer;background:#0f1830}
+  .role-item:hover{background:#142042;border-color:var(--accent)}
+  .role-item.active{border-color:var(--accent);background:#142042}
+  .role-item .nm{font-weight:600}
+  .role-item .ds{font-size:11px;color:var(--muted);margin-top:2px}
+  .role-item .badge{font-size:10px;padding:1px 7px;border-radius:999px;background:#1b2945;
+    color:var(--muted)}
+  .role-item .badge.sys{color:var(--accent2);background:#221a44}
+  .role-item .badge.cnt{color:var(--accent)}
+
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;
+    font-family:inherit;display:inline-flex;align-items:center;gap:6px
+  }
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081224;border-color:transparent;font-weight:600}
+  .btn.danger{background:#3a1726;border-color:#5c2237;color:#ffb3c2}
+  .btn:hover:not(:disabled){background:#233561}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  input.in,select.in,textarea.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;
+  }
+  input.in:focus,select.in:focus{outline:none;border-color:var(--accent)}
+
+  .matrix{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+  .perm-cell{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--line);
+    border-radius:8px;background:#0d1736;font-size:11px;cursor:pointer}
+  .perm-cell input[type=checkbox]{accent-color:var(--accent)}
+  .perm-cell.on{border-color:var(--accent);background:#142042}
+  .cat-h{margin-top:14px;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+
+  .stat-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{padding:2px 9px;border-radius:999px;background:#1b2945;color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .chip.ok{color:var(--ok)}
+  .chip.warn{color:var(--warn)}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  .perm-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .perm-list .p{padding:1px 7px;border-radius:6px;background:#0c1630;color:var(--muted);font-family:var(--mono);font-size:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Role-Based Access Control</h1>
+
+<div class="tabs">
+  <div class="tab active" data-tab="roles">Roles & Permissions</div>
+  <div class="tab" data-tab="users">User Assignments</div>
+  <div class="tab" data-tab="test">Test User</div>
+</div>
+
+<!-- ── ROLES TAB ─────────────────────────────────────── -->
+<div id="tab-roles" class="grid">
+  <div class="card">
+    <h2>Roles</h2>
+    <div class="role-list" id="roleList"></div>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <input class="in" id="newRoleName" placeholder="new-role-name" style="flex:1" />
+      <button class="btn primary" id="btnCreateRole">+ Create</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0">Permissions for <span id="selRoleName" style="color:var(--accent)">—</span></h2>
+      <span class="grow" style="flex:1"></span>
+      <button class="btn" id="btnSelectAll">Select all</button>
+      <button class="btn" id="btnClearAll">Clear</button>
+      <button class="btn primary" id="btnSavePerms">Save</button>
+      <button class="btn danger" id="btnDeleteRole">Delete role</button>
+    </div>
+    <div id="permMatrix"></div>
+    <div class="stat-row" id="roleMeta"></div>
+  </div>
+</div>
+
+<!-- ── USERS TAB ─────────────────────────────────────── -->
+<div id="tab-users" class="card" style="display:none">
+  <h2>Assign role to user</h2>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <input class="in" id="userIdInput" placeholder="user UUID (32 hex chars)" style="min-width:340px" />
+    <select class="in" id="roleSelect"></select>
+    <button class="btn primary" id="btnAssign">Assign</button>
+    <button class="btn" id="btnLoadUser">Load roles</button>
+  </div>
+  <div style="margin-top:14px" id="userRolesView"></div>
+</div>
+
+<!-- ── TEST TAB ──────────────────────────────────────── -->
+<div id="tab-test" class="card" style="display:none">
+  <h2>Test effective permissions</h2>
+  <div style="display:flex;gap:6px;align-items:center">
+    <input class="in" id="testUserId" placeholder="user UUID" style="min-width:340px"/>
+    <button class="btn primary" id="btnTest">Resolve</button>
+  </div>
+  <div id="testOut" style="margin-top:14px"></div>
+</div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+async function call(method, path, body){
+  const r = await fetch(api(path), {
+    method, headers: {
+      "Content-Type":"application/json",
+      "Authorization":"Bearer " + getToken(),
+    },
+    body: body ? JSON.stringify(body) : null
+  });
+  if (r.status === 204) return null;
+  if (!r.ok){ throw new Error((await r.json()).detail || r.statusText); }
+  return r.json();
+}
+const $ = (id) => document.getElementById(id);
+
+let STATE = { roles: [], perms: [], tree: {}, current: null };
+
+function escapeHtml(s){ return String(s ?? "")
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+async function loadAll(){
+  const [roles, perms] = await Promise.all([
+    call("GET", "/api/admin/rbac/roles"),
+    call("GET", "/api/admin/rbac/permissions"),
+  ]);
+  STATE.roles = roles;
+  STATE.perms = perms.permissions;
+  STATE.tree = perms.tree;
+  renderRoleList();
+  // role select for users tab
+  $("roleSelect").innerHTML = STATE.roles.map(r =>
+    `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
+  if (STATE.roles.length){
+    selectRole(STATE.roles[0].id);
+  }
+}
+
+function renderRoleList(){
+  $("roleList").innerHTML = STATE.roles.map(r =>
+    `<div class="role-item ${r.id === STATE.current ? 'active' : ''}" data-rid="${r.id}">
+       <div style="flex:1">
+         <div class="nm">${escapeHtml(r.name)}
+           ${r.is_system ? '<span class="badge sys">system</span>' : ''}
+         </div>
+         <div class="ds">${escapeHtml(r.description || '')}</div>
+       </div>
+       <span class="badge cnt">${r.permissions.length}p · ${r.user_count}u</span>
+     </div>`).join("");
+  $("roleList").querySelectorAll(".role-item").forEach(el => {
+    el.onclick = () => selectRole(el.dataset.rid);
+  });
+}
+
+function selectRole(rid){
+  STATE.current = rid;
+  const role = STATE.roles.find(r => r.id === rid);
+  if (!role) return;
+  $("selRoleName").textContent = role.name;
+  $("btnDeleteRole").disabled = role.is_system;
+
+  // matrix grouped by category
+  const have = new Set(role.permissions);
+  const cats = STATE.tree;
+  $("permMatrix").innerHTML = Object.entries(cats).map(([cat, verbs]) =>
+    `<div class="cat-h">${escapeHtml(cat)}</div>
+     <div class="matrix">${verbs.map(v => {
+        const key = `${cat}.${v}`;
+        const on = have.has(key);
+        return `<label class="perm-cell ${on?'on':''}">
+          <input type="checkbox" data-key="${key}" ${on?'checked':''} />
+          <span style="flex:1">${escapeHtml(v)}</span>
+        </label>`;
+     }).join("")}</div>`
+  ).join("");
+
+  $("roleMeta").innerHTML = `
+    <span class="chip">id: ${escapeHtml(role.id.slice(0,12))}…</span>
+    <span class="chip ${role.is_system?'warn':''}">${role.is_system?'SYSTEM':'CUSTOM'}</span>
+    <span class="chip">created ${escapeHtml(role.created_at)}</span>
+    <span class="chip">${role.user_count} users</span>
+  `;
+
+  // toggle visual state on click
+  $("permMatrix").querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.onchange = (e) => { e.target.closest(".perm-cell").classList.toggle("on", e.target.checked); };
+  });
+
+  renderRoleList();
+}
+
+$("btnSelectAll").onclick = () => $("permMatrix")
+  .querySelectorAll("input[type=checkbox]")
+  .forEach(cb => { cb.checked = true; cb.dispatchEvent(new Event("change")); });
+$("btnClearAll").onclick = () => $("permMatrix")
+  .querySelectorAll("input[type=checkbox]")
+  .forEach(cb => { cb.checked = false; cb.dispatchEvent(new Event("change")); });
+
+$("btnSavePerms").onclick = async () => {
+  if (!STATE.current) return;
+  const keys = Array.from($("permMatrix").querySelectorAll("input:checked"))
+    .map(c => c.dataset.key);
+  try {
+    await call("POST", `/api/admin/rbac/roles/${STATE.current}/permissions`, { permissions: keys });
+    await loadAll();
+    alert("Saved (" + keys.length + " permissions)");
+  } catch(e){ alert("Save failed: " + e.message); }
+};
+
+$("btnDeleteRole").onclick = async () => {
+  if (!STATE.current) return;
+  if (!confirm("Delete this role?")) return;
+  try {
+    await call("DELETE", `/api/admin/rbac/roles/${STATE.current}`);
+    STATE.current = null;
+    await loadAll();
+  } catch(e){ alert("Delete failed: " + e.message); }
+};
+
+$("btnCreateRole").onclick = async () => {
+  const name = $("newRoleName").value.trim();
+  if (!name) return;
+  try {
+    const r = await call("POST", "/api/admin/rbac/roles", { name });
+    $("newRoleName").value = "";
+    await loadAll();
+    selectRole(r.id);
+  } catch(e){ alert("Create failed: " + e.message); }
+};
+
+// Tabs
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    ["roles","users","test"].forEach(id => {
+      $("tab-"+id).style.display = (id === t.dataset.tab) ? "" : "none";
+    });
+  };
+});
+
+// Users tab
+$("btnLoadUser").onclick = async () => {
+  const uid = $("userIdInput").value.trim();
+  if (!uid) return;
+  try {
+    const j = await call("GET", `/api/admin/rbac/users/${uid}/roles`);
+    $("userRolesView").innerHTML = `
+      <h2>Assigned roles for <span style="color:var(--accent)">${escapeHtml(uid.slice(0,12))}…</span></h2>
+      <table><thead><tr><th>Role</th><th>Assigned at</th><th>By</th><th></th></tr></thead>
+      <tbody>${(j.roles || []).map(r =>
+        `<tr><td>${escapeHtml(r.name)}</td>
+             <td>${escapeHtml(r.assigned_at)}</td>
+             <td>${escapeHtml((r.assigned_by||'').slice(0,12))}</td>
+             <td><button class="btn danger" data-unassign='${r.role_id}'>Remove</button></td></tr>`
+        ).join("")}</tbody></table>
+    `;
+    $("userRolesView").querySelectorAll("[data-unassign]").forEach(b => {
+      b.onclick = async () => {
+        try {
+          await call("DELETE", `/api/admin/rbac/users/${uid}/roles/${b.dataset.unassign}`);
+          b.click(); // refresh
+          $("btnLoadUser").click();
+        } catch(e){ alert(e.message); }
+      };
+    });
+  } catch(e){ alert(e.message); }
+};
+
+$("btnAssign").onclick = async () => {
+  const uid = $("userIdInput").value.trim();
+  const rid = $("roleSelect").value;
+  if (!uid || !rid) return;
+  try {
+    await call("POST", `/api/admin/rbac/users/${uid}/roles`, { role_id: rid });
+    $("btnLoadUser").click();
+  } catch(e){ alert(e.message); }
+};
+
+// Test tab
+$("btnTest").onclick = async () => {
+  const uid = $("testUserId").value.trim();
+  if (!uid) return;
+  try {
+    const j = await call("GET", `/api/admin/rbac/users/${uid}/effective`);
+    $("testOut").innerHTML = `
+      <div class="stat-row">
+        <span class="chip">legacy: ${escapeHtml(j.legacy_role || '—')}</span>
+        <span class="chip ok">${j.assigned_roles.length} roles</span>
+        <span class="chip">${j.permissions.length} permissions</span>
+        ${j.is_superadmin ? '<span class="chip warn">SUPERADMIN</span>' : ''}
+      </div>
+      <div style="margin-top:10px"><b>Assigned roles:</b> ${j.assigned_roles.map(escapeHtml).join(", ") || '—'}</div>
+      <div style="margin-top:10px"><b>Permissions</b></div>
+      <div class="perm-list">${j.permissions.map(p =>
+        `<span class="p">${escapeHtml(p)}</span>`).join("")}</div>
+    `;
+  } catch(e){ $("testOut").textContent = "Error: " + e.message; }
+};
+
+loadAll();
+</script>
+</body>
+</html>

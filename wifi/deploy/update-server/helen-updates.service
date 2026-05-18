@@ -1,0 +1,15 @@
+[Unit]
+Description=Helen Internal Update Server (nginx)
+After=network-online.target
+Wants=network-online.target
+Requires=nginx.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx.conf
+ExecStart=/bin/systemctl reload nginx
+ExecStop=/bin/true
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

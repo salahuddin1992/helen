@@ -1,0 +1,54 @@
+{
+  "$comment": "Registry of Helen panels. The shell loads one per launch by --id; the hub (a static web page also served at /hub/) iterates this list.",
+  "server": "http://127.0.0.1:3088",
+  "apps": [
+    {
+      "id":    "hub",
+      "title": "Helen Hub",
+      "path":  "/hub/",
+      "width": 920, "height": 720
+    },
+    {
+      "id":    "admin",
+      "title": "Helen Admin",
+      "path":  "/admin/",
+      "width": 1280, "height": 820
+    },
+    {
+      "id":    "secret-admin",
+      "title": "Helen Secret Admin",
+      "path":  "/admin-secret/",
+      "width": 1100, "height": 820
+    },
+    {
+      "id":    "vault",
+      "title": "Helen Vault",
+      "path":  "/vault/",
+      "width": 1000, "height": 760
+    },
+    {
+      "id":    "ios",
+      "title": "Helen iOS Simulator",
+      "path":  "/mobile/",
+      "width": 420, "height": 860
+    },
+    {
+      "id":    "admin-mobile",
+      "title": "Helen Admin (Mobile)",
+      "path":  "/admin-mobile/",
+      "width": 420, "height": 860
+    },
+    {
+      "id":    "desktop",
+      "title": "Helen Desktop",
+      "path":  "/desktop/",
+      "width": 1280, "height": 800
+    },
+    {
+      "id":    "group-call",
+      "title": "Helen Group Call",
+      "url":   "http://127.0.0.1:3099/?room=test",
+      "width": 1100, "height": 760
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen &mdash; Edge Computing</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",system-ui,sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+.container { padding:20px; display:grid; grid-template-columns:1fr 1fr;
+             gap:16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+        padding:16px; }
+.card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+           color:var(--muted); margin:0 0 12px 0; }
+.full { grid-column:1/-1; }
+.badge { display:inline-block; padding:3px 8px; border-radius:6px;
+         font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.badge.active { background:rgba(74,222,128,.15); color:var(--good); }
+.badge.draining { background:rgba(250,204,21,.18); color:var(--warn); }
+.badge.down { background:rgba(248,113,113,.18); color:var(--bad); }
+.row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr;
+       padding:8px 10px; border-bottom:1px solid var(--line); align-items:center;
+       font-size:12px; }
+.row.head { color:var(--muted); font-weight:600; font-size:11px;
+            text-transform:uppercase; letter-spacing:.5px; }
+.row:last-child { border-bottom:none; }
+canvas#world { width:100%; height:420px; background:var(--panel2); border-radius:8px; }
+canvas#heat { width:100%; height:280px; background:var(--panel2); border-radius:8px; }
+.btn { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+       padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; margin-right:4px; }
+.btn:hover { background:var(--line); }
+.btn.bad { color:var(--bad); border-color:rgba(248,113,113,.4); }
+.btn.good { color:var(--good); border-color:rgba(74,222,128,.4); }
+input, select { background:var(--panel2); border:1px solid var(--line);
+                color:var(--fg); padding:7px 10px; border-radius:6px; font-size:12px; }
+form.inline { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.bar { height:8px; background:var(--panel2); border-radius:4px; overflow:hidden; }
+.bar > div { height:100%; background:linear-gradient(90deg, var(--good), var(--warn), var(--bad)); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Edge Computing &mdash; Geo Network</h1>
+  <button class="btn" id="refresh">Refresh</button>
+</header>
+
+<div class="container">
+  <div class="card full">
+    <h2>World Map &mdash; Edge Nodes</h2>
+    <canvas id="world" width="1200" height="600"></canvas>
+  </div>
+
+  <div class="card full">
+    <h2>Nodes</h2>
+    <div class="row head">
+      <div>Node ID</div><div>Region</div><div>Status</div><div>Load</div><div></div>
+    </div>
+    <div id="nodes"></div>
+    <form class="inline" id="add_node">
+      <input name="node_id" placeholder="node-id" required>
+      <input name="region" placeholder="region" required>
+      <input name="advertise_url" placeholder="https://..." required>
+      <input name="geo_lat" type="number" step="0.01" placeholder="lat">
+      <input name="geo_lng" type="number" step="0.01" placeholder="lng">
+      <button class="btn good" type="submit">Register</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Latency Heatmap (p95 ms)</h2>
+    <canvas id="heat" width="600" height="280"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Region Policies</h2>
+    <form class="inline" id="policy_form">
+      <input name="workspace_id" placeholder="workspace_id" required>
+      <input name="allowed" placeholder="eu-west-1,eu-central-1">
+      <input name="required" placeholder="required_region">
+      <button class="btn good" type="submit">Save</button>
+    </form>
+    <div id="regions" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API   = '/api/admin/edge';
+
+function H() { return { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' }; }
+
+async function jget(p) {
+  const r = await fetch(p, { headers: H() });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+async function jpost(p, body) {
+  const r = await fetch(p, { method:'POST', headers: H(), body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+async function jdel(p) {
+  const r = await fetch(p, { method:'DELETE', headers: H() });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+function drawWorld(nodes) {
+  const c = document.getElementById('world');
+  const ctx = c.getContext('2d');
+  c.width = c.clientWidth * devicePixelRatio;
+  c.height = c.clientHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const w = c.clientWidth, h = c.clientHeight;
+  ctx.fillStyle = '#1b2129';
+  ctx.fillRect(0, 0, w, h);
+  // Equirectangular projection.
+  function proj(lat, lng) {
+    return { x: (lng + 180) / 360 * w, y: (90 - lat) / 180 * h };
+  }
+  // Faint grid.
+  ctx.strokeStyle = '#242b34';
+  for (let lng = -180; lng <= 180; lng += 30) {
+    const x = (lng + 180) / 360 * w;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const y = (90 - lat) / 180 * h;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  // Nodes.
+  for (const n of nodes) {
+    if (!n.geo_lat && !n.geo_lng) continue;
+    const p = proj(n.geo_lat, n.geo_lng);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = n.status === 'active' ? '#4ade80'
+                  : n.status === 'draining' ? '#facc15' : '#f87171';
+    ctx.fill();
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px system-ui';
+    ctx.fillText(n.region, p.x + 10, p.y + 4);
+  }
+}
+
+function drawHeat(matrix) {
+  const c = document.getElementById('heat');
+  const ctx = c.getContext('2d');
+  c.width = c.clientWidth * devicePixelRatio;
+  c.height = c.clientHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const keys = Object.keys(matrix);
+  if (!keys.length) {
+    ctx.fillStyle = '#8b96a3';
+    ctx.font = '12px system-ui';
+    ctx.fillText('(no samples yet)', 10, 20);
+    return;
+  }
+  const w = c.clientWidth, h = c.clientHeight;
+  const cell = Math.min(w, h) / (keys.length + 1);
+  keys.forEach((src, i) => {
+    keys.forEach((dst, j) => {
+      const v = (matrix[src] && matrix[src][dst]) || 0;
+      const hue = Math.max(0, 120 - v / 5);
+      ctx.fillStyle = `hsl(${hue},70%,40%)`;
+      ctx.fillRect((j+1)*cell, (i+1)*cell, cell-1, cell-1);
+      ctx.fillStyle = '#fff';
+      ctx.font = '10px system-ui';
+      ctx.fillText(Math.round(v), (j+1)*cell + 5, (i+1)*cell + 14);
+    });
+  });
+  ctx.fillStyle = '#e6edf3';
+  ctx.font = '10px system-ui';
+  keys.forEach((k, i) => {
+    ctx.fillText(k.slice(0,10), 2, (i+1)*cell + 14);
+    ctx.fillText(k.slice(0,10), (i+1)*cell + 2, cell - 4);
+  });
+}
+
+async function refresh() {
+  try {
+    const [nodes, regions, latency] = await Promise.all([
+      jget(API+'/nodes'),
+      jget(API+'/regions'),
+      jget(API+'/latency-matrix'),
+    ]);
+    drawWorld(nodes);
+    drawHeat(latency.matrix || {});
+
+    const el = document.getElementById('nodes');
+    el.innerHTML = '';
+    for (const n of nodes) {
+      const div = document.createElement('div');
+      div.className = 'row';
+      div.innerHTML = `
+        <div><b>${n.node_id}</b><br><span style="color:var(--muted);font-size:11px;">${n.advertise_url}</span></div>
+        <div>${n.region}<br><span style="color:var(--muted);font-size:11px;">${n.city||''}</span></div>
+        <div><span class="badge ${n.status}">${n.status}</span></div>
+        <div>${n.current_load_percent.toFixed(0)}%<div class="bar"><div style="width:${n.current_load_percent}%"></div></div></div>
+        <div><button class="btn bad" data-id="${n.id}">Remove</button></div>`;
+      el.appendChild(div);
+    }
+    el.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Remove edge node?')) return;
+      await jdel(API + '/nodes/' + b.dataset.id);
+      await refresh();
+    }));
+
+    const rdiv = document.getElementById('regions');
+    rdiv.innerHTML = regions.map(r =>
+      `<div class="row"><div>${r.code}</div><div>${r.country}</div>
+       <div>${r.gdpr_compliant?'<span class="badge active">GDPR</span>':''}</div>
+       <div>${r.latency_zone}</div><div></div></div>`
+    ).join('');
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('add_node').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  fd.geo_lat = parseFloat(fd.geo_lat || 0);
+  fd.geo_lng = parseFloat(fd.geo_lng || 0);
+  await jpost(API + '/nodes', fd);
+  e.target.reset();
+  await refresh();
+});
+
+document.getElementById('policy_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await jpost(API + `/workspaces/${fd.get('workspace_id')}/residency`, {
+    allowed_regions: (fd.get('allowed')||'').split(',').map(s=>s.trim()).filter(Boolean),
+    required_residency_region: fd.get('required') || null,
+  });
+  e.target.reset();
+  await refresh();
+});
+
+document.getElementById('refresh').addEventListener('click', refresh);
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

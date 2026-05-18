@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# helen-admin-ctl — operator CLI for the Helen-Admin headless service.
+# For the GUI variant, just run `helen-admin`.
+set -euo pipefail
+
+SVC="helen-admin-headless"
+PORT="${HELEN_ADMIN_PORT:-5173}"
+
+CYAN=$'\033[36m'; GREEN=$'\033[32m'; RED=$'\033[31m'; RST=$'\033[0m'
+_ok() { printf '%s✓%s %s\n' "${GREEN}" "${RST}" "$*"; }
+_fail() { printf '%s✗%s %s\n' "${RED}" "${RST}" "$*" >&2; }
+
+case "${1:-status}" in
+    status)
+        systemctl status "${SVC}" --no-pager -l 2>/dev/null | head -12
+        echo
+        code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 2 \
+                http://127.0.0.1:${PORT}/index.html 2>/dev/null || echo 000)"
+        [[ "${code}" = "200" ]] && _ok "dashboard reachable on :${PORT}" \
+                                || _fail "dashboard not responding (http=${code})"
+        ;;
+    start)   exec sudo systemctl start   "${SVC}";;
+    stop)    exec sudo systemctl stop    "${SVC}";;
+    restart) exec sudo systemctl restart "${SVC}";;
+    logs)    shift; exec journalctl -u "${SVC}" "$@";;
+    gui)
+        # Launch GUI version in the operator's session
+        if [[ $EUID -eq 0 ]]; then
+            _fail "GUI must run as a normal user, not root"; exit 2
+        fi
+        exec helen-admin "$@"
+        ;;
+    health)
+        code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 2 \
+                http://127.0.0.1:${PORT}/index.html 2>/dev/null || echo 000)"
+        if [[ "${code}" = "200" ]]; then _ok "OK"; exit 0; fi
+        _fail "unreachable"; exit 1
+        ;;
+    url)
+        ip="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+        echo "local:  http://127.0.0.1:${PORT}"
+        [[ -n "${ip}" ]] && echo "LAN:    http://${ip}:${PORT}"
+        ;;
+    *)
+        cat <<EOF
+usage: helen-admin-ctl <cmd>
+
+  status      service + dashboard reachability
+  start/stop/restart   (needs sudo)
+  logs [-f]   journald tail
+  gui         open the GUI version (native window)
+  health      HTTP probe, exit 0/1
+  url         print LAN URL for the dashboard
+EOF
+        ;;
+esac

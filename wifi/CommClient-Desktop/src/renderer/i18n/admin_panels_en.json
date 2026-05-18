@@ -1,0 +1,74 @@
+{
+  "admin_panels.category.observability": "Observability",
+  "admin_panels.category.security": "Security",
+  "admin_panels.category.governance": "Governance",
+  "admin_panels.category.operations": "Operations",
+  "admin_panels.category.setup": "Setup",
+
+  "admin_panels.monitoring_unified.label": "Unified Monitoring",
+  "admin_panels.monitoring_unified.tooltip": "Server metrics, live connections, subsystem health",
+  "admin_panels.monitoring_unified.permission": "admin.monitoring.read",
+
+  "admin_panels.topology_visualizer.label": "Topology Visualizer",
+  "admin_panels.topology_visualizer.tooltip": "Dynamic graph of nodes, peers and SFU sessions",
+  "admin_panels.topology_visualizer.permission": "admin.topology.read",
+
+  "admin_panels.router_control.label": "Router Control",
+  "admin_panels.router_control.tooltip": "Helen-Router: jails, routes, tunnels",
+  "admin_panels.router_control.permission": "admin.router.read",
+
+  "admin_panels.siem_audit.label": "SIEM / Audit",
+  "admin_panels.siem_audit.tooltip": "Audit chain, security alerts, integrity verify",
+  "admin_panels.siem_audit.permission": "admin.siem.read",
+
+  "admin_panels.billing_tenancy.label": "Billing / Tenancy",
+  "admin_panels.billing_tenancy.tooltip": "Tenants, licenses, plans, expiry alerts",
+  "admin_panels.billing_tenancy.permission": "admin.billing.read",
+
+  "admin_panels.dr_console.label": "DR Console",
+  "admin_panels.dr_console.tooltip": "Backup destinations, policies, failover, verify",
+  "admin_panels.dr_console.permission": "admin.dr.read",
+
+  "admin_panels.plugin_marketplace.label": "Plugin Marketplace",
+  "admin_panels.plugin_marketplace.tooltip": "Installed plugins, updates, sandbox permissions",
+  "admin_panels.plugin_marketplace.permission": "admin.plugins.read",
+
+  "admin_panels.federation_health.label": "Federation Health",
+  "admin_panels.federation_health.tooltip": "Peer health map, quarantine, federation lag",
+  "admin_panels.federation_health.permission": "admin.federation.read",
+
+  "admin_panels.qos_live.label": "QoS Live",
+  "admin_panels.qos_live.tooltip": "MOS / jitter / loss for active calls",
+  "admin_panels.qos_live.permission": "admin.qos.read",
+
+  "admin_panels.compliance_ediscovery.label": "Compliance / eDiscovery",
+  "admin_panels.compliance_ediscovery.tooltip": "Legal holds, RTBF, GDPR exports",
+  "admin_panels.compliance_ediscovery.permission": "admin.compliance.read",
+
+  "admin_panels.onboarding_wizard.label": "Onboarding Wizard",
+  "admin_panels.onboarding_wizard.tooltip": "Operator first-run: TLS, DNS, storage, backup",
+  "admin_panels.onboarding_wizard.permission": "admin.onboarding.read",
+
+  "admin_panels.loading": "Loading panel…",
+  "admin_panels.reload": "Reload",
+  "admin_panels.open_external": "Open in browser",
+  "admin_panels.error.unknown": "Unknown panel",
+  "admin_panels.error.server_url_missing": "Server URL not configured",
+  "admin_panels.error.role_required": "This panel requires the admin role",
+
+  "admin_notifications.title": "Admin Notifications",
+  "admin_notifications.empty": "No notifications",
+  "admin_notifications.clear_all": "Clear all",
+  "admin_notifications.open_panel": "Open panel",
+  "admin_notifications.dismiss": "Dismiss",
+
+  "admin_notifications.audit.tamper": "Audit chain integrity broken",
+  "admin_notifications.dr.backup_failed": "Backup failed",
+  "admin_notifications.dr.destination_down": "DR destination unavailable",
+  "admin_notifications.license.expiring": "License expiring soon",
+  "admin_notifications.federation.peer_quarantined": "Federation peer quarantined",
+  "admin_notifications.federation.peer_down": "Peer unreachable",
+  "admin_notifications.qos.critical": "Critical call quality",
+  "admin_notifications.plugin.update_available": "Plugin update available",
+  "admin_notifications.plugin.crashed": "Plugin crashed"
+}

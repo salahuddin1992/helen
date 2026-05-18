@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "slug": "hello-world",
+  "name": "Hello World",
+  "version": "0.1.0",
+  "author": "Helen team",
+  "description": "Replies with a greeting whenever someone says 'hello'.",
+  "homepage": "https://helen.app/plugins/hello-world",
+  "min_helen_version": "7.0.0",
+  "entrypoint": "main.py",
+  "code_url": "file://plugins/examples/hello-world/main.py",
+  "permissions": [
+    "messages.read",
+    "messages.send",
+    "channels.read"
+  ],
+  "hooks_subscribed": [
+    "on_message_created"
+  ],
+  "ui_routes": [],
+  "settings_schema": {
+    "fields": [
+      { "key": "greeting", "type": "string", "default": "Hello back!",
+        "label": "Reply text" }
+    ]
+  },
+  "dependencies": []
+}

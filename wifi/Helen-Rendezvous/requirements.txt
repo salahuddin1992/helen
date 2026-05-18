@@ -1,0 +1,14 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+websockets>=12.0
+
+# Cluster / HA support — optional. The rendezvous falls back to the
+# in-process MemoryBackend if these aren't installed, so single-instance
+# deployments don't have to pull them in.
+structlog>=24.1.0
+redis[hiredis]>=5.0.0
+
+# Dev / test only.
+# fakeredis>=2.21.0
+# pytest>=8.0.0
+# pytest-asyncio>=0.23.0

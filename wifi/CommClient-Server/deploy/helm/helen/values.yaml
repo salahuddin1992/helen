@@ -1,0 +1,318 @@
+# =============================================================================
+# Helen Helm Chart — Default values
+# =============================================================================
+#
+# All settings can be overridden via:
+#   helm install helen ./helen -f my-values.yaml
+#   helm upgrade helen ./helen --set server.replicas=3
+#
+# Production deployments SHOULD override:
+#   - image.registry to a private LAN registry
+#   - auth.jwtSecret to a strong random value
+#   - persistence.storageClass to your cluster's storage class
+#   - ingress.hostname to your operator-controlled hostname
+#   - resources to match your sizing
+# =============================================================================
+
+# ---- Global ----------------------------------------------------------------
+global:
+  # Image registry — point to LAN registry in production
+  imageRegistry: "registry.helen.lan"
+  imagePullSecrets: []
+  # Storage class for persistent volumes (set to null for default)
+  storageClass: null
+  # Deploy to an air-gapped cluster? (disables anything that needs internet)
+  airgap: true
+  # Common annotations applied to every resource
+  annotations: {}
+  labels:
+    app.kubernetes.io/part-of: helen
+
+# ---- Server (main FastAPI backend) -----------------------------------------
+server:
+  enabled: true
+  image:
+    repository: helen/server
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  service:
+    type: ClusterIP
+    port: 3000
+    annotations: {}
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    hostname: helen.lan
+    tls:
+      enabled: true
+      secretName: helen-tls
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  livenessProbe:
+    httpGet:
+      path: /api/admin/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /api/admin/health
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  startupProbe:
+    httpGet:
+      path: /api/admin/health
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 60
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  podAntiAffinity: soft  # "soft" | "hard" | "none"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  env:
+    HELEN_DATA_DIR: "/data"
+    HELEN_LAN_ONLY_STRICT: "1"
+    HELEN_LICENSE_KEY_DIR: "/data/billing-keys"
+    HELEN_PLUGINS_DIR: "/data/plugins"
+    HELEN_PLUGIN_BUNDLE_CACHE: "/data/plugin-bundles"
+    HELEN_PLUGIN_SANDBOX_DIR: "/data/plugin-sandbox"
+    HELEN_CA_PINNING_STORE: "/data/ca_pinning_store.json"
+    LOG_LEVEL: "INFO"
+
+  persistence:
+    enabled: true
+    size: 50Gi
+    accessModes:
+      - ReadWriteOnce
+    storageClass: null  # inherits global.storageClass
+    annotations: {}
+
+# ---- Router (mesh + reverse proxy) -----------------------------------------
+router:
+  enabled: true
+  image:
+    repository: helen/router
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  livenessProbe:
+    httpGet:
+      path: /router/health
+      port: 8080
+    initialDelaySeconds: 20
+    periodSeconds: 30
+
+  podAntiAffinity: hard  # routers should spread
+
+  env:
+    HELEN_ROUTER_LAN_ONLY: "1"
+    HELEN_ROUTER_DATA_DIR: "/data"
+    LOG_LEVEL: "INFO"
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: null
+
+# ---- Rendezvous (NAT-traversal coordinator) --------------------------------
+rendezvous:
+  enabled: false  # off by default; only required for hybrid LAN/WAN deployments
+  image:
+    repository: helen/rendezvous
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  service:
+    type: LoadBalancer  # public endpoint
+    port: 9100
+    tcpRelayPorts: [9101, 9102]
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  env:
+    HELEN_RENDEZVOUS_STORAGE: "redis"
+    HELEN_RENDEZVOUS_TOKEN: ""  # MUST OVERRIDE in production
+
+# ---- Postgres (bundled DB, optional) ---------------------------------------
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  database: helen
+  username: helen
+  passwordSecretName: helen-postgres-credentials
+  passwordSecretKey: password
+  port: 5432
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: null
+
+# ---- Redis (bundled cache + signaling, optional) ---------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  port: 6379
+  passwordSecretName: helen-redis-credentials
+  passwordSecretKey: password
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# ---- TURN (bundled coturn for WebRTC, optional) ----------------------------
+turn:
+  enabled: false
+  image:
+    repository: coturn/coturn
+    tag: "4.6"
+  realm: helen.lan
+  externalIP: ""  # set to public IP if exposing externally
+
+# ---- Authentication --------------------------------------------------------
+auth:
+  jwtSecretName: helen-jwt-secret
+  jwtSecretKey: secret
+  # If you don't provide a Secret, one will be auto-generated at install time
+  autoCreateJwtSecret: true
+  sessionLifetimeHours: 24
+  refreshTokenLifetimeDays: 30
+
+# ---- Monitoring ------------------------------------------------------------
+monitoring:
+  serviceMonitor:
+    enabled: false  # set true if Prometheus Operator is installed
+    interval: 30s
+    scrapeTimeout: 10s
+  prometheusRule:
+    enabled: false  # creates alerting rules
+
+# ---- Network policies ------------------------------------------------------
+networkPolicy:
+  enabled: true
+  # Restrict egress: in air-gap mode, deny everything except LAN ranges
+  allowedEgressCIDRs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - 169.254.0.0/16
+
+# ---- Pod security ----------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# ---- Service account -------------------------------------------------------
+serviceAccount:
+  create: true
+  name: helen
+  annotations: {}
+
+# ---- RBAC ------------------------------------------------------------------
+rbac:
+  create: true
+
+# ---- ConfigMaps ------------------------------------------------------------
+configMaps:
+  # Extra ConfigMaps to mount into /etc/helen/
+  extra: []
+  # Example:
+  # extra:
+  #   - name: helen-custom-config
+  #     mountPath: /etc/helen/custom.yaml
+  #     subPath: custom.yaml

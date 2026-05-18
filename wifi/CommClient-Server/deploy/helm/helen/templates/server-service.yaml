@@ -1,0 +1,42 @@
+{{- if .Values.server.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "helen.server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with .Values.server.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "helen.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+---
+{{- if .Values.server.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "helen.server.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  accessModes:
+    {{- toYaml .Values.server.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.server.persistence.size }}
+  {{- include "helen.storageClass" (dict "storageClass" .Values.server.persistence.storageClass "Values" .Values) | nindent 2 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Helen Admin
+GenericName=Helen Administration Console
+Comment=LAN communication platform admin dashboard
+Comment[ar]=لوحة إدارة منصة Helen للاتصال على الشبكة المحلية
+Exec=helen-admin %U
+Icon=helen-admin
+Terminal=false
+Categories=Network;System;RemoteAccess;
+Keywords=helen;admin;lan;chat;voice;video;
+StartupNotify=true
+StartupWMClass=Helen-Admin

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Helen — Use phone as camera</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font: 15px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
+  header { padding: 14px 16px env(safe-area-inset-top) 16px; padding-top: max(14px, env(safe-area-inset-top)); text-align: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  header .sub { margin-top: 2px; font-size: 12px; color: #888; }
+  #stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #000; }
+  video { width: 100%; height: 100%; object-fit: cover; background: #000; transform: scaleX(-1); }
+  video.back { transform: none; }
+  #status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; z-index: 2; pointer-events: none; }
+  #status.hidden { display: none; }
+  #status .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
+  #status .msg { font-size: 15px; max-width: 300px; line-height: 1.4; }
+  #status .err { color: #ff5c5c; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) 14px; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); display: flex; gap: 10px; justify-content: center; align-items: center; }
+  button { flex: 1; max-width: 140px; padding: 14px 12px; font-size: 14px; font-weight: 600; color: #fff; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; cursor: pointer; touch-action: manipulation; user-select: none; transition: background 0.1s, transform 0.05s; }
+  button:active { transform: scale(0.97); background: rgba(255,255,255,0.2); }
+  button.danger { background: rgba(255,60,60,0.2); border-color: rgba(255,60,60,0.4); }
+  button.primary { background: #007aff; border-color: #007aff; }
+  button[disabled] { opacity: 0.35; pointer-events: none; }
+  .pill { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgba(0,0,0,0.6); letter-spacing: 0.3px; z-index: 3; }
+  .pill.live { background: rgba(220, 38, 38, 0.9); }
+  .pill.live::before { content: ""; display: inline-block; width: 6px; height: 6px; background: #fff; border-radius: 50%; margin-right: 6px; vertical-align: middle; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Helen · Phone Camera</h1>
+  <div class="sub" id="sub">Preparing…</div>
+</header>
+
+<div id="stage">
+  <span class="pill" id="pill">idle</span>
+  <video id="preview" autoplay playsinline muted></video>
+  <div id="status">
+    <div class="spinner"></div>
+    <div class="msg" id="statusMsg">Connecting…</div>
+  </div>
+</div>
+
+<footer>
+  <button id="flipBtn" disabled>Flip</button>
+  <button id="micBtn" disabled>Mute</button>
+  <button id="endBtn" class="danger" disabled>End</button>
+</footer>
+
+<script>
+(() => {
+  const qs = new URLSearchParams(location.search);
+  const pairToken = qs.get('t');
+  const statusEl = document.getElementById('status');
+  const statusMsg = document.getElementById('statusMsg');
+  const sub = document.getElementById('sub');
+  const pill = document.getElementById('pill');
+  const video = document.getElementById('preview');
+  const flipBtn = document.getElementById('flipBtn');
+  const micBtn = document.getElementById('micBtn');
+  const endBtn = document.getElementById('endBtn');
+
+  let stream = null;
+  let facing = 'user';
+  let micMuted = false;
+  let socket = null;
+  let wakeLock = null;
+  let ended = false;
+  let pc = null;           // RTCPeerConnection to owner's desktop
+  let desktopSid = null;   // target desktop sid once we have a partner
+
+  function showStatus(msg, err = false) {
+    statusMsg.textContent = msg;
+    statusMsg.className = 'msg' + (err ? ' err' : '');
+    statusEl.classList.remove('hidden');
+  }
+  function hideStatus() { statusEl.classList.add('hidden'); }
+  function setPill(text, live = false) {
+    pill.textContent = text;
+    pill.className = 'pill' + (live ? ' live' : '');
+  }
+  function fatal(msg) { showStatus(msg, true); sub.textContent = 'Error'; }
+
+  async function acquireWakeLock() {
+    try {
+      if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    } catch (_) { /* ignore */ }
+  }
+
+  async function getStream() {
+    const constraints = {
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+    };
+    const s = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = s;
+    video.classList.toggle('back', facing === 'environment');
+    return s;
+  }
+
+  async function claimToken() {
+    if (!pairToken) throw new Error('Missing pair token in URL');
+    const res = await fetch('/api/pair/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pair_token: pairToken }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('Pair token rejected (' + res.status + '). ' + body);
+    }
+    return res.json();
+  }
+
+  function sendSignal(signal) {
+    if (!socket || !socket.connected) return;
+    socket.emit('pair:signal', { target_sid: desktopSid || undefined, signal });
+  }
+
+  async function startPeerConnection() {
+    if (pc) { try { pc.close(); } catch (_) {} pc = null; }
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      bundlePolicy: 'max-bundle',
+    });
+    if (stream) stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal({ type: 'ice', candidate: e.candidate.toJSON() });
+    };
+    pc.onconnectionstatechange = () => {
+      const st = pc.connectionState;
+      if (st === 'connected') setPill('LIVE', true);
+      else if (st === 'failed' || st === 'disconnected') setPill(st);
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignal({ type: 'offer', sdp: offer.sdp });
+  }
+
+  async function replaceStreamTracks() {
+    if (!pc || !stream) return;
+    const senders = pc.getSenders();
+    for (const track of stream.getTracks()) {
+      const sender = senders.find(s => s.track && s.track.kind === track.kind);
+      if (sender) await sender.replaceTrack(track);
+      else pc.addTrack(track, stream);
+    }
+  }
+
+  async function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function isSecureMediaOrigin() {
+    // Safari only grants camera/mic on https, localhost, or 127.0.0.1.
+    // Everything else (plain http over LAN IP) fails with a misleading error.
+    if (window.isSecureContext) return true;
+    const h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+  }
+
+  /** Probe /api/discovery for an https_url so we can auto-upgrade an HTTP
+   *  visit to HTTPS transparently. The server now ships a self-signed cert
+   *  on 3443 by default, so this should succeed on any fresh install.
+   *  Returns null if HTTPS isn't available on this server. */
+  async function detectHttpsEndpoint() {
+    try {
+      const r = await fetch('/api/discovery', { signal: AbortSignal.timeout(2500) });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.https_url || null;
+    } catch { return null; }
+  }
+
+  async function start() {
+    try {
+      if (!pairToken) return fatal('This page must be opened from the pair QR code.');
+      if (!isSecureMediaOrigin()) {
+        sub.textContent = 'Switching to HTTPS…';
+        showStatus('Upgrading to HTTPS for camera access');
+        const httpsBase = await detectHttpsEndpoint();
+        if (httpsBase) {
+          // One-shot redirect carrying the pair token over. Safari/Chrome
+          // will warn about the self-signed cert on first visit; accepting
+          // the warning grants camera access per iOS/Android Web policy.
+          const target = httpsBase + '/pair?t=' + encodeURIComponent(pairToken);
+          window.location.replace(target);
+          return;
+        }
+        return fatal(
+          'Safari needs HTTPS (or localhost) to access the camera. The ' +
+          'server did not advertise an HTTPS endpoint — ask your operator ' +
+          'to enable HTTPS (it is on by default on current Helen builds).',
+        );
+      }
+      showStatus('Requesting access…');
+
+      stream = await getStream();
+      sub.textContent = 'Camera ready';
+
+      showStatus('Claiming pair token…');
+      const { access_token, user_id } = await claimToken();
+
+      showStatus('Connecting to server…');
+      await loadScript('https://cdn.socket.io/4.7.5/socket.io.min.js');
+      if (!window.io) throw new Error('Socket.IO failed to load');
+
+      socket = window.io(location.origin, {
+        transports: ['websocket'],
+        auth: { token: access_token },
+        reconnection: true,
+      });
+
+      socket.on('connect', async () => {
+        sub.textContent = 'Linked · ' + user_id.slice(0, 8);
+        setPill('LIVE', true);
+        hideStatus();
+        flipBtn.disabled = false;
+        micBtn.disabled = false;
+        endBtn.disabled = false;
+        socket.emit('pair:device_online', {
+          label: 'Phone camera',
+          user_agent: navigator.userAgent || '',
+        });
+        await startPeerConnection();
+      });
+
+      socket.on('connect_error', (e) => {
+        showStatus('Connection error: ' + (e?.message || 'unknown'), true);
+      });
+
+      socket.on('disconnect', () => {
+        if (ended) return;
+        setPill('reconnecting');
+        showStatus('Reconnecting…');
+      });
+
+      socket.on('pair:signal', async (msg) => {
+        try {
+          const sig = msg?.signal;
+          if (!sig || !pc) return;
+          if (!desktopSid && msg.from_sid) desktopSid = msg.from_sid;
+          if (sig.type === 'answer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(sig));
+          } else if (sig.type === 'offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(sig));
+            const ans = await pc.createAnswer();
+            await pc.setLocalDescription(ans);
+            sendSignal({ type: 'answer', sdp: ans.sdp });
+          } else if (sig.type === 'ice' && sig.candidate) {
+            try { await pc.addIceCandidate(sig.candidate); } catch (_) {}
+          }
+        } catch (e) { console.warn('pair:signal error', e); }
+      });
+
+      await acquireWakeLock();
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && !wakeLock) await acquireWakeLock();
+      });
+    } catch (e) {
+      console.error(e);
+      fatal(e.message || String(e));
+    }
+  }
+
+  flipBtn.addEventListener('click', async () => {
+    flipBtn.disabled = true;
+    try {
+      facing = facing === 'user' ? 'environment' : 'user';
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = await getStream();
+      await replaceStreamTracks();
+    } catch (e) { showStatus('Flip failed: ' + e.message, true); }
+    flipBtn.disabled = false;
+  });
+
+  micBtn.addEventListener('click', () => {
+    if (!stream) return;
+    micMuted = !micMuted;
+    stream.getAudioTracks().forEach(t => (t.enabled = !micMuted));
+    micBtn.textContent = micMuted ? 'Unmute' : 'Mute';
+    micBtn.classList.toggle('primary', micMuted);
+  });
+
+  endBtn.addEventListener('click', () => {
+    ended = true;
+    try { if (pc) pc.close(); } catch (_) {}
+    try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+    try { socket && socket.disconnect(); } catch (_) {}
+    try { wakeLock && wakeLock.release(); } catch (_) {}
+    setPill('ended');
+    sub.textContent = 'Ended';
+    flipBtn.disabled = micBtn.disabled = endBtn.disabled = true;
+    showStatus('You can close this tab.');
+  });
+
+  start();
+})();
+</script>
+</body>
+</html>

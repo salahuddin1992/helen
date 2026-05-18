@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<!--
+  Phase 3 / Module Q — Update / release admin module.
+  Version matrix + upload form + deploy/rollout panel + release log.
+-->
+<style>
+  :root { --up-fg:#e4e7eb; --up-bg2:#171f27; --up-border:#222e3a;
+          --up-accent:#5aa9ff; --up-ok:#46d39a; --up-warn:#ffb347; --up-danger:#ff5f6d; }
+  .up-wrap { color:var(--up-fg); font-family:system-ui,sans-serif; padding:18px;
+             display:flex; flex-direction:column; gap:14px; }
+  .up-card { background:var(--up-bg2); border:1px solid var(--up-border);
+             border-radius:12px; padding:18px; }
+  .up-h { display:flex; justify-content:space-between; align-items:center;
+          margin-bottom:14px; }
+  .up-btn { background:var(--up-accent); color:#0a1018; border:none;
+            padding:9px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .up-btn.secondary { background:#2a3340; color:var(--up-fg); }
+  .up-btn.ok { background:var(--up-ok); color:#0a1018; }
+  .up-input, .up-select, .up-textarea {
+    background:#0a1018; color:var(--up-fg);
+    border:1px solid var(--up-border); border-radius:6px;
+    padding:7px 9px; box-sizing:border-box;
+  }
+  table.up-tbl { width:100%; border-collapse:collapse; }
+  table.up-tbl th, table.up-tbl td {
+    padding:8px 10px; border-bottom:1px solid var(--up-border); text-align:left;
+  }
+  table.up-tbl th { font-size:12px; text-transform:uppercase; opacity:.7; }
+  .up-pill { display:inline-block; padding:2px 10px; border-radius:99px;
+             font-size:11px; background:#2a3340; }
+  .up-pill.stable { background:#23402d; color:#94e3b3; }
+  .up-pill.beta { background:#3b3a23; color:#e8d094; }
+  .up-pill.nightly { background:#402323; color:#e89494; }
+  .up-pill.deployed { background:#243a55; color:#9ec8ff; }
+  code.up-mono { font-family:Consolas, monospace; background:#0a1018;
+                 padding:2px 6px; border-radius:4px; font-size:12px; }
+</style>
+
+<div class="up-wrap">
+  <div class="up-card">
+    <div class="up-h"><h2 style="margin:0;">Version Matrix</h2>
+      <button class="up-btn secondary" onclick="UP.refresh()">Refresh</button></div>
+    <table class="up-tbl" id="up-matrix"></table>
+  </div>
+
+  <div class="up-card">
+    <h2 style="margin:0 0 14px 0;">Upload Release</h2>
+    <form id="up-form" enctype="multipart/form-data"
+          style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+      <select class="up-select" name="component">
+        <option>server</option><option>desktop</option><option>admin</option><option>agent</option>
+      </select>
+      <select class="up-select" name="channel">
+        <option>stable</option><option>beta</option><option>nightly</option>
+      </select>
+      <input class="up-input" name="version" placeholder="1.3.0" />
+      <input class="up-input" type="file" name="file" />
+      <textarea class="up-textarea" name="notes" rows="2" placeholder="Release notes…"
+                style="grid-column:span 4;"></textarea>
+      <button class="up-btn" type="submit" style="grid-column:span 4;">Upload</button>
+    </form>
+  </div>
+
+  <div class="up-card">
+    <h2 style="margin:0 0 14px 0;">Releases</h2>
+    <table class="up-tbl" id="up-releases"></table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const api = (p, opts={}) => {
+    if (typeof apiFetch === 'function') return apiFetch(p, opts);
+    const t = localStorage.getItem('accessToken') || '';
+    const headers = { ...(opts.headers||{}), 'Authorization': 'Bearer ' + t };
+    if (opts.body && !(opts.body instanceof FormData))
+      headers['Content-Type'] = 'application/json';
+    return fetch(p, { ...opts, headers });
+  };
+
+  async function refresh() {
+    const m = await (await api('/api/admin/updates/manifest')).json();
+    const rows = (m.components||[]).map(c => `
+      <tr>
+        <td><strong>${escapeHtml(c.component)}</strong></td>
+        <td><code class="up-mono">${escapeHtml(c.version||'unknown')}</code></td>
+        <td>${escapeHtml(c.sha256||'—')}</td>
+      </tr>`).join('');
+    document.getElementById('up-matrix').innerHTML =
+      `<tr><th>Component</th><th>Version</th><th>SHA-256</th></tr>${rows}`;
+
+    const releases = await (await api('/api/admin/updates/releases')).json();
+    const relRows = (releases||[]).map(r => `
+      <tr>
+        <td><code class="up-mono">${escapeHtml(r.id)}</code></td>
+        <td>${escapeHtml(r.component)}</td>
+        <td><span class="up-pill ${r.channel}">${r.channel}</span></td>
+        <td>${escapeHtml(r.version)}</td>
+        <td>${fmtBytes(r.size_bytes)}</td>
+        <td>${escapeHtml(r.uploaded_at)}</td>
+        <td>${r.deployed ? '<span class="up-pill deployed">deployed</span>' :
+            `<button class="up-btn ok" onclick="UP.deploy('${escapeAttr(r.id)}','${escapeAttr(r.channel)}')">Deploy</button>`}</td>
+      </tr>`).join('');
+    document.getElementById('up-releases').innerHTML =
+      `<tr><th>ID</th><th>Component</th><th>Channel</th><th>Version</th>
+       <th>Size</th><th>Uploaded</th><th></th></tr>${relRows}`;
+  }
+
+  async function deploy(id, channel) {
+    if (!confirm(`Deploy release ${id} to ${channel}?`)) return;
+    const r = await api('/api/admin/updates/deploy',
+      { method:'POST', body:JSON.stringify({ release_id:id, target_channel:channel }) });
+    if (!r.ok) return alert(await r.text());
+    refresh();
+  }
+
+  document.getElementById('up-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(ev.target);
+    const r = await api('/api/admin/updates/upload', { method:'POST', body: fd });
+    if (!r.ok) return alert(await r.text());
+    (ev.target).reset();
+    refresh();
+  });
+
+  const fmtBytes = b => {
+    const u = ['B','KB','MB','GB','TB']; let i = 0;
+    while (b >= 1024 && i < u.length-1) { b/=1024; i++; }
+    return b.toFixed(b<10?1:0) + ' ' + u[i];
+  };
+  function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/'/g, '%27'); }
+
+  window.UP = { refresh, deploy };
+  refresh();
+})();
+</script>
+
+</script>
+</body>
+</html>

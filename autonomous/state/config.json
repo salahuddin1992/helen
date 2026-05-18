@@ -1,0 +1,31 @@
+{
+  "model": "claude-opus-4-7",
+  "reset_every": 25,
+  "max_fail_streak": 5,
+  "long_fail_sleep": 600,
+  "inter_cycle_s": 5,
+  "hang_timeout_s": 7200,
+  "hard_timeout_s": 21600,
+  "keep_display_awake": false,
+  "use_powershell_host": true,
+  "notify_webhook": "",
+  "notify_on_failure_only": true,
+  "auto_pause_on_low_battery": true,
+  "self_prompt_mode": "rotate",
+  "extra_claude_flags": [],
+  "allow_dangerous_permissions": false,
+  "safe_mode": true,
+  "fs_allowlist": [
+    "C:\\Users\\youse\\c\\autonomous",
+    "C:\\Users\\youse\\c\\tests",
+    "C:\\Users\\youse\\c\\docs",
+    "C:\\Users\\youse\\c\\tools"
+  ],
+  "dry_run": false,
+  "git_auto_commit_enabled": false,
+  "require_signed_plugins": true,
+  "dashboard_require_auth": true,
+  "dashboard_bind_loopback_only": true,
+  "redact_secrets_in_logs": true,
+  "allow_modify_existing_files": false
+}

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Permissive CSP for LAN-only deployments. Helen never reaches the
+       public internet at runtime and the server already enforces JWT
+       auth, so allowing any HTTP/HTTPS/WS connect-src removes the
+       'Failed to fetch' breakage for users on hostnames outside the
+       static RFC1918 ranges. The Electron main process emits a
+       matching CSP header so the two don't intersect to a tighter
+       policy than intended. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: http: https: data: blob:; media-src 'self' blob: http: https:; img-src 'self' data: blob: http: https:; font-src 'self' data:;" />
+  <title>Helen</title>
+  <!-- Google Fonts intentionally removed: this is a LAN/WiFi-only app and
+       must not require internet access. System fonts (sans-serif fallback)
+       are used for both Latin and Arabic text via the Tailwind config. -->
+</head>
+<body class="bg-surface-950 text-white overflow-hidden select-none">
+  <div id="root"></div>
+  <script type="module" src="/src/renderer/main.tsx"></script>
+</body>
+</html>

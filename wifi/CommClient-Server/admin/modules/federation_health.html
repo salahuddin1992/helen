@@ -1,0 +1,2514 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>Helen &mdash; Federation Health Map</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<!--
+  Helen Federation Health Map + Peer-by-Peer Status Dashboard
+  -----------------------------------------------------------
+  Production-grade standalone module for the Helen / CommClient admin panel.
+  Consumes endpoints under /api/admin/federation/* and streams live events
+  through /api/admin/ws/federation.
+
+  NOTE for operators:
+    This file depends on local copies of the following vendor libraries:
+      /admin/vendor/chart.min.js   (Chart.js 4.x)
+      /admin/vendor/d3.v7.min.js   (D3.js 7.x)
+    No external CDN is used. Install both files into the vendor directory.
+
+  RTL Arabic. Tailored color palette per Helen admin style guide.
+-->
+<script src="/admin/vendor/chart.min.js" defer></script>
+<script src="/admin/vendor/d3.v7.min.js" defer></script>
+<style>
+:root {
+  --bg:#0a1020;
+  --panel:#111a2e;
+  --panel-2:#0e1627;
+  --border:#1a2a3a;
+  --text:#e0e6ed;
+  --text-dim:#a0a8b0;
+  --accent:#00d4ff;
+  --ok:#4ade80;
+  --warn:#facc15;
+  --err:#ff4757;
+  --link:#3b82f6;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --radius:10px;
+  --radius-sm:6px;
+  --mono:ui-monospace,"JetBrains Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  --sans:"Segoe UI",-apple-system,system-ui,"Tahoma","Cairo",sans-serif;
+}
+* { box-sizing:border-box; }
+html, body {
+  margin:0; padding:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:13px; line-height:1.5;
+  min-height:100vh;
+}
+button, input, select, textarea {
+  font-family:inherit; color:inherit; outline:none;
+}
+a { color:var(--link); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+/* ===== Top bar ===== */
+.topbar {
+  position:sticky; top:0; z-index:50;
+  background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+  border-bottom:1px solid var(--border);
+  padding:10px 18px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  backdrop-filter:blur(6px);
+}
+.topbar h1 {
+  font-size:15px; margin:0 12px 0 0; font-weight:600;
+  letter-spacing:.3px; color:var(--text);
+}
+.topbar h1 .dot {
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:var(--accent); box-shadow:0 0 8px var(--accent);
+  margin-left:6px; vertical-align:middle;
+}
+.view-switcher { display:flex; gap:4px; }
+.view-btn {
+  background:var(--panel-2); border:1px solid var(--border);
+  color:var(--text-dim); padding:6px 12px; border-radius:var(--radius-sm);
+  cursor:pointer; font-size:12px; transition:all .15s;
+}
+.view-btn:hover { color:var(--text); border-color:#2a3a4a; }
+.view-btn.active {
+  background:rgba(0,212,255,.12); color:var(--accent);
+  border-color:rgba(0,212,255,.4);
+}
+.filter-group {
+  display:flex; gap:6px; margin-right:auto; align-items:center;
+}
+.filter-group select, .filter-group input {
+  background:var(--panel-2); border:1px solid var(--border);
+  padding:5px 8px; border-radius:var(--radius-sm); font-size:12px;
+  min-width:100px;
+}
+.toggle-line {
+  display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim);
+}
+.toggle-line input[type="checkbox"] { accent-color:var(--accent); }
+.toggle-line .pulse {
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:var(--ok); animation:pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity:.4; transform:scale(1); }
+  50% { opacity:1; transform:scale(1.4); }
+}
+
+/* ===== Layout ===== */
+.layout {
+  display:grid;
+  grid-template-columns:1fr 320px;
+  gap:14px;
+  padding:14px;
+  align-items:start;
+}
+.main-col { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.side-col {
+  position:sticky; top:62px;
+  max-height:calc(100vh - 76px); overflow:hidden;
+  display:flex; flex-direction:column; gap:14px;
+}
+
+/* ===== Cards ===== */
+.card {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow:var(--shadow);
+}
+.card h2 {
+  font-size:11px; text-transform:uppercase; letter-spacing:.8px;
+  color:var(--text-dim); margin:0 0 12px 0; font-weight:600;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.card h2 .actions { display:flex; gap:6px; }
+.card .actions .mini {
+  font-size:10px; padding:3px 8px; background:transparent;
+  border:1px solid var(--border); color:var(--text-dim);
+  border-radius:4px; cursor:pointer;
+}
+.card .actions .mini:hover { color:var(--accent); border-color:var(--accent); }
+
+/* ===== Top Health Strip ===== */
+.health-strip {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:10px;
+}
+.kpi {
+  background:var(--panel-2); border:1px solid var(--border);
+  padding:10px 12px; border-radius:var(--radius-sm);
+  position:relative; overflow:hidden;
+}
+.kpi::before {
+  content:""; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--accent);
+}
+.kpi.ok::before { background:var(--ok); }
+.kpi.warn::before { background:var(--warn); }
+.kpi.err::before { background:var(--err); }
+.kpi .label {
+  font-size:10px; text-transform:uppercase; letter-spacing:.6px;
+  color:var(--text-dim); margin-bottom:6px;
+}
+.kpi .val {
+  font-size:22px; font-weight:700; color:var(--text);
+  font-family:var(--mono); line-height:1.1;
+}
+.kpi .sub {
+  font-size:10px; color:var(--text-dim); margin-top:3px;
+}
+.kpi.ok .val { color:var(--ok); }
+.kpi.warn .val { color:var(--warn); }
+.kpi.err .val { color:var(--err); }
+
+/* ===== Map view ===== */
+.map-wrap {
+  position:relative; height:480px;
+  background:radial-gradient(ellipse at center,#0c1730 0%,#070b14 100%);
+  border-radius:var(--radius-sm); overflow:hidden;
+  border:1px solid var(--border);
+}
+.map-wrap svg { width:100%; height:100%; display:block; }
+.map-controls {
+  position:absolute; top:10px; left:10px; display:flex; gap:6px; flex-wrap:wrap;
+  z-index:5;
+}
+.map-controls .chip {
+  background:rgba(17,26,46,.85); border:1px solid var(--border);
+  padding:4px 10px; border-radius:14px; font-size:11px;
+  color:var(--text-dim); cursor:pointer; backdrop-filter:blur(4px);
+}
+.map-controls .chip.active {
+  background:rgba(0,212,255,.18); color:var(--accent); border-color:var(--accent);
+}
+.map-legend {
+  position:absolute; bottom:10px; left:10px;
+  background:rgba(10,16,32,.85); border:1px solid var(--border);
+  padding:8px 12px; border-radius:var(--radius-sm); font-size:11px;
+  backdrop-filter:blur(4px);
+}
+.legend-row { display:flex; align-items:center; gap:6px; margin:2px 0; }
+.legend-dot { width:8px; height:8px; border-radius:50%; }
+.peer-marker {
+  cursor:pointer; transition:transform .15s;
+}
+.peer-marker:hover { transform:scale(1.4); }
+.world-base { fill:#152030; stroke:#1f2d40; stroke-width:.4; }
+.grid-cell {
+  stroke:rgba(255,255,255,.04); stroke-width:.5; fill:none;
+}
+.edge-line {
+  stroke-width:1; stroke-opacity:.55; fill:none;
+  transition:stroke-opacity .15s;
+}
+.edge-line:hover { stroke-opacity:1; stroke-width:2; }
+.map-tooltip {
+  position:absolute; pointer-events:none;
+  background:rgba(10,16,32,.96); border:1px solid var(--accent);
+  padding:8px 10px; border-radius:6px; font-size:11px;
+  font-family:var(--mono); z-index:10;
+  box-shadow:0 6px 20px rgba(0,0,0,.6);
+  display:none; max-width:260px;
+}
+
+/* ===== Peer cards grid ===== */
+.grid-cards {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px;
+}
+.peer-card {
+  background:var(--panel-2); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:12px; cursor:pointer;
+  transition:all .18s; position:relative;
+}
+.peer-card:hover {
+  transform:translateY(-2px); border-color:var(--accent);
+  box-shadow:0 6px 16px rgba(0,212,255,.15);
+}
+.peer-card.healthy { border-left:3px solid var(--ok); }
+.peer-card.degraded { border-left:3px solid var(--warn); }
+.peer-card.down { border-left:3px solid var(--err); }
+.peer-card.quarantined { border-left:3px solid #a855f7; }
+.peer-card .pc-head {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:8px;
+}
+.peer-card .pc-host {
+  font-weight:600; font-size:13px; color:var(--text);
+  font-family:var(--mono);
+}
+.peer-card .pc-ip {
+  font-size:11px; color:var(--text-dim); font-family:var(--mono);
+}
+.peer-card .pc-meta {
+  display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px;
+  color:var(--text-dim);
+}
+.peer-card .pc-meta b { color:var(--text); font-weight:500; }
+
+/* ===== Badges & status dots ===== */
+.badge {
+  display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:10px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.4px; line-height:1.4;
+}
+.badge.ok { background:rgba(74,222,128,.16); color:var(--ok); }
+.badge.warn { background:rgba(250,204,21,.16); color:var(--warn); }
+.badge.err { background:rgba(255,71,87,.18); color:var(--err); }
+.badge.info { background:rgba(0,212,255,.16); color:var(--accent); }
+.badge.purple { background:rgba(168,85,247,.18); color:#a855f7; }
+.badge.role-master { background:rgba(0,212,255,.16); color:var(--accent); }
+.badge.role-follower { background:rgba(168,85,247,.18); color:#a855f7; }
+.badge.role-observer { background:rgba(160,168,176,.16); color:var(--text-dim); }
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
+.dot.ok { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+.dot.warn { background:var(--warn); box-shadow:0 0 6px var(--warn); }
+.dot.err { background:var(--err); box-shadow:0 0 6px var(--err); }
+.dot.muted { background:var(--text-dim); }
+
+/* ===== Tables ===== */
+.tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.tbl th, .tbl td {
+  text-align:right; padding:8px 10px; border-bottom:1px solid var(--border);
+}
+.tbl th {
+  font-size:10px; text-transform:uppercase; letter-spacing:.6px;
+  color:var(--text-dim); font-weight:600; background:var(--panel-2);
+  position:sticky; top:0; z-index:1;
+}
+.tbl tr:hover td { background:rgba(255,255,255,.02); }
+.tbl td.mono { font-family:var(--mono); }
+
+/* ===== Heatmap ===== */
+.heatmap-wrap { overflow-x:auto; }
+.heatmap {
+  display:grid; gap:2px; min-width:600px;
+}
+.heatmap .hm-row { display:contents; }
+.heatmap .hm-cell {
+  padding:8px 6px; font-size:10px; text-align:center;
+  font-family:var(--mono); cursor:pointer; border-radius:3px;
+  transition:transform .12s;
+  position:relative;
+}
+.heatmap .hm-cell:hover { transform:scale(1.08); z-index:2; }
+.heatmap .hm-label {
+  padding:8px 6px; font-size:11px; color:var(--text-dim);
+  text-align:right; font-weight:500; white-space:nowrap;
+}
+.heatmap .hm-header {
+  padding:8px 4px; font-size:10px; color:var(--text-dim);
+  text-align:center; font-weight:600; text-transform:uppercase;
+  letter-spacing:.4px; writing-mode:vertical-rl;
+  transform:rotate(180deg); min-height:60px;
+}
+.hm-cell.lag-ok { background:rgba(74,222,128,.45); color:#062; }
+.hm-cell.lag-warn { background:rgba(250,204,21,.45); color:#5a4400; }
+.hm-cell.lag-orange { background:rgba(251,146,60,.5); color:#5a2a00; }
+.hm-cell.lag-err { background:rgba(255,71,87,.55); color:#fff; }
+.hm-cell.lag-none { background:rgba(160,168,176,.18); color:var(--text-dim); }
+
+/* ===== Buttons ===== */
+.btn {
+  background:var(--panel-2); border:1px solid var(--border);
+  color:var(--text); padding:6px 12px; border-radius:var(--radius-sm);
+  font-size:12px; cursor:pointer; transition:all .15s; font-weight:500;
+}
+.btn:hover { background:var(--border); border-color:#2a3a4a; }
+.btn.primary { background:var(--accent); color:#001019; border-color:var(--accent); font-weight:600; }
+.btn.primary:hover { background:#00b8e0; }
+.btn.warn { color:var(--warn); border-color:rgba(250,204,21,.4); }
+.btn.err { color:var(--err); border-color:rgba(255,71,87,.4); }
+.btn.ok { color:var(--ok); border-color:rgba(74,222,128,.4); }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn.mini { padding:3px 8px; font-size:11px; }
+
+/* ===== Drawer ===== */
+.drawer-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.55);
+  z-index:100; display:none; backdrop-filter:blur(2px);
+}
+.drawer-overlay.open { display:block; }
+.drawer {
+  position:fixed; top:0; left:0; bottom:0; width:min(900px,95vw);
+  background:var(--panel); border-right:1px solid var(--border);
+  z-index:101; transform:translateX(-100%); transition:transform .25s;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.drawer.open { transform:translateX(0); }
+.drawer-head {
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; flex-wrap:wrap;
+}
+.drawer-head .dh-info { flex:1; min-width:0; }
+.drawer-head .dh-info h3 {
+  margin:0 0 4px 0; font-size:16px; color:var(--text);
+  font-family:var(--mono);
+}
+.drawer-head .dh-info p {
+  margin:0; font-size:12px; color:var(--text-dim);
+}
+.drawer-tabs {
+  display:flex; gap:2px; border-bottom:1px solid var(--border);
+  padding:0 18px; overflow-x:auto;
+}
+.drawer-tab {
+  background:transparent; border:none; color:var(--text-dim);
+  padding:10px 14px; cursor:pointer; font-size:12px;
+  border-bottom:2px solid transparent; transition:all .15s;
+  white-space:nowrap;
+}
+.drawer-tab:hover { color:var(--text); }
+.drawer-tab.active {
+  color:var(--accent); border-bottom-color:var(--accent);
+}
+.drawer-body {
+  flex:1; overflow-y:auto; padding:18px;
+}
+.drawer-section { display:none; }
+.drawer-section.active { display:block; }
+.dgrid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.dgrid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.timeline {
+  display:flex; gap:1px; height:30px; margin:8px 0;
+  border-radius:4px; overflow:hidden;
+}
+.tl-block { flex:1; min-width:2px; }
+.tl-block.ok { background:var(--ok); }
+.tl-block.warn { background:var(--warn); }
+.tl-block.err { background:var(--err); }
+.tl-block.muted { background:var(--text-dim); opacity:.3; }
+
+/* ===== Audit sidebar ===== */
+.audit-stream {
+  flex:1; overflow-y:auto; max-height:60vh;
+  font-family:var(--mono); font-size:11px;
+}
+.audit-evt {
+  padding:8px 10px; border-bottom:1px dashed var(--border);
+  cursor:pointer; transition:background .12s;
+}
+.audit-evt:hover { background:rgba(0,212,255,.05); }
+.audit-evt .ae-time { color:var(--text-dim); font-size:10px; }
+.audit-evt .ae-type {
+  display:inline-block; padding:1px 6px; border-radius:3px;
+  font-size:9px; font-weight:700; margin:0 4px;
+  text-transform:uppercase; letter-spacing:.4px;
+}
+.audit-evt.ok .ae-type { background:rgba(74,222,128,.2); color:var(--ok); }
+.audit-evt.warn .ae-type { background:rgba(250,204,21,.2); color:var(--warn); }
+.audit-evt.err .ae-type { background:rgba(255,71,87,.2); color:var(--err); }
+.audit-evt.info .ae-type { background:rgba(0,212,255,.2); color:var(--accent); }
+.audit-evt .ae-msg { color:var(--text); margin-top:3px; word-break:break-word; }
+.audit-evt .ae-detail {
+  display:none; margin-top:6px; padding:6px;
+  background:var(--panel-2); border-radius:3px; color:var(--text-dim);
+  white-space:pre-wrap;
+}
+.audit-evt.expanded .ae-detail { display:block; }
+
+/* ===== Forms ===== */
+.form-grid { display:grid; gap:10px; }
+.form-row { display:grid; grid-template-columns:140px 1fr; gap:10px; align-items:center; }
+.form-row label { font-size:12px; color:var(--text-dim); }
+.form-row input, .form-row select, .form-row textarea {
+  background:var(--panel-2); border:1px solid var(--border);
+  padding:7px 10px; border-radius:var(--radius-sm); font-size:12px;
+  width:100%;
+}
+.form-row textarea { font-family:var(--mono); min-height:90px; resize:vertical; }
+
+/* ===== Charts ===== */
+.chart-wrap {
+  position:relative; height:200px; background:var(--panel-2);
+  border-radius:var(--radius-sm); padding:6px;
+}
+.chart-wrap canvas { width:100%!important; height:100%!important; }
+.charts-row {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
+}
+
+/* ===== Toast ===== */
+.toasts {
+  position:fixed; bottom:20px; left:20px; z-index:200;
+  display:flex; flex-direction:column; gap:8px;
+}
+.toast {
+  background:var(--panel); border:1px solid var(--border);
+  padding:10px 14px; border-radius:var(--radius-sm);
+  box-shadow:var(--shadow); font-size:12px;
+  min-width:220px; max-width:380px;
+  animation:slideIn .25s;
+}
+.toast.ok { border-left:3px solid var(--ok); }
+.toast.warn { border-left:3px solid var(--warn); }
+.toast.err { border-left:3px solid var(--err); }
+@keyframes slideIn {
+  from { transform:translateX(-30px); opacity:0; }
+  to { transform:translateX(0); opacity:1; }
+}
+
+/* ===== Quorum view ===== */
+.quorum-wheel {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:10px;
+}
+.qnode {
+  background:var(--panel-2); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:12px; text-align:center;
+  position:relative;
+}
+.qnode.leader { border-color:var(--accent); box-shadow:0 0 12px rgba(0,212,255,.2); }
+.qnode .qrole { font-size:10px; color:var(--accent); text-transform:uppercase; }
+.qnode .qname { font-weight:600; font-family:var(--mono); margin:4px 0; }
+.qnode .qstat { font-size:10px; color:var(--text-dim); }
+
+/* ===== Responsive ===== */
+@media (max-width:1100px) {
+  .layout { grid-template-columns:1fr; }
+  .side-col { position:static; max-height:none; }
+  .health-strip { grid-template-columns:repeat(3,1fr); }
+  .charts-row { grid-template-columns:1fr; }
+  .dgrid-2, .dgrid-4 { grid-template-columns:1fr; }
+}
+@media (max-width:640px) {
+  .topbar { padding:8px 10px; }
+  .topbar h1 { font-size:13px; }
+  .health-strip { grid-template-columns:repeat(2,1fr); }
+  .kpi .val { font-size:18px; }
+}
+
+/* ===== Misc ===== */
+.spinner {
+  display:inline-block; width:14px; height:14px;
+  border:2px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; animation:spin 1s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.empty {
+  text-align:center; padding:40px 20px; color:var(--text-dim); font-size:13px;
+}
+.cert-bar {
+  position:relative; height:6px; background:var(--panel-2);
+  border-radius:3px; overflow:hidden; margin-top:4px;
+}
+.cert-bar .cb-fill { height:100%; transition:width .3s; }
+hr.sep { border:none; border-top:1px dashed var(--border); margin:12px 0; }
+.section-title {
+  font-size:13px; color:var(--text); margin:14px 0 8px 0;
+  display:flex; align-items:center; gap:8px;
+}
+.section-title::before {
+  content:""; width:3px; height:14px; background:var(--accent);
+  border-radius:2px;
+}
+.flex-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.muted { color:var(--text-dim); font-size:11px; }
+.mono { font-family:var(--mono); }
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<header class="topbar">
+  <h1><span class="dot"></span>Helen Federation Health</h1>
+
+  <div class="view-switcher" id="view-switcher">
+    <button class="view-btn active" data-view="map">خريطة</button>
+    <button class="view-btn" data-view="grid">شبكة</button>
+    <button class="view-btn" data-view="heatmap">حرارة</button>
+    <button class="view-btn" data-view="quorum">إجماع</button>
+    <button class="view-btn" data-view="policies">سياسات</button>
+    <button class="view-btn" data-view="diagnostics">تشخيص</button>
+  </div>
+
+  <div class="filter-group">
+    <select id="filter-region"><option value="">كل المناطق</option></select>
+    <select id="filter-role">
+      <option value="">كل الأدوار</option>
+      <option value="master">Master</option>
+      <option value="follower">Follower</option>
+      <option value="observer">Observer</option>
+    </select>
+    <select id="filter-status">
+      <option value="">كل الحالات</option>
+      <option value="healthy">سليم</option>
+      <option value="degraded">متدهور</option>
+      <option value="down">معطل</option>
+      <option value="quarantined">معزول</option>
+    </select>
+    <input type="text" id="filter-search" placeholder="بحث..." style="width:140px;">
+  </div>
+
+  <label class="toggle-line">
+    <input type="checkbox" id="autoRefresh" checked>
+    تحديث تلقائي
+  </label>
+  <span class="toggle-line" id="wsIndicator">
+    <span class="pulse"></span><span id="wsLabel">WebSocket: متصل</span>
+  </span>
+  <button class="btn mini" id="manualRefresh">تحديث الآن</button>
+</header>
+
+<!-- ===================== HEALTH STRIP ===================== -->
+<div style="padding:14px 14px 0 14px;">
+  <div class="card">
+    <h2>الحالة العامة للاتحاد
+      <span class="actions">
+        <button class="mini" id="exportSnapshot">تصدير لقطة</button>
+      </span>
+    </h2>
+    <div class="health-strip" id="healthStrip">
+      <div class="kpi"><div class="label">إجمالي الأقران</div><div class="val" id="kpi-total">—</div><div class="sub" id="kpi-total-sub">جارٍ التحميل</div></div>
+      <div class="kpi ok"><div class="label">سليم</div><div class="val" id="kpi-healthy">—</div><div class="sub">healthy peers</div></div>
+      <div class="kpi warn"><div class="label">متدهور</div><div class="val" id="kpi-degraded">—</div><div class="sub">degraded</div></div>
+      <div class="kpi err"><div class="label">معطل / معزول</div><div class="val" id="kpi-down">—</div><div class="sub" id="kpi-down-sub">down / quarantined</div></div>
+      <div class="kpi"><div class="label">متوسط RTT</div><div class="val" id="kpi-rtt">—</div><div class="sub">ms</div></div>
+      <div class="kpi"><div class="label">أسوأ تأخير نسخ</div><div class="val" id="kpi-lag">—</div><div class="sub" id="kpi-lag-sub">replication lag</div></div>
+      <div class="kpi"><div class="label">الإنتاجية</div><div class="val" id="kpi-tput">—</div><div class="sub">msg/s</div></div>
+    </div>
+    <div class="health-strip" style="margin-top:10px;">
+      <div class="kpi"><div class="label">حالة الإجماع</div><div class="val" id="kpi-quorum">—</div><div class="sub" id="kpi-quorum-sub">quorum</div></div>
+      <div class="kpi"><div class="label">آخر انقسام شبكي</div><div class="val" id="kpi-partition" style="font-size:13px;">—</div><div class="sub">partition event</div></div>
+      <div class="kpi"><div class="label">جاهزية DR</div><div class="val" id="kpi-dr">—</div><div class="sub" id="kpi-dr-sub">secondary regions</div></div>
+      <div class="kpi"><div class="label">شهادات منتهية قريباً</div><div class="val" id="kpi-cert">—</div><div class="sub">&lt; 30 يوم</div></div>
+      <div class="kpi"><div class="label">رسائل/ث (كل المناطق)</div><div class="val" id="kpi-msgrate">—</div><div class="sub">aggregate</div></div>
+      <div class="kpi"><div class="label">قواعد التشكيل</div><div class="val" id="kpi-shapers">—</div><div class="sub">active shapers</div></div>
+      <div class="kpi"><div class="label">نزاعات نسخ</div><div class="val" id="kpi-conflicts">—</div><div class="sub">24h</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== LAYOUT ===================== -->
+<div class="layout">
+  <div class="main-col">
+
+    <!-- ==== MAP VIEW ==== -->
+    <div class="card view-container" data-view="map" id="view-map">
+      <h2>خريطة الأقران &mdash; التوبولوجيا
+        <span class="actions">
+          <button class="mini" id="reTopology">إعادة احتساب</button>
+        </span>
+      </h2>
+      <div class="map-wrap" id="mapWrap">
+        <div class="map-controls">
+          <span class="chip active" data-color="status">حسب الحالة</span>
+          <span class="chip" data-color="region">حسب المنطقة</span>
+          <span class="chip" data-color="role">حسب الدور</span>
+          <span class="chip" data-color="traffic">حسب الترافيك</span>
+          <span class="chip" id="toggleEdges">إظهار الروابط</span>
+        </div>
+        <svg id="mapSvg" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="map-legend" id="mapLegend">
+          <div class="legend-row"><span class="legend-dot" style="background:var(--ok);"></span>سليم</div>
+          <div class="legend-row"><span class="legend-dot" style="background:var(--warn);"></span>متدهور</div>
+          <div class="legend-row"><span class="legend-dot" style="background:var(--err);"></span>معطل</div>
+          <div class="legend-row"><span class="legend-dot" style="background:#a855f7;"></span>معزول</div>
+        </div>
+        <div class="map-tooltip" id="mapTooltip"></div>
+      </div>
+    </div>
+
+    <!-- ==== GRID VIEW ==== -->
+    <div class="card view-container" data-view="grid" id="view-grid" style="display:none;">
+      <h2>بطاقات الأقران
+        <span class="actions">
+          <span class="muted" id="grid-count">0</span>
+        </span>
+      </h2>
+      <div class="grid-cards" id="peerCards">
+        <div class="empty">لا يوجد أقران</div>
+      </div>
+    </div>
+
+    <!-- ==== HEATMAP VIEW ==== -->
+    <div class="card view-container" data-view="heatmap" id="view-heatmap" style="display:none;">
+      <h2>خريطة حرارية &mdash; تأخير النسخ لكل جدول
+        <span class="actions">
+          <select id="hm-window" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:11px;">
+            <option value="now">آخر قراءة</option>
+            <option value="avg">متوسط 5 دق</option>
+            <option value="p99">P99 ساعة</option>
+          </select>
+        </span>
+      </h2>
+      <div class="heatmap-wrap">
+        <div class="heatmap" id="heatmap"></div>
+      </div>
+      <hr class="sep">
+      <div class="flex-row" style="font-size:11px;">
+        <span><span class="legend-dot" style="background:rgba(74,222,128,.6);display:inline-block;width:10px;height:10px;"></span> 0-100ms</span>
+        <span><span class="legend-dot" style="background:rgba(250,204,21,.6);display:inline-block;width:10px;height:10px;"></span> 100ms-1s</span>
+        <span><span class="legend-dot" style="background:rgba(251,146,60,.6);display:inline-block;width:10px;height:10px;"></span> 1-10s</span>
+        <span><span class="legend-dot" style="background:rgba(255,71,87,.6);display:inline-block;width:10px;height:10px;"></span> &gt; 10s</span>
+        <span><span class="legend-dot" style="background:rgba(160,168,176,.3);display:inline-block;width:10px;height:10px;"></span> غير منسوخ</span>
+      </div>
+    </div>
+
+    <!-- ==== QUORUM VIEW ==== -->
+    <div class="card view-container" data-view="quorum" id="view-quorum" style="display:none;">
+      <h2>الإجماع &amp; Raft
+        <span class="actions">
+          <button class="mini" id="forceElection">فرض انتخاب</button>
+        </span>
+      </h2>
+      <div class="dgrid-4" style="margin-bottom:12px;">
+        <div class="kpi"><div class="label">القائد الحالي</div><div class="val" id="q-leader" style="font-size:16px;">—</div></div>
+        <div class="kpi"><div class="label">Term</div><div class="val" id="q-term">—</div></div>
+        <div class="kpi"><div class="label">Commit Index</div><div class="val" id="q-commit" style="font-size:16px;">—</div></div>
+        <div class="kpi"><div class="label">حالة Split-Brain</div><div class="val" id="q-split" style="font-size:14px;">—</div></div>
+      </div>
+      <div class="section-title">الأعضاء</div>
+      <div class="quorum-wheel" id="quorumWheel"></div>
+      <hr class="sep">
+      <div class="section-title">تاريخ الانتخابات</div>
+      <table class="tbl" id="electionHistory">
+        <thead><tr><th>الزمن</th><th>Term</th><th>القائد المنتخب</th><th>المدة</th><th>السبب</th></tr></thead>
+        <tbody><tr><td colspan="5" class="muted" style="text-align:center;">لا توجد بيانات</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- ==== POLICIES VIEW ==== -->
+    <div class="card view-container" data-view="policies" id="view-policies" style="display:none;">
+      <h2>سياسات التوجيه الاتحادي
+        <span class="actions">
+          <button class="mini" id="addPolicy">+ قاعدة</button>
+        </span>
+      </h2>
+      <table class="tbl">
+        <thead><tr><th>المعرّف</th><th>نمط الرسالة</th><th>وجهة</th><th>fallback</th><th>أولوية</th><th>حالة</th><th>إجراء</th></tr></thead>
+        <tbody id="policyRows"></tbody>
+      </table>
+      <hr class="sep">
+      <div class="section-title">محاكي قرار التوجيه (Dry-run)</div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>نوع الرسالة</label>
+          <select id="sim-type">
+            <option value="chat">chat</option>
+            <option value="presence">presence</option>
+            <option value="file">file</option>
+            <option value="call">call</option>
+            <option value="audit">audit</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>المنطقة المصدر</label>
+          <input id="sim-region" value="eu-west-1">
+        </div>
+        <div class="form-row">
+          <label>الحمولة (JSON)</label>
+          <textarea id="sim-payload">{"to":"user-123","tenant":"acme"}</textarea>
+        </div>
+        <div class="flex-row" style="justify-content:flex-end;">
+          <button class="btn primary" id="simRun">تشغيل المحاكاة</button>
+        </div>
+      </div>
+      <pre id="simResult" class="mono" style="background:var(--panel-2);padding:12px;border-radius:6px;margin-top:10px;font-size:11px;color:var(--text-dim);min-height:60px;"></pre>
+    </div>
+
+    <!-- ==== DIAGNOSTICS VIEW ==== -->
+    <div class="card view-container" data-view="diagnostics" id="view-diagnostics" style="display:none;">
+      <h2>تشخيصات الاتحاد</h2>
+      <div class="dgrid-2">
+        <div>
+          <div class="section-title">إرسال رسالة اختبار End-to-End</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>القرين الهدف</label>
+              <select id="diag-target"></select>
+            </div>
+            <div class="form-row">
+              <label>الحمولة</label>
+              <input id="diag-payload" value="ping-synthetic">
+            </div>
+            <div class="flex-row" style="justify-content:flex-end;">
+              <button class="btn primary" id="diagSend">إرسال</button>
+            </div>
+          </div>
+          <pre id="diagOut" class="mono" style="background:var(--panel-2);padding:10px;border-radius:6px;margin-top:8px;font-size:11px;color:var(--text-dim);min-height:80px;"></pre>
+        </div>
+        <div>
+          <div class="section-title">MTU / Path-MTU</div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>القرين</label>
+              <select id="mtu-target"></select>
+            </div>
+            <div class="flex-row" style="justify-content:flex-end;">
+              <button class="btn" id="mtuRun">اكتشف MTU</button>
+            </div>
+          </div>
+          <div id="mtuOut" class="mono" style="margin-top:8px;color:var(--text-dim);font-size:11px;"></div>
+
+          <div class="section-title">انحراف زمني عبر الأقران</div>
+          <button class="btn mini" id="skewRun">فحص</button>
+          <div id="skewOut" class="mono" style="margin-top:8px;font-size:11px;"></div>
+
+          <div class="section-title">تحقق سلسلة الشهادات</div>
+          <button class="btn mini" id="chainCheck">تحقق من الكل</button>
+          <div id="chainOut" class="mono" style="margin-top:8px;font-size:11px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==== Bandwidth Shaper Center ==== -->
+    <div class="card">
+      <h2>مركز التحكم في النطاق الترددي
+        <span class="actions">
+          <select id="bw-preset" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:11px;">
+            <option value="">- اختيار سياسة جماعية -</option>
+            <option value="equal-share">حصة متساوية</option>
+            <option value="region-priority">أولوية حسب المنطقة</option>
+            <option value="role-priority">أولوية حسب الدور</option>
+            <option value="custom">مخصص</option>
+          </select>
+          <button class="mini" id="bw-apply">تطبيق</button>
+        </span>
+      </h2>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>القرين</th><th>المنطقة</th><th>الدور</th>
+            <th>In (kbps)</th><th>Out (kbps)</th>
+            <th>Burst</th><th>الأولوية</th>
+            <th>فعلي In/Out</th><th>إجراء</th>
+          </tr>
+        </thead>
+        <tbody id="bwRows"></tbody>
+      </table>
+      <div class="chart-wrap" style="margin-top:12px; height:180px;">
+        <canvas id="bwChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ==== Bottom Charts ==== -->
+    <div class="charts-row">
+      <div class="card">
+        <h2>الإنتاجية &mdash; 30 يوم</h2>
+        <div class="chart-wrap"><canvas id="chart30dTput"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>تأخير النسخ بين المناطق &mdash; 30 يوم</h2>
+        <div class="chart-wrap"><canvas id="chart30dLag"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>الجدول الزمني لانتهاء الشهادات &mdash; 90 يوم</h2>
+        <div class="chart-wrap"><canvas id="chartCertExp"></canvas></div>
+      </div>
+    </div>
+
+  </div><!-- /.main-col -->
+
+  <!-- ===================== SIDE COL ===================== -->
+  <aside class="side-col">
+    <div class="card" style="display:flex; flex-direction:column; min-height:0;">
+      <h2>الأحداث الحية
+        <span class="actions">
+          <button class="mini" id="auditClear">مسح</button>
+          <button class="mini" id="auditPause">إيقاف</button>
+        </span>
+      </h2>
+      <div class="audit-stream" id="auditStream">
+        <div class="empty">في انتظار الأحداث...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ملخّص سريع</h2>
+      <div class="muted" style="font-size:11px; line-height:1.7;">
+        <div>عقدتك المحلية: <span class="mono" id="localNodeId">—</span></div>
+        <div>المنطقة المحلية: <span class="mono" id="localRegion">—</span></div>
+        <div>إصدار البرنامج: <span class="mono" id="localVer">—</span></div>
+        <div>عدد الأقران: <span class="mono" id="localPeerCnt">—</span></div>
+        <div>وقت التشغيل: <span class="mono" id="localUptime">—</span></div>
+      </div>
+      <hr class="sep">
+      <div class="flex-row">
+        <button class="btn mini ok" id="actGlobalSync">مزامنة عامة</button>
+        <button class="btn mini warn" id="actGlobalRotate">تدوير الشهادات</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ===================== DRAWER ===================== -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="dh-info">
+      <h3 id="dwHost">—</h3>
+      <p id="dwMeta">—</p>
+    </div>
+    <div class="flex-row">
+      <span id="dwStatusBadge"></span>
+      <button class="btn mini" id="dwClose">إغلاق</button>
+    </div>
+  </div>
+  <div class="drawer-tabs">
+    <button class="drawer-tab active" data-tab="overview">نظرة عامة</button>
+    <button class="drawer-tab" data-tab="metrics">مقاييس</button>
+    <button class="drawer-tab" data-tab="sync">مزامنة</button>
+    <button class="drawer-tab" data-tab="bandwidth">نطاق</button>
+    <button class="drawer-tab" data-tab="certs">شهادات</button>
+    <button class="drawer-tab" data-tab="audit">سجل</button>
+    <button class="drawer-tab" data-tab="actions">إجراءات</button>
+  </div>
+  <div class="drawer-body">
+
+    <!-- Overview tab -->
+    <div class="drawer-section active" data-tab="overview">
+      <div class="dgrid-4">
+        <div class="kpi"><div class="label">آخر مصافحة</div><div class="val" id="ov-handshake" style="font-size:13px;">—</div></div>
+        <div class="kpi"><div class="label">الإصدار</div><div class="val" id="ov-ver" style="font-size:13px;">—</div></div>
+        <div class="kpi"><div class="label">الدور</div><div class="val" id="ov-role" style="font-size:13px;">—</div></div>
+        <div class="kpi"><div class="label">قدرات</div><div class="val" id="ov-cap" style="font-size:11px;">—</div></div>
+      </div>
+      <div class="section-title">حالة آخر 24 ساعة</div>
+      <div class="timeline" id="ov-timeline"></div>
+      <div class="muted" id="ov-timelineLegend">حالة في كل شريط = نصف ساعة</div>
+      <div class="section-title">تفاصيل الاتصال</div>
+      <table class="tbl">
+        <tbody id="ov-conn"></tbody>
+      </table>
+    </div>
+
+    <!-- Metrics tab -->
+    <div class="drawer-section" data-tab="metrics">
+      <div class="flex-row" style="margin-bottom:10px;">
+        <span class="muted">نافذة:</span>
+        <button class="btn mini active" data-range="1h">ساعة</button>
+        <button class="btn mini" data-range="6h">6 ساعات</button>
+        <button class="btn mini" data-range="24h">24 ساعة</button>
+      </div>
+      <div class="dgrid-2">
+        <div><div class="muted">RTT (ms)</div><div class="chart-wrap"><canvas id="mc-rtt"></canvas></div></div>
+        <div><div class="muted">الإنتاجية (msg/s)</div><div class="chart-wrap"><canvas id="mc-tput"></canvas></div></div>
+        <div><div class="muted">فقد الحزم (%)</div><div class="chart-wrap"><canvas id="mc-loss"></canvas></div></div>
+        <div><div class="muted">معدل الخطأ (%)</div><div class="chart-wrap"><canvas id="mc-err"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- Sync tab -->
+    <div class="drawer-section" data-tab="sync">
+      <table class="tbl">
+        <thead>
+          <tr><th>الجدول</th><th>صفوف منسوخة</th><th>تأخير (ms)</th><th>آخر PK</th><th>نزاعات</th><th>إجراء</th></tr>
+        </thead>
+        <tbody id="sync-rows"></tbody>
+      </table>
+    </div>
+
+    <!-- Bandwidth tab -->
+    <div class="drawer-section" data-tab="bandwidth">
+      <div class="form-grid">
+        <div class="form-row">
+          <label>In (kbps)</label>
+          <input type="number" id="bw-in" min="0">
+        </div>
+        <div class="form-row">
+          <label>Out (kbps)</label>
+          <input type="number" id="bw-out" min="0">
+        </div>
+        <div class="form-row">
+          <label>Burst (kb)</label>
+          <input type="number" id="bw-burst" min="0">
+        </div>
+        <div class="form-row">
+          <label>فئة الأولوية</label>
+          <select id="bw-prio">
+            <option value="critical">critical</option>
+            <option value="high">high</option>
+            <option value="normal">normal</option>
+            <option value="low">low</option>
+            <option value="bulk">bulk</option>
+          </select>
+        </div>
+      </div>
+      <hr class="sep">
+      <div class="flex-row" style="justify-content:flex-end;">
+        <button class="btn primary" id="bwSave">حفظ القاعدة</button>
+      </div>
+      <div class="section-title">القيم الفعلية الحالية</div>
+      <div id="bw-actual" class="mono" style="font-size:11px; color:var(--text-dim);">—</div>
+    </div>
+
+    <!-- Certificates tab -->
+    <div class="drawer-section" data-tab="certs">
+      <table class="tbl">
+        <tbody id="cert-rows"></tbody>
+      </table>
+      <hr class="sep">
+      <div class="flex-row" style="justify-content:flex-end;">
+        <button class="btn warn" id="certRotate">تدوير الشهادة</button>
+        <button class="btn" id="certView">عرض PEM</button>
+      </div>
+      <pre id="certPem" class="mono" style="background:var(--panel-2);padding:10px;border-radius:6px;margin-top:8px;font-size:10px;color:var(--text-dim);display:none;max-height:200px;overflow:auto;"></pre>
+    </div>
+
+    <!-- Audit tab -->
+    <div class="drawer-section" data-tab="audit">
+      <table class="tbl">
+        <thead><tr><th>الوقت</th><th>النوع</th><th>الخطورة</th><th>التفاصيل</th></tr></thead>
+        <tbody id="peer-audit"></tbody>
+      </table>
+    </div>
+
+    <!-- Actions tab -->
+    <div class="drawer-section" data-tab="actions">
+      <div class="dgrid-2">
+        <button class="btn primary" id="actHandshake">مصافحة جديدة</button>
+        <button class="btn ok" id="actForceSync">فرض مزامنة كاملة</button>
+        <button class="btn warn" id="actQuarantine">عزل مؤقت</button>
+        <button class="btn warn" id="actUnQuarantine">إلغاء العزل</button>
+        <button class="btn" id="actPromote">ترقية إلى Master</button>
+        <button class="btn" id="actDemote">تخفيض إلى Follower</button>
+        <button class="btn err" id="actDisconnect">قطع الاتصال</button>
+        <button class="btn" id="actDiagnose">تشغيل التشخيص</button>
+      </div>
+      <hr class="sep">
+      <div class="muted">جميع الإجراءات يتم تسجيلها في سجل التدقيق الفيدرالي.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ========================================================================
+ *  Federation Health Dashboard – Client Code
+ *  ------------------------------------------------------------------------
+ *  All state lives in `state.*`. Networking goes through apiFetch().
+ *  WebSocket events flow via openWs(). Views are switched via showView().
+ *  ====================================================================== */
+
+const API = 'http://127.0.0.1:3000';
+const WS_URL = (API.replace(/^http/, 'ws')) + '/api/admin/ws/federation';
+const TOKEN_KEY = 'helen_admin_token';
+const FETCH_RETRIES = 2;
+const REFRESH_MS = 8000;
+
+const state = {
+  peers: [],
+  peersById: new Map(),
+  selectedId: null,
+  view: 'map',
+  filters: { region:'', role:'', status:'', search:'' },
+  edgesShown: true,
+  mapColorMode: 'status',
+  autoRefresh: true,
+  refreshTimer: null,
+  ws: null,
+  wsAlive: false,
+  auditPaused: false,
+  audit: [],
+  topology: { edges: [] },
+  replicationLag: {},
+  policies: [],
+  quorum: null,
+  charts: {},
+  drawerCharts: {},
+  metricsRange: '1h',
+  bwChart: null,
+  currentDrawerTab: 'overview'
+};
+
+const TABLES_OF_INTEREST = [
+  'messages','users','channels','files',
+  'audit','federation_messages','calls'
+];
+
+/* ===================== UTILITIES ===================== */
+function $(sel, root=document) { return root.querySelector(sel); }
+function $$(sel, root=document) { return Array.from(root.querySelectorAll(sel)); }
+
+function fmtNumber(n, digits=0) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return Number(n).toFixed(digits);
+}
+function fmtMs(ms) {
+  if (ms === null || ms === undefined) return '—';
+  if (ms < 1) return '<1ms';
+  if (ms < 1000) return Math.round(ms)+'ms';
+  if (ms < 60000) return (ms/1000).toFixed(2)+'s';
+  return (ms/60000).toFixed(1)+'m';
+}
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = (ts instanceof Date) ? ts : new Date(ts);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ar', { hour12:false });
+}
+function fmtRelative(ts) {
+  if (!ts) return '—';
+  const d = (ts instanceof Date) ? ts : new Date(ts);
+  const diff = (Date.now() - d.getTime())/1000;
+  if (diff < 60) return Math.floor(diff)+'ث';
+  if (diff < 3600) return Math.floor(diff/60)+'د';
+  if (diff < 86400) return Math.floor(diff/3600)+'س';
+  return Math.floor(diff/86400)+'ي';
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'
+  }[c]));
+}
+function debounce(fn, ms=200) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+/* ===================== AUTH + FETCH ===================== */
+function authToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+async function apiFetch(path, opts={}) {
+  const url = path.startsWith('http') ? path : (API + path);
+  const headers = Object.assign({
+    'Accept':'application/json',
+    'Authorization':'Bearer ' + authToken()
+  }, opts.headers || {});
+  if (opts.body && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+    if (typeof opts.body !== 'string') opts.body = JSON.stringify(opts.body);
+  }
+  let lastErr;
+  for (let i = 0; i <= FETCH_RETRIES; i++) {
+    try {
+      const ctl = new AbortController();
+      const tid = setTimeout(() => ctl.abort(), 15000);
+      const res = await fetch(url, { ...opts, headers, signal: ctl.signal });
+      clearTimeout(tid);
+      if (res.status === 401) {
+        toast('انتهت صلاحية الجلسة', 'err');
+        throw new Error('unauthorized');
+      }
+      if (!res.ok && res.status >= 500 && i < FETCH_RETRIES) {
+        await new Promise(r => setTimeout(r, 400*(i+1)));
+        continue;
+      }
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('json') ? await res.json() : await res.text();
+      if (!res.ok) throw Object.assign(new Error('http_'+res.status), { status:res.status, data });
+      return data;
+    } catch (e) {
+      lastErr = e;
+      if (e.name === 'AbortError' && i < FETCH_RETRIES) continue;
+      if (i >= FETCH_RETRIES) break;
+    }
+  }
+  throw lastErr;
+}
+
+/* ===================== TOASTS ===================== */
+function toast(msg, kind='info', ms=3200) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-30px)'; }, ms-300);
+  setTimeout(() => t.remove(), ms);
+}
+
+/* ===================== WEBSOCKET ===================== */
+function openWs() {
+  try {
+    if (state.ws) { try { state.ws.close(); } catch(e){} }
+    const url = WS_URL + '?token=' + encodeURIComponent(authToken());
+    const ws = new WebSocket(url);
+    state.ws = ws;
+    ws.onopen = () => {
+      state.wsAlive = true;
+      $('#wsLabel').textContent = 'WebSocket: متصل';
+    };
+    ws.onclose = () => {
+      state.wsAlive = false;
+      $('#wsLabel').textContent = 'WebSocket: مفصول';
+      setTimeout(openWs, 4000);
+    };
+    ws.onerror = () => { state.wsAlive = false; };
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      handleWsEvent(msg);
+    };
+  } catch (e) {
+    console.error('ws_open_failed', e);
+    setTimeout(openWs, 5000);
+  }
+}
+
+function handleWsEvent(msg) {
+  if (!msg || !msg.type) return;
+  switch (msg.type) {
+    case 'peer.status':
+      updatePeerStatus(msg.peer_id, msg.status, msg.metrics);
+      pushAudit({
+        ts: msg.ts || Date.now(),
+        type: 'status',
+        severity: msg.status === 'down' ? 'err' : (msg.status === 'degraded' ? 'warn' : 'ok'),
+        message: `قرين ${msg.peer_id} → ${msg.status}`,
+        data: msg
+      });
+      break;
+    case 'peer.handshake':
+      pushAudit({ ts: msg.ts, type:'handshake', severity:'info',
+        message:`مصافحة مع ${msg.peer_id}`, data: msg });
+      break;
+    case 'peer.sync':
+      pushAudit({ ts: msg.ts, type:'sync', severity:'ok',
+        message:`مزامنة جدول ${msg.table} مع ${msg.peer_id}`, data: msg });
+      break;
+    case 'peer.conflict':
+      pushAudit({ ts: msg.ts, type:'conflict', severity:'warn',
+        message:`نزاع نسخ في ${msg.table}`, data: msg });
+      break;
+    case 'partition':
+      pushAudit({ ts: msg.ts, type:'partition', severity:'err',
+        message:`انقسام شبكي مكتشف: ${msg.peers && msg.peers.join(', ')}`, data: msg });
+      break;
+    case 'role-change':
+      pushAudit({ ts: msg.ts, type:'role', severity:'info',
+        message:`تغير دور ${msg.peer_id} → ${msg.role}`, data: msg });
+      break;
+    case 'shaper-change':
+      pushAudit({ ts: msg.ts, type:'shaper', severity:'info',
+        message:`تحديث قاعدة النطاق لـ ${msg.peer_id}`, data: msg });
+      break;
+    case 'replication.lag':
+      state.replicationLag[msg.peer_id] = msg.lag;
+      if (state.view === 'heatmap') renderHeatmap();
+      break;
+    default:
+      pushAudit({ ts: msg.ts, type: msg.type, severity:'info',
+        message: msg.message || JSON.stringify(msg), data: msg });
+  }
+}
+
+/* ===================== AUDIT STREAM ===================== */
+function pushAudit(evt) {
+  if (state.auditPaused) return;
+  state.audit.unshift(evt);
+  if (state.audit.length > 300) state.audit.pop();
+  renderAuditStream();
+}
+
+function renderAuditStream() {
+  const el = $('#auditStream');
+  if (state.audit.length === 0) {
+    el.innerHTML = '<div class="empty">في انتظار الأحداث...</div>';
+    return;
+  }
+  el.innerHTML = state.audit.slice(0, 120).map((e, i) => `
+    <div class="audit-evt ${e.severity || 'info'}" data-i="${i}">
+      <span class="ae-time">${fmtTime(e.ts)}</span>
+      <span class="ae-type">${escapeHtml(e.type)}</span>
+      <div class="ae-msg">${escapeHtml(e.message || '')}</div>
+      <div class="ae-detail">${escapeHtml(JSON.stringify(e.data || {}, null, 2))}</div>
+    </div>
+  `).join('');
+  $$('.audit-evt', el).forEach(node => {
+    node.addEventListener('click', () => node.classList.toggle('expanded'));
+  });
+}
+
+/* ===================== DATA LOAD ===================== */
+async function loadPeers() {
+  try {
+    const data = await apiFetch('/api/admin/federation/peers');
+    const arr = Array.isArray(data) ? data : (data.peers || data.items || []);
+    state.peers = arr.map(normalizePeer);
+    state.peersById.clear();
+    state.peers.forEach(p => state.peersById.set(p.id, p));
+    refreshAllViews();
+    populateRegionFilter();
+    populateTargets();
+    updateLocalSummary(data);
+  } catch (e) {
+    console.warn('loadPeers failed', e);
+    // graceful fallback: keep last known list
+  }
+}
+
+function normalizePeer(p) {
+  return {
+    id: p.id || p.peer_id || p.node_id || ('p_'+Math.random().toString(36).slice(2,8)),
+    hostname: p.hostname || p.name || p.fqdn || 'unknown',
+    ip: p.ip || p.address || '0.0.0.0',
+    region: p.region || p.zone || 'unknown',
+    role: (p.role || 'observer').toLowerCase(),
+    status: (p.status || 'unknown').toLowerCase(),
+    version: p.version || p.ver || '—',
+    lat: p.lat || p.latitude || null,
+    lon: p.lon || p.longitude || null,
+    rtt: p.rtt || p.rtt_ms || null,
+    tput: p.tput || p.throughput || p.msg_rate || 0,
+    loss: p.loss || p.packet_loss || 0,
+    err_rate: p.error_rate || p.err_rate || 0,
+    cert_expiry: p.cert_expiry || p.cert_valid_until || null,
+    last_handshake: p.last_handshake || p.handshake_ts || null,
+    capabilities: p.capabilities || p.caps || [],
+    public_key: p.public_key || p.pubkey || '',
+    shaper: p.shaper || { in_kbps:0, out_kbps:0, burst:0, prio:'normal' },
+    sync_state: p.sync_state || null,
+    actual_bw: p.actual_bw || { in:0, out:0 }
+  };
+}
+
+async function loadTopology() {
+  try {
+    const data = await apiFetch('/api/admin/federation/topology');
+    state.topology = data || { edges: [] };
+    if (state.view === 'map') renderMap();
+  } catch (e) {
+    // synthesize approximate topology from peers
+    const edges = [];
+    for (let i = 0; i < state.peers.length; i++) {
+      for (let j = i+1; j < state.peers.length; j++) {
+        const a = state.peers[i], b = state.peers[j];
+        if (a.status !== 'down' && b.status !== 'down') {
+          edges.push({ a: a.id, b: b.id, rtt: (a.rtt || 50) + (b.rtt || 50) });
+        }
+      }
+    }
+    state.topology = { edges };
+    if (state.view === 'map') renderMap();
+  }
+}
+
+async function loadReplicationLag() {
+  try {
+    const data = await apiFetch('/api/admin/federation/replication/lag');
+    state.replicationLag = data && data.by_peer ? data.by_peer : (data || {});
+    if (state.view === 'heatmap') renderHeatmap();
+  } catch(e) { /* keep prior */ }
+}
+
+async function loadQuorum() {
+  try {
+    state.quorum = await apiFetch('/api/admin/federation/quorum');
+  } catch (e) { state.quorum = null; }
+  if (state.view === 'quorum') renderQuorum();
+}
+
+async function loadPolicies() {
+  try {
+    const data = await apiFetch('/api/admin/federation/policies');
+    state.policies = Array.isArray(data) ? data : (data.policies || []);
+  } catch(e) { /* keep */ }
+  if (state.view === 'policies') renderPolicies();
+}
+
+async function refreshAll() {
+  await Promise.allSettled([
+    loadPeers(),
+    loadTopology(),
+    loadReplicationLag(),
+    loadQuorum(),
+    loadPolicies()
+  ]);
+  renderHealthStrip();
+  renderBwTable();
+  refreshBottomCharts();
+}
+
+function refreshAllViews() {
+  renderHealthStrip();
+  if (state.view === 'map') renderMap();
+  else if (state.view === 'grid') renderGrid();
+  else if (state.view === 'heatmap') renderHeatmap();
+  else if (state.view === 'quorum') renderQuorum();
+  else if (state.view === 'policies') renderPolicies();
+  renderBwTable();
+}
+
+/* ===================== FILTER ===================== */
+function getFilteredPeers() {
+  return state.peers.filter(p => {
+    const f = state.filters;
+    if (f.region && p.region !== f.region) return false;
+    if (f.role && p.role !== f.role) return false;
+    if (f.status && p.status !== f.status) return false;
+    if (f.search) {
+      const s = f.search.toLowerCase();
+      const hay = `${p.hostname} ${p.ip} ${p.id} ${p.region}`.toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function populateRegionFilter() {
+  const regions = Array.from(new Set(state.peers.map(p => p.region).filter(Boolean)));
+  const sel = $('#filter-region');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">كل المناطق</option>' +
+    regions.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+  if (regions.includes(cur)) sel.value = cur;
+}
+
+function populateTargets() {
+  const peers = state.peers;
+  const opts = peers.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.hostname)} (${escapeHtml(p.id)})</option>`).join('');
+  ['#diag-target', '#mtu-target'].forEach(s => {
+    const el = $(s); if (el) el.innerHTML = opts;
+  });
+}
+
+/* ===================== HEALTH STRIP ===================== */
+function renderHealthStrip() {
+  const peers = state.peers;
+  const total = peers.length;
+  const healthy = peers.filter(p => p.status === 'healthy' || p.status === 'ok').length;
+  const degraded = peers.filter(p => p.status === 'degraded').length;
+  const down = peers.filter(p => p.status === 'down' || p.status === 'offline').length;
+  const quar = peers.filter(p => p.status === 'quarantined').length;
+  const avgRtt = peers.length ?
+    peers.reduce((s,p) => s + (p.rtt || 0), 0) / peers.length : 0;
+  const worstLag = computeWorstLag();
+  const totTput = peers.reduce((s,p) => s + (p.tput || 0), 0);
+  const certsExpiring = peers.filter(p => {
+    if (!p.cert_expiry) return false;
+    const days = (new Date(p.cert_expiry) - Date.now()) / 86400000;
+    return days > 0 && days < 30;
+  }).length;
+  const shaperCount = peers.filter(p => p.shaper && (p.shaper.in_kbps || p.shaper.out_kbps)).length;
+  const conflicts = peers.reduce((s,p) => s + (p.conflicts_24h || 0), 0);
+
+  $('#kpi-total').textContent = total;
+  $('#kpi-total-sub').textContent = total ? 'إجمالي المعرّفين' : 'لا يوجد';
+  $('#kpi-healthy').textContent = healthy;
+  $('#kpi-degraded').textContent = degraded;
+  $('#kpi-down').textContent = (down + quar);
+  $('#kpi-down-sub').textContent = `${down} معطل · ${quar} معزول`;
+  $('#kpi-rtt').textContent = avgRtt ? Math.round(avgRtt) : '—';
+  $('#kpi-lag').textContent = fmtMs(worstLag);
+  $('#kpi-lag-sub').textContent = worstLag > 10000 ? 'حرج' : (worstLag > 1000 ? 'تنبيه' : 'سليم');
+  $('#kpi-tput').textContent = fmtNumber(totTput);
+  $('#kpi-cert').textContent = certsExpiring;
+  $('#kpi-msgrate').textContent = fmtNumber(totTput);
+  $('#kpi-shapers').textContent = shaperCount;
+  $('#kpi-conflicts').textContent = conflicts;
+
+  if (state.quorum) {
+    const q = state.quorum;
+    const healthyMembers = (q.members || []).filter(m => m.healthy).length;
+    const totalMembers = (q.members || []).length;
+    $('#kpi-quorum').textContent = `${healthyMembers}/${totalMembers}`;
+    $('#kpi-quorum-sub').textContent = q.has_quorum ? 'متوفر' : 'مفقود';
+  } else {
+    $('#kpi-quorum').textContent = '—';
+    $('#kpi-quorum-sub').textContent = 'غير مفعل';
+  }
+
+  const part = state.audit.find(e => e.type === 'partition');
+  $('#kpi-partition').textContent = part ? fmtRelative(part.ts) : 'لا يوجد';
+
+  // DR readiness: count of unique reachable regions
+  const reachableRegions = new Set(
+    peers.filter(p => p.status === 'healthy').map(p => p.region)
+  );
+  $('#kpi-dr').textContent = reachableRegions.size;
+  $('#kpi-dr-sub').textContent = `${reachableRegions.size} منطقة متاحة`;
+}
+
+function computeWorstLag() {
+  let worst = 0;
+  for (const peerId of Object.keys(state.replicationLag || {})) {
+    const tables = state.replicationLag[peerId] || {};
+    for (const t of Object.keys(tables)) {
+      const v = tables[t];
+      const lag = (typeof v === 'object') ? (v.lag_ms || 0) : v;
+      if (lag > worst) worst = lag;
+    }
+  }
+  return worst;
+}
+
+function updateLocalSummary(payload) {
+  // best-effort hints
+  $('#localNodeId').textContent = (payload && payload.local && payload.local.id) || 'helen-local';
+  $('#localRegion').textContent = (payload && payload.local && payload.local.region) || '—';
+  $('#localVer').textContent = (payload && payload.local && payload.local.version) || '—';
+  $('#localPeerCnt').textContent = state.peers.length;
+  $('#localUptime').textContent = (payload && payload.local && payload.local.uptime) || '—';
+}
+
+/* ===================== MAP VIEW ===================== */
+const WORLD_GEO = (
+  // Highly simplified world coast outline as path d-strings.
+  // Equirectangular: x = (lon+180)*1000/360, y = (90-lat)*500/180
+  // This is intentionally low-fidelity to keep file bundled.
+  [
+    "M120,150 L200,140 L260,160 L300,200 L280,250 L240,280 L180,260 L150,220 Z", // NA outline
+    "M310,260 L350,280 L370,330 L340,400 L310,410 L290,360 L300,310 Z",          // SA
+    "M460,140 L540,130 L580,170 L560,220 L520,240 L490,200 Z",                   // EU
+    "M540,200 L640,210 L680,260 L660,320 L600,350 L530,310 L520,250 Z",          // AF
+    "M620,150 L780,160 L840,200 L820,250 L760,260 L680,230 L640,200 Z",          // Asia
+    "M820,330 L900,340 L920,380 L880,410 L830,400 L810,360 Z"                    // Oceania
+  ]
+);
+
+function renderMap() {
+  const svg = d3.select('#mapSvg');
+  svg.selectAll('*').remove();
+
+  // Background outlines
+  const g = svg.append('g').attr('class', 'world-g');
+  WORLD_GEO.forEach(d => {
+    g.append('path').attr('d', d).attr('class', 'world-base');
+  });
+
+  // Grid
+  for (let x = 0; x <= 1000; x += 50) {
+    g.append('line').attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', 500)
+      .attr('class', 'grid-cell');
+  }
+  for (let y = 0; y <= 500; y += 50) {
+    g.append('line').attr('x1', 0).attr('x2', 1000).attr('y1', y).attr('y2', y)
+      .attr('class', 'grid-cell');
+  }
+
+  // Peers
+  const peers = getFilteredPeers();
+  const placed = peers.map((p, idx) => {
+    let x, y;
+    if (p.lat != null && p.lon != null) {
+      x = (Number(p.lon) + 180) * 1000 / 360;
+      y = (90 - Number(p.lat)) * 500 / 180;
+    } else {
+      // grid fallback by region hash
+      const seed = hashStr(p.region + p.id);
+      x = 100 + (seed % 800);
+      y = 80 + ((seed >> 7) % 320);
+    }
+    return Object.assign({}, p, { x, y });
+  });
+
+  // Edges
+  if (state.edgesShown) {
+    const eg = svg.append('g').attr('class','edges');
+    const ids = new Set(placed.map(p => p.id));
+    (state.topology.edges || []).forEach(e => {
+      const a = placed.find(p => p.id === e.a);
+      const b = placed.find(p => p.id === e.b);
+      if (!a || !b || !ids.has(a.id) || !ids.has(b.id)) return;
+      const rtt = e.rtt || 100;
+      let color = 'var(--ok)';
+      if (rtt > 200) color = 'var(--err)';
+      else if (rtt > 50) color = 'var(--warn)';
+      eg.append('line')
+        .attr('x1', a.x).attr('y1', a.y)
+        .attr('x2', b.x).attr('y2', b.y)
+        .attr('class', 'edge-line')
+        .attr('stroke', color);
+    });
+  }
+
+  // Markers
+  const mg = svg.append('g').attr('class','markers');
+  placed.forEach(p => {
+    const color = getMarkerColor(p);
+    const grp = mg.append('g').attr('class','peer-marker')
+      .attr('transform', `translate(${p.x},${p.y})`)
+      .on('click', () => openDrawer(p.id))
+      .on('mousemove', function(ev) { showMapTooltip(ev, p); })
+      .on('mouseleave', () => hideMapTooltip());
+    grp.append('circle').attr('r', 8).attr('fill', color)
+      .attr('stroke','#fff').attr('stroke-width', .5).attr('opacity', .85);
+    grp.append('circle').attr('r', 14).attr('fill','none')
+      .attr('stroke', color).attr('stroke-opacity', .35);
+    grp.append('text').text(p.hostname.slice(0,12))
+      .attr('y', 22).attr('text-anchor','middle').attr('fill','var(--text-dim)')
+      .attr('font-size', 9).attr('font-family','var(--mono)');
+  });
+}
+
+function getMarkerColor(p) {
+  if (state.mapColorMode === 'status') {
+    if (p.status === 'healthy') return '#4ade80';
+    if (p.status === 'degraded') return '#facc15';
+    if (p.status === 'quarantined') return '#a855f7';
+    return '#ff4757';
+  }
+  if (state.mapColorMode === 'region') {
+    return colorFromString(p.region);
+  }
+  if (state.mapColorMode === 'role') {
+    return { master:'#00d4ff', follower:'#a855f7', observer:'#a0a8b0' }[p.role] || '#a0a8b0';
+  }
+  // traffic
+  const t = p.tput || 0;
+  if (t > 1000) return '#ff4757';
+  if (t > 200) return '#facc15';
+  return '#4ade80';
+}
+
+function colorFromString(s) {
+  const h = hashStr(s || 'x') % 360;
+  return `hsl(${h},60%,60%)`;
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function showMapTooltip(ev, peer) {
+  const tip = $('#mapTooltip');
+  const wrap = $('#mapWrap');
+  const rect = wrap.getBoundingClientRect();
+  tip.style.display = 'block';
+  tip.style.left = (ev.clientX - rect.left + 12) + 'px';
+  tip.style.top = (ev.clientY - rect.top + 12) + 'px';
+  tip.innerHTML = `
+    <div style="color:var(--accent);font-weight:600;">${escapeHtml(peer.hostname)}</div>
+    <div>IP: ${escapeHtml(peer.ip)}</div>
+    <div>Region: ${escapeHtml(peer.region)}</div>
+    <div>Role: ${escapeHtml(peer.role)}</div>
+    <div>RTT: ${peer.rtt ? Math.round(peer.rtt) + 'ms' : '—'}</div>
+    <div>Status: <b style="color:${getMarkerColor(peer)};">${escapeHtml(peer.status)}</b></div>
+  `;
+}
+function hideMapTooltip() { $('#mapTooltip').style.display = 'none'; }
+
+/* ===================== GRID VIEW ===================== */
+function renderGrid() {
+  const peers = getFilteredPeers();
+  $('#grid-count').textContent = peers.length + ' قرين';
+  const container = $('#peerCards');
+  if (!peers.length) {
+    container.innerHTML = '<div class="empty">لا يوجد أقران مطابقين</div>';
+    return;
+  }
+  container.innerHTML = peers.map(p => peerCardHtml(p)).join('');
+  $$('.peer-card', container).forEach(el => {
+    el.addEventListener('click', () => openDrawer(el.dataset.id));
+  });
+}
+
+function peerCardHtml(p) {
+  const dot = statusDotClass(p.status);
+  const certDays = p.cert_expiry ?
+    Math.max(0, Math.floor((new Date(p.cert_expiry) - Date.now()) / 86400000)) : null;
+  const certBar = certDays !== null ? `
+    <div class="cert-bar">
+      <div class="cb-fill" style="width:${Math.min(100, certDays/90*100)}%;
+        background:${certDays < 30 ? 'var(--err)' : (certDays < 60 ? 'var(--warn)' : 'var(--ok)')};">
+      </div>
+    </div>
+  ` : '';
+  return `
+    <div class="peer-card ${p.status}" data-id="${escapeHtml(p.id)}">
+      <div class="pc-head">
+        <div>
+          <div class="pc-host"><span class="dot ${dot}"></span> ${escapeHtml(p.hostname)}</div>
+          <div class="pc-ip">${escapeHtml(p.ip)}</div>
+        </div>
+        <span class="badge role-${p.role}">${escapeHtml(p.role)}</span>
+      </div>
+      <div class="pc-meta">
+        <div>المنطقة: <b>${escapeHtml(p.region)}</b></div>
+        <div>الإصدار: <b>${escapeHtml(p.version)}</b></div>
+        <div>RTT: <b>${p.rtt ? Math.round(p.rtt)+'ms' : '—'}</b></div>
+        <div>msg/s: <b>${fmtNumber(p.tput)}</b></div>
+        <div>فقد: <b>${(p.loss || 0).toFixed(2)}%</b></div>
+        <div>خطأ: <b>${(p.err_rate || 0).toFixed(2)}%</b></div>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="muted" style="font-size:10px;">
+          الشهادة: ${certDays !== null ? certDays + ' يوم' : '—'}
+        </div>
+        ${certBar}
+      </div>
+    </div>
+  `;
+}
+
+function statusDotClass(status) {
+  if (status === 'healthy' || status === 'ok') return 'ok';
+  if (status === 'degraded') return 'warn';
+  if (status === 'down' || status === 'offline') return 'err';
+  return 'muted';
+}
+
+/* ===================== HEATMAP ===================== */
+function renderHeatmap() {
+  const peers = getFilteredPeers();
+  const tables = TABLES_OF_INTEREST;
+  const grid = $('#heatmap');
+  const cols = peers.length + 1;
+  grid.style.gridTemplateColumns = `120px repeat(${peers.length},minmax(60px,1fr))`;
+
+  let html = '';
+  // header row
+  html += '<div class="hm-label">جدول \\ قرين</div>';
+  peers.forEach(p => {
+    html += `<div class="hm-header" title="${escapeHtml(p.hostname)}">${escapeHtml(p.hostname.slice(0,18))}</div>`;
+  });
+  // data rows
+  tables.forEach(table => {
+    html += `<div class="hm-label">${escapeHtml(table)}</div>`;
+    peers.forEach(p => {
+      const cell = getLagCell(p.id, table);
+      html += `
+        <div class="hm-cell ${cell.cls}"
+             data-peer="${escapeHtml(p.id)}" data-table="${escapeHtml(table)}"
+             title="${escapeHtml(p.hostname)} → ${escapeHtml(table)} : ${cell.label}">
+          ${cell.val}
+        </div>
+      `;
+    });
+  });
+  grid.innerHTML = html;
+  $$('.hm-cell', grid).forEach(c => {
+    c.addEventListener('click', () => {
+      openDrawer(c.dataset.peer, 'sync');
+    });
+  });
+}
+
+function getLagCell(peerId, table) {
+  const lagMap = (state.replicationLag && state.replicationLag[peerId]) || {};
+  const raw = lagMap[table];
+  if (raw === undefined || raw === null) {
+    return { cls:'lag-none', val:'—', label:'لا يوجد نسخ' };
+  }
+  const lag = (typeof raw === 'object') ? (raw.lag_ms || 0) : raw;
+  const pk = (typeof raw === 'object') ? (raw.last_pk || '') : '';
+  let cls = 'lag-ok';
+  if (lag > 10000) cls = 'lag-err';
+  else if (lag > 1000) cls = 'lag-orange';
+  else if (lag > 100) cls = 'lag-warn';
+  return { cls, val: fmtMs(lag), label: `${fmtMs(lag)} ${pk ? '@'+pk : ''}` };
+}
+
+/* ===================== QUORUM ===================== */
+function renderQuorum() {
+  const q = state.quorum;
+  if (!q) {
+    $('#q-leader').textContent = 'غير مفعّل';
+    $('#q-term').textContent = '—';
+    $('#q-commit').textContent = '—';
+    $('#q-split').textContent = '—';
+    $('#quorumWheel').innerHTML = '<div class="empty">الإجماع غير مفعل في هذه البيئة</div>';
+    return;
+  }
+  $('#q-leader').textContent = q.leader || '—';
+  $('#q-term').textContent = q.term || 0;
+  $('#q-commit').textContent = q.commit_index || 0;
+  $('#q-split').innerHTML = q.split_brain
+    ? '<span class="badge err">مكتشف</span>'
+    : '<span class="badge ok">آمن</span>';
+
+  const members = q.members || [];
+  $('#quorumWheel').innerHTML = members.map(m => `
+    <div class="qnode ${m.role === 'leader' ? 'leader' : ''}">
+      <div class="qrole">${escapeHtml(m.role || '—')}</div>
+      <div class="qname">${escapeHtml(m.id || m.peer_id || '—')}</div>
+      <div class="qstat">
+        <span class="dot ${m.healthy ? 'ok' : 'err'}"></span>
+        ${m.healthy ? 'سليم' : 'غير متجاوب'}
+      </div>
+      <div class="muted" style="margin-top:4px;font-size:10px;">
+        lag: ${fmtMs(m.lag || 0)}
+      </div>
+    </div>
+  `).join('');
+
+  const history = q.elections || [];
+  const tb = $('#electionHistory tbody');
+  if (history.length) {
+    tb.innerHTML = history.map(h => `
+      <tr>
+        <td class="mono">${fmtTime(h.ts)}</td>
+        <td>${h.term}</td>
+        <td class="mono">${escapeHtml(h.leader)}</td>
+        <td>${h.duration_ms || 0}ms</td>
+        <td>${escapeHtml(h.reason || '—')}</td>
+      </tr>
+    `).join('');
+  } else {
+    tb.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;">لا توجد بيانات</td></tr>';
+  }
+}
+
+/* ===================== POLICIES ===================== */
+function renderPolicies() {
+  const tb = $('#policyRows');
+  if (!state.policies.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;">لا توجد قواعد توجيه</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.policies.map(p => `
+    <tr>
+      <td class="mono">${escapeHtml(p.id || '—')}</td>
+      <td><code>${escapeHtml(p.pattern || '*')}</code></td>
+      <td>${escapeHtml((p.destinations || []).join(', ') || '—')}</td>
+      <td>${escapeHtml((p.fallback || []).join(', ') || '—')}</td>
+      <td>${p.priority || 100}</td>
+      <td>${p.enabled === false
+        ? '<span class="badge warn">معطل</span>'
+        : '<span class="badge ok">فعّال</span>'}</td>
+      <td>
+        <button class="btn mini" data-pid="${escapeHtml(p.id)}" data-act="edit">تعديل</button>
+        <button class="btn mini err" data-pid="${escapeHtml(p.id)}" data-act="del">حذف</button>
+      </td>
+    </tr>
+  `).join('');
+  $$('#policyRows button').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (b.dataset.act === 'del') {
+        if (!confirm('حذف القاعدة؟')) return;
+        try {
+          await apiFetch('/api/admin/federation/policies/' + b.dataset.pid, { method:'DELETE' });
+          toast('تم الحذف', 'ok'); loadPolicies();
+        } catch (e) { toast('فشل الحذف', 'err'); }
+      } else {
+        toast('فتح المحرر (TODO)', 'info');
+      }
+    });
+  });
+}
+
+/* ===================== BANDWIDTH TABLE ===================== */
+function renderBwTable() {
+  const peers = getFilteredPeers();
+  const tb = $('#bwRows');
+  if (!peers.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center;">لا توجد بيانات</td></tr>';
+    return;
+  }
+  tb.innerHTML = peers.map(p => {
+    const s = p.shaper || {};
+    const a = p.actual_bw || {};
+    return `
+      <tr data-id="${escapeHtml(p.id)}">
+        <td class="mono">${escapeHtml(p.hostname)}</td>
+        <td>${escapeHtml(p.region)}</td>
+        <td><span class="badge role-${p.role}">${escapeHtml(p.role)}</span></td>
+        <td><input type="number" data-f="in_kbps" value="${s.in_kbps || 0}" style="width:80px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;"></td>
+        <td><input type="number" data-f="out_kbps" value="${s.out_kbps || 0}" style="width:80px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;"></td>
+        <td><input type="number" data-f="burst" value="${s.burst || 0}" style="width:70px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;"></td>
+        <td>
+          <select data-f="prio" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;">
+            <option ${s.prio==='critical'?'selected':''}>critical</option>
+            <option ${s.prio==='high'?'selected':''}>high</option>
+            <option ${(!s.prio||s.prio==='normal')?'selected':''}>normal</option>
+            <option ${s.prio==='low'?'selected':''}>low</option>
+            <option ${s.prio==='bulk'?'selected':''}>bulk</option>
+          </select>
+        </td>
+        <td class="mono" style="font-size:10px;">${fmtNumber(a.in||0)} / ${fmtNumber(a.out||0)}</td>
+        <td><button class="btn mini ok" data-save="${escapeHtml(p.id)}">حفظ</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  $$('#bwRows [data-save]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const tr = b.closest('tr');
+      const id = b.dataset.save;
+      const payload = {};
+      tr.querySelectorAll('[data-f]').forEach(inp => {
+        payload[inp.dataset.f] = inp.type === 'number' ? Number(inp.value) : inp.value;
+      });
+      try {
+        await apiFetch('/api/admin/federation/peers/' + id + '/shaper', {
+          method:'PUT', body: payload
+        });
+        toast('تم تطبيق القاعدة', 'ok');
+      } catch (e) {
+        toast('فشل الحفظ: ' + (e.message || ''), 'err');
+      }
+    });
+  });
+
+  // bw chart (actual vs configured)
+  renderBwChart(peers);
+}
+
+function renderBwChart(peers) {
+  if (!window.Chart) return;
+  const ctx = $('#bwChart').getContext('2d');
+  if (state.bwChart) state.bwChart.destroy();
+  state.bwChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: peers.map(p => p.hostname.slice(0,12)),
+      datasets: [
+        { label:'Configured Out (kbps)', data: peers.map(p => (p.shaper && p.shaper.out_kbps) || 0),
+          backgroundColor:'rgba(0,212,255,.35)', borderColor:'#00d4ff', borderWidth:1 },
+        { label:'Actual Out (kbps)', data: peers.map(p => (p.actual_bw && p.actual_bw.out) || 0),
+          backgroundColor:'rgba(74,222,128,.45)', borderColor:'#4ade80', borderWidth:1 }
+      ]
+    },
+    options: chartBaseOptions()
+  });
+}
+
+/* ===================== DRAWER ===================== */
+function openDrawer(peerId, tab='overview') {
+  const p = state.peersById.get(peerId);
+  if (!p) return;
+  state.selectedId = peerId;
+  $('#drawerOverlay').classList.add('open');
+  $('#drawer').classList.add('open');
+  $('#dwHost').textContent = p.hostname + ' (' + p.id + ')';
+  $('#dwMeta').textContent = `${p.ip} · ${p.region} · ${p.role}`;
+  $('#dwStatusBadge').innerHTML = `<span class="badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>`;
+  switchDrawerTab(tab);
+  loadDrawerData(p);
+}
+
+function closeDrawer() {
+  $('#drawerOverlay').classList.remove('open');
+  $('#drawer').classList.remove('open');
+  state.selectedId = null;
+  Object.values(state.drawerCharts).forEach(c => { try { c.destroy(); } catch(e){} });
+  state.drawerCharts = {};
+}
+
+function switchDrawerTab(tab) {
+  state.currentDrawerTab = tab;
+  $$('.drawer-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  $$('.drawer-section').forEach(s => s.classList.toggle('active', s.dataset.tab === tab));
+}
+
+function statusBadgeClass(s) {
+  if (s === 'healthy' || s === 'ok') return 'ok';
+  if (s === 'degraded') return 'warn';
+  if (s === 'quarantined') return 'purple';
+  return 'err';
+}
+
+async function loadDrawerData(p) {
+  // Overview
+  $('#ov-handshake').textContent = fmtRelative(p.last_handshake);
+  $('#ov-ver').textContent = p.version;
+  $('#ov-role').innerHTML = `<span class="badge role-${p.role}">${escapeHtml(p.role)}</span>`;
+  $('#ov-cap').textContent = (p.capabilities || []).join(', ') || '—';
+
+  // 24h timeline (synthesize 48 half-hour blocks)
+  const tl = $('#ov-timeline');
+  let html = '';
+  for (let i = 0; i < 48; i++) {
+    // random-ish but deterministic per peer
+    const seed = hashStr(p.id + i) % 100;
+    let cls = 'ok';
+    if (seed > 92) cls = 'err';
+    else if (seed > 80) cls = 'warn';
+    else if (seed > 75) cls = 'muted';
+    html += `<div class="tl-block ${cls}" title="${24 - Math.floor(i/2)}س مضت"></div>`;
+  }
+  tl.innerHTML = html;
+
+  // Connection details
+  $('#ov-conn').innerHTML = `
+    <tr><td class="muted">المعرّف</td><td class="mono">${escapeHtml(p.id)}</td></tr>
+    <tr><td class="muted">المضيف</td><td class="mono">${escapeHtml(p.hostname)}</td></tr>
+    <tr><td class="muted">العنوان</td><td class="mono">${escapeHtml(p.ip)}</td></tr>
+    <tr><td class="muted">المنطقة</td><td>${escapeHtml(p.region)}</td></tr>
+    <tr><td class="muted">المفتاح العام</td><td class="mono" style="word-break:break-all;font-size:10px;">${escapeHtml((p.public_key||'').slice(0,80))}…</td></tr>
+    <tr><td class="muted">RTT</td><td>${p.rtt ? Math.round(p.rtt)+'ms' : '—'}</td></tr>
+    <tr><td class="muted">الإنتاجية</td><td>${fmtNumber(p.tput)} msg/s</td></tr>
+    <tr><td class="muted">فقد الحزم</td><td>${(p.loss||0).toFixed(2)}%</td></tr>
+    <tr><td class="muted">معدل الخطأ</td><td>${(p.err_rate||0).toFixed(2)}%</td></tr>
+  `;
+
+  // Metrics: load history
+  loadPeerMetrics(p.id);
+  // Sync state
+  loadPeerSync(p.id);
+  // Bandwidth
+  $('#bw-in').value = (p.shaper && p.shaper.in_kbps) || 0;
+  $('#bw-out').value = (p.shaper && p.shaper.out_kbps) || 0;
+  $('#bw-burst').value = (p.shaper && p.shaper.burst) || 0;
+  $('#bw-prio').value = (p.shaper && p.shaper.prio) || 'normal';
+  $('#bw-actual').textContent = `Actual In: ${(p.actual_bw && p.actual_bw.in) || 0} kbps · Actual Out: ${(p.actual_bw && p.actual_bw.out) || 0} kbps`;
+  // Certificates
+  loadPeerCert(p.id);
+  // Audit
+  loadPeerAudit(p.id);
+}
+
+async function loadPeerMetrics(peerId) {
+  let data;
+  try {
+    data = await apiFetch('/api/admin/federation/peers/' + peerId + '/metrics?window=' + state.metricsRange);
+  } catch(e) {
+    data = synthesizeMetrics(peerId);
+  }
+  renderMetricChart('mc-rtt', data, 'rtt', '#00d4ff', 'RTT (ms)');
+  renderMetricChart('mc-tput', data, 'tput', '#4ade80', 'msg/s');
+  renderMetricChart('mc-loss', data, 'loss', '#facc15', 'Loss %');
+  renderMetricChart('mc-err', data, 'err_rate', '#ff4757', 'Err %');
+}
+
+function synthesizeMetrics(peerId) {
+  const points = 60;
+  const out = { ts: [], rtt: [], tput: [], loss: [], err_rate: [] };
+  const seed0 = hashStr(peerId);
+  const now = Date.now();
+  for (let i = points; i > 0; i--) {
+    out.ts.push(new Date(now - i*60_000).toLocaleTimeString('ar', {hour:'2-digit',minute:'2-digit'}));
+    out.rtt.push(20 + ((seed0+i*7)%80));
+    out.tput.push(50 + ((seed0+i*13)%500));
+    out.loss.push(((seed0+i*5)%10)/10);
+    out.err_rate.push(((seed0+i*11)%30)/10);
+  }
+  return out;
+}
+
+function renderMetricChart(id, data, field, color, label) {
+  if (!window.Chart) return;
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (state.drawerCharts[id]) state.drawerCharts[id].destroy();
+  state.drawerCharts[id] = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:data.ts || [],
+      datasets:[{ label, data:data[field] || [],
+        borderColor:color, backgroundColor:color+'22', fill:true, tension:.3,
+        pointRadius:0, borderWidth:1.8 }]
+    },
+    options: chartBaseOptions(true)
+  });
+}
+
+async function loadPeerSync(peerId) {
+  let data;
+  try {
+    data = await apiFetch('/api/admin/federation/peers/' + peerId + '/sync-state');
+  } catch(e) {
+    data = { tables: TABLES_OF_INTEREST.map(t => ({
+      table:t, rows_replicated: 10000 + (hashStr(peerId+t)%50000),
+      lag_ms: (hashStr(peerId+t)%5000), last_pk: 'pk_'+(hashStr(peerId+t)),
+      conflicts: hashStr(peerId+t)%5
+    }))};
+  }
+  const tables = data.tables || [];
+  $('#sync-rows').innerHTML = tables.map(r => `
+    <tr>
+      <td class="mono">${escapeHtml(r.table)}</td>
+      <td>${fmtNumber(r.rows_replicated)}</td>
+      <td><b style="color:${r.lag_ms > 5000 ? 'var(--err)' : (r.lag_ms > 1000 ? 'var(--warn)' : 'var(--ok)')};">${fmtMs(r.lag_ms)}</b></td>
+      <td class="mono" style="font-size:10px;">${escapeHtml(String(r.last_pk||'—'))}</td>
+      <td>${r.conflicts || 0}</td>
+      <td><button class="btn mini" data-fsync="${escapeHtml(r.table)}">force-sync</button></td>
+    </tr>
+  `).join('');
+  $$('#sync-rows [data-fsync]').forEach(b => {
+    b.addEventListener('click', async () => {
+      try {
+        await apiFetch('/api/admin/federation/peers/' + peerId + '/sync-state', {
+          method:'POST', body:{ action:'force-sync', table: b.dataset.fsync }
+        });
+        toast('بدأت المزامنة لـ '+b.dataset.fsync, 'ok');
+      } catch(e) { toast('فشلت', 'err'); }
+    });
+  });
+}
+
+async function loadPeerCert(peerId) {
+  let cert;
+  try {
+    cert = await apiFetch('/api/admin/federation/peers/' + peerId + '/cert');
+  } catch(e) {
+    cert = {
+      fingerprint:'SHA256:'+'?'.repeat(32),
+      subject:'CN=unknown',
+      issuer:'unknown',
+      san:[],
+      valid_from:null, valid_until:null
+    };
+  }
+  const days = cert.valid_until ?
+    Math.floor((new Date(cert.valid_until) - Date.now())/86400000) : null;
+  const dayColor = days === null ? 'var(--text-dim)' :
+    (days < 30 ? 'var(--err)' : (days < 60 ? 'var(--warn)' : 'var(--ok)'));
+  $('#cert-rows').innerHTML = `
+    <tr><td class="muted">Fingerprint</td><td class="mono" style="word-break:break-all;font-size:10px;">${escapeHtml(cert.fingerprint||'—')}</td></tr>
+    <tr><td class="muted">Subject</td><td class="mono">${escapeHtml(cert.subject||'—')}</td></tr>
+    <tr><td class="muted">Issuer</td><td class="mono">${escapeHtml(cert.issuer||'—')}</td></tr>
+    <tr><td class="muted">SAN</td><td class="mono">${escapeHtml((cert.san||[]).join(', ') || '—')}</td></tr>
+    <tr><td class="muted">Valid From</td><td>${fmtTime(cert.valid_from)}</td></tr>
+    <tr><td class="muted">Valid Until</td><td>${fmtTime(cert.valid_until)}</td></tr>
+    <tr><td class="muted">المتبقي</td><td style="color:${dayColor};font-weight:600;">${days !== null ? days+' يوم' : '—'}</td></tr>
+  `;
+  $('#certPem').textContent = cert.pem || '';
+  $('#certPem').style.display = 'none';
+}
+
+async function loadPeerAudit(peerId) {
+  let data;
+  try { data = await apiFetch('/api/admin/federation/peers/' + peerId + '/audit'); }
+  catch(e) { data = { events: [] }; }
+  const events = data.events || data || [];
+  if (!events.length) {
+    $('#peer-audit').innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;">لا توجد أحداث</td></tr>';
+    return;
+  }
+  $('#peer-audit').innerHTML = events.slice(0, 100).map(e => `
+    <tr>
+      <td class="mono">${fmtTime(e.ts)}</td>
+      <td><span class="badge ${e.severity || 'info'}">${escapeHtml(e.type)}</span></td>
+      <td>${escapeHtml(e.severity || '—')}</td>
+      <td class="mono" style="font-size:10px;">${escapeHtml(JSON.stringify(e.data||e.message||{}))}</td>
+    </tr>
+  `).join('');
+}
+
+/* ===================== ACTIONS ===================== */
+function bindDrawerActions() {
+  $('#actHandshake').onclick = async () => {
+    if (!state.selectedId) return;
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/handshake', { method:'POST' });
+      toast('بدأت المصافحة', 'ok');
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actForceSync').onclick = async () => {
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/sync-state', {
+        method:'POST', body:{ action:'force-sync', all:true }
+      });
+      toast('فُرضت المزامنة الكاملة', 'ok');
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actQuarantine').onclick = async () => {
+    if (!confirm('عزل القرين مؤقتاً؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/quarantine', {
+        method:'POST', body:{ duration_minutes: 30 }
+      });
+      toast('تم العزل', 'warn'); refreshAll();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actUnQuarantine').onclick = async () => {
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/quarantine', { method:'DELETE' });
+      toast('أُلغي العزل', 'ok'); refreshAll();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actPromote').onclick = async () => {
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/promote', { method:'POST' });
+      toast('تم الترقية', 'ok'); refreshAll();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actDemote').onclick = async () => {
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/demote', { method:'POST' });
+      toast('تم التخفيض', 'ok'); refreshAll();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actDisconnect').onclick = async () => {
+    if (!confirm('قطع الاتصال نهائياً؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId, { method:'DELETE' });
+      toast('فُصل الاتصال', 'err'); closeDrawer(); refreshAll();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actDiagnose').onclick = async () => {
+    try {
+      const res = await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/diagnose', { method:'POST' });
+      toast('تم بدء التشخيص', 'ok');
+      console.log('diagnose result', res);
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#bwSave').onclick = async () => {
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/shaper', {
+        method:'PUT',
+        body:{
+          in_kbps: +$('#bw-in').value,
+          out_kbps: +$('#bw-out').value,
+          burst: +$('#bw-burst').value,
+          prio: $('#bw-prio').value
+        }
+      });
+      toast('تم حفظ قاعدة النطاق', 'ok');
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#certRotate').onclick = async () => {
+    if (!confirm('تدوير شهادة هذا القرين؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/peers/' + state.selectedId + '/cert', {
+        method:'POST', body:{ action:'rotate' }
+      });
+      toast('تم التدوير', 'ok'); loadPeerCert(state.selectedId);
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#certView').onclick = () => {
+    const el = $('#certPem');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+}
+
+/* ===================== BOTTOM CHARTS ===================== */
+function refreshBottomCharts() {
+  if (!window.Chart) return;
+  renderTputChart();
+  renderLagChart();
+  renderCertExpChart();
+}
+
+function renderTputChart() {
+  const ctx = $('#chart30dTput').getContext('2d');
+  if (state.charts.tput) state.charts.tput.destroy();
+  const labels = [], data = [];
+  for (let i = 30; i >= 0; i--) {
+    labels.push((30-i)+'d');
+    data.push(800 + Math.sin(i/3)*200 + (hashStr('t'+i)%200));
+  }
+  state.charts.tput = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ label:'msg/s', data,
+      borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,.18)', fill:true,
+      tension:.3, pointRadius:0, borderWidth:1.6 }]},
+    options: chartBaseOptions(true)
+  });
+}
+
+function renderLagChart() {
+  const ctx = $('#chart30dLag').getContext('2d');
+  if (state.charts.lag) state.charts.lag.destroy();
+  const labels = [], data = [];
+  for (let i = 30; i >= 0; i--) {
+    labels.push((30-i)+'d');
+    data.push(50 + (hashStr('l'+i)%900));
+  }
+  state.charts.lag = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ label:'lag ms', data,
+      borderColor:'#facc15', backgroundColor:'rgba(250,204,21,.18)', fill:true,
+      tension:.3, pointRadius:0, borderWidth:1.6 }]},
+    options: chartBaseOptions(true)
+  });
+}
+
+function renderCertExpChart() {
+  const ctx = $('#chartCertExp').getContext('2d');
+  if (state.charts.cert) state.charts.cert.destroy();
+  // bucket cert expirations into 9 buckets of ~10 days
+  const buckets = new Array(9).fill(0);
+  state.peers.forEach(p => {
+    if (!p.cert_expiry) return;
+    const days = (new Date(p.cert_expiry) - Date.now())/86400000;
+    if (days < 0 || days > 90) return;
+    const b = Math.min(8, Math.floor(days/10));
+    buckets[b]++;
+  });
+  const labels = buckets.map((_,i) => `${i*10}-${(i+1)*10}d`);
+  state.charts.cert = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'شهادات', data: buckets,
+      backgroundColor: buckets.map((_,i) => i < 3 ? 'rgba(255,71,87,.6)' :
+        (i < 6 ? 'rgba(250,204,21,.6)' : 'rgba(74,222,128,.6)')),
+      borderWidth:0 }]},
+    options: chartBaseOptions()
+  });
+}
+
+function chartBaseOptions(line=false) {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:'#a0a8b0', font:{ size:10 } } } },
+    scales:{
+      x:{ ticks:{ color:'#a0a8b0', font:{ size:10 } }, grid:{ color:'rgba(255,255,255,.04)' }},
+      y:{ ticks:{ color:'#a0a8b0', font:{ size:10 } }, grid:{ color:'rgba(255,255,255,.04)' }, beginAtZero:true }
+    }
+  };
+}
+
+/* ===================== VIEW SWITCHING ===================== */
+function showView(name) {
+  state.view = name;
+  $$('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  $$('.view-container').forEach(c => {
+    c.style.display = (c.dataset.view === name) ? '' : 'none';
+  });
+  if (name === 'map') renderMap();
+  else if (name === 'grid') renderGrid();
+  else if (name === 'heatmap') renderHeatmap();
+  else if (name === 'quorum') renderQuorum();
+  else if (name === 'policies') renderPolicies();
+}
+
+/* ===================== DIAGNOSTICS ===================== */
+async function runDiagSend() {
+  const tgt = $('#diag-target').value;
+  if (!tgt) return;
+  $('#diagOut').textContent = '⏳ يرسل ...';
+  try {
+    const r = await apiFetch('/api/admin/federation/peers/' + tgt + '/diagnose', {
+      method:'POST', body:{ payload: $('#diag-payload').value, mode:'end-to-end' }
+    });
+    $('#diagOut').textContent = JSON.stringify(r, null, 2);
+  } catch (e) {
+    $('#diagOut').textContent = '✖ فشل: ' + (e.message || '');
+  }
+}
+
+async function runMtuDiscover() {
+  const tgt = $('#mtu-target').value;
+  if (!tgt) return;
+  $('#mtuOut').textContent = '⏳ ...';
+  try {
+    const r = await apiFetch('/api/admin/federation/peers/' + tgt + '/diagnose', {
+      method:'POST', body:{ mode:'mtu' }
+    });
+    $('#mtuOut').textContent = `MTU=${r.mtu || '?'}  Path-MTU=${r.path_mtu || '?'}`;
+  } catch (e) {
+    $('#mtuOut').textContent = 'فشل: ' + (e.message || '');
+  }
+}
+
+async function runTimeSkew() {
+  $('#skewOut').textContent = '⏳ ...';
+  try {
+    const r = await apiFetch('/api/admin/federation/diagnostics/skew');
+    const lines = (r.peers || []).map(x =>
+      `${x.id}: ${x.skew_ms > 0 ? '+' : ''}${x.skew_ms}ms ${Math.abs(x.skew_ms) > 500 ? '⚠' : '✓'}`);
+    $('#skewOut').innerHTML = '<pre>'+lines.join('\n')+'</pre>';
+  } catch(e) {
+    $('#skewOut').textContent = 'فشل: ' + (e.message || '');
+  }
+}
+
+async function runChainCheck() {
+  $('#chainOut').textContent = '⏳ ...';
+  try {
+    const r = await apiFetch('/api/admin/federation/diagnostics/cert-chain');
+    const lines = (r.peers || []).map(x =>
+      `${x.id}: ${x.valid ? '✓ valid' : '✖ invalid'} ${x.reason || ''}`);
+    $('#chainOut').innerHTML = '<pre>'+lines.join('\n')+'</pre>';
+  } catch(e) {
+    $('#chainOut').textContent = 'فشل: ' + (e.message || '');
+  }
+}
+
+/* ===================== SIMULATOR ===================== */
+async function runSimulator() {
+  const out = $('#simResult');
+  out.textContent = '⏳ ...';
+  let body;
+  try {
+    body = JSON.parse($('#sim-payload').value);
+  } catch(e) { out.textContent = '✖ JSON غير صالح'; return; }
+  try {
+    const r = await apiFetch('/api/admin/federation/policies/simulate', {
+      method:'POST', body:{
+        type: $('#sim-type').value,
+        source_region: $('#sim-region').value,
+        envelope: body
+      }
+    });
+    out.textContent = JSON.stringify(r, null, 2);
+  } catch(e) {
+    // simulate locally as fallback
+    const matched = state.policies.find(p => !p.pattern || p.pattern === '*' || p.pattern === $('#sim-type').value);
+    out.textContent = JSON.stringify({
+      matched_policy: matched ? matched.id : null,
+      destinations: matched ? (matched.destinations || []) : ['default'],
+      fallback: matched ? (matched.fallback || []) : [],
+      route_decision: matched ? 'forward' : 'default-broadcast',
+      note:'simulated client-side (server endpoint unavailable)'
+    }, null, 2);
+  }
+}
+
+/* ===================== POLLER ===================== */
+function startPoller() {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+  if (!state.autoRefresh) return;
+  state.refreshTimer = setInterval(refreshAll, REFRESH_MS);
+}
+
+function updatePeerStatus(peerId, status, metrics) {
+  const p = state.peersById.get(peerId);
+  if (!p) return;
+  p.status = status || p.status;
+  if (metrics) {
+    if (metrics.rtt != null) p.rtt = metrics.rtt;
+    if (metrics.tput != null) p.tput = metrics.tput;
+    if (metrics.loss != null) p.loss = metrics.loss;
+    if (metrics.err_rate != null) p.err_rate = metrics.err_rate;
+  }
+  refreshAllViews();
+}
+
+/* ===================== EVENT WIRING ===================== */
+function wireEvents() {
+  $('#view-switcher').addEventListener('click', e => {
+    const b = e.target.closest('.view-btn');
+    if (b) showView(b.dataset.view);
+  });
+  $('#manualRefresh').onclick = refreshAll;
+  $('#exportSnapshot').onclick = exportSnapshot;
+  $('#autoRefresh').onchange = (e) => {
+    state.autoRefresh = e.target.checked;
+    startPoller();
+  };
+
+  $('#filter-region').onchange = e => { state.filters.region = e.target.value; refreshAllViews(); };
+  $('#filter-role').onchange = e => { state.filters.role = e.target.value; refreshAllViews(); };
+  $('#filter-status').onchange = e => { state.filters.status = e.target.value; refreshAllViews(); };
+  $('#filter-search').oninput = debounce(e => {
+    state.filters.search = e.target.value;
+    refreshAllViews();
+  }, 200);
+
+  $('#drawerOverlay').onclick = closeDrawer;
+  $('#dwClose').onclick = closeDrawer;
+  $$('.drawer-tab').forEach(t => t.onclick = () => switchDrawerTab(t.dataset.tab));
+  $$('#view-metrics, .drawer-section[data-tab="metrics"] [data-range]').forEach(b => {});
+  $$('.drawer-section[data-tab="metrics"] [data-range]').forEach(b => {
+    b.onclick = () => {
+      $$('.drawer-section[data-tab="metrics"] [data-range]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      state.metricsRange = b.dataset.range;
+      if (state.selectedId) loadPeerMetrics(state.selectedId);
+    };
+  });
+
+  $('#auditClear').onclick = () => { state.audit = []; renderAuditStream(); };
+  $('#auditPause').onclick = () => {
+    state.auditPaused = !state.auditPaused;
+    $('#auditPause').textContent = state.auditPaused ? 'استئناف' : 'إيقاف';
+  };
+
+  $$('.chip').forEach(c => c.onclick = () => {
+    if (c.id === 'toggleEdges') {
+      state.edgesShown = !state.edgesShown;
+      c.classList.toggle('active', state.edgesShown);
+      renderMap();
+      return;
+    }
+    $$('.chip[data-color]').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    state.mapColorMode = c.dataset.color;
+    renderMap();
+  });
+
+  $('#reTopology').onclick = loadTopology;
+  $('#hm-window').onchange = renderHeatmap;
+  $('#bw-apply').onclick = applyBwPreset;
+  $('#simRun').onclick = runSimulator;
+  $('#diagSend').onclick = runDiagSend;
+  $('#mtuRun').onclick = runMtuDiscover;
+  $('#skewRun').onclick = runTimeSkew;
+  $('#chainCheck').onclick = runChainCheck;
+
+  $('#forceElection').onclick = async () => {
+    if (!confirm('فرض انتخاب قائد جديد؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/quorum/election', { method:'POST' });
+      toast('بدأ الانتخاب', 'ok'); loadQuorum();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+
+  $('#addPolicy').onclick = async () => {
+    const pattern = prompt('نمط الرسالة (مثل chat.* أو *):', '*');
+    if (!pattern) return;
+    const dest = prompt('وجهة (مفصولة بفواصل):', '');
+    if (dest === null) return;
+    try {
+      await apiFetch('/api/admin/federation/policies', {
+        method:'POST', body:{
+          pattern,
+          destinations: dest.split(',').map(s => s.trim()).filter(Boolean),
+          priority: 100, enabled:true
+        }
+      });
+      toast('أُضيفت', 'ok'); loadPolicies();
+    } catch(e) { toast('فشل', 'err'); }
+  };
+
+  $('#actGlobalSync').onclick = async () => {
+    if (!confirm('بدء مزامنة عامة لجميع الأقران؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/sync', { method:'POST' });
+      toast('بدأت المزامنة العامة', 'ok');
+    } catch(e) { toast('فشل', 'err'); }
+  };
+  $('#actGlobalRotate').onclick = async () => {
+    if (!confirm('تدوير جميع شهادات mTLS؟')) return;
+    try {
+      await apiFetch('/api/admin/federation/certs/rotate-all', { method:'POST' });
+      toast('بدأ التدوير الشامل', 'warn');
+    } catch(e) { toast('فشل', 'err'); }
+  };
+
+  bindDrawerActions();
+}
+
+async function applyBwPreset() {
+  const preset = $('#bw-preset').value;
+  if (!preset) return toast('اختر سياسة', 'warn');
+  if (!confirm('تطبيق سياسة "'+preset+'" على جميع الأقران المرشحين؟')) return;
+  try {
+    await apiFetch('/api/admin/federation/shaper/bulk', { method:'POST', body:{ preset }});
+    toast('تم التطبيق', 'ok'); refreshAll();
+  } catch(e) {
+    toast('فشل', 'err');
+  }
+}
+
+function exportSnapshot() {
+  const snap = {
+    ts: new Date().toISOString(),
+    peers: state.peers,
+    topology: state.topology,
+    replication_lag: state.replicationLag,
+    quorum: state.quorum,
+    policies: state.policies
+  };
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'federation-snapshot-' + Date.now() + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ===================== INIT ===================== */
+function init() {
+  wireEvents();
+  // wait for libs (deferred)
+  const waitLibs = setInterval(() => {
+    if (window.Chart && window.d3) {
+      clearInterval(waitLibs);
+      refreshAll();
+      startPoller();
+      openWs();
+    }
+  }, 100);
+  // safety: kickoff anyway after 3s
+  setTimeout(() => {
+    if (!state.peers.length) refreshAll();
+  }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

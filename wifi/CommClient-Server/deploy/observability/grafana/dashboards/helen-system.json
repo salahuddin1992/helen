@@ -1,0 +1,44 @@
+{
+  "title": "Helen — System",
+  "uid": "helen-system",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["helen","system"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "type":"timeseries","title":"JVM/Process active conns",
+      "gridPos":{"h":8,"w":12,"x":0,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum by (transport) (helen_active_connections)"}]
+    },
+    {
+      "type":"timeseries","title":"JWT issued vs rejected",
+      "gridPos":{"h":8,"w":12,"x":12,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[
+        {"expr":"sum(rate(helen_jwt_issued_total[5m]))","legendFormat":"issued"},
+        {"expr":"sum(rate(helen_jwt_rejected_total[5m]))","legendFormat":"rejected"}
+      ]
+    },
+    {
+      "type":"timeseries","title":"Backup duration",
+      "gridPos":{"h":8,"w":12,"x":0,"y":8},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"histogram_quantile(0.95, sum by (le, kind) (rate(helen_backup_duration_seconds_bucket[1h])))"}]
+    },
+    {
+      "type":"timeseries","title":"IDS events by action",
+      "gridPos":{"h":8,"w":12,"x":12,"y":8},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum by (action) (rate(helen_ids_events_total[5m]))"}]
+    },
+    {
+      "type":"logs","title":"Application logs (Loki)",
+      "gridPos":{"h":10,"w":24,"x":0,"y":16},
+      "datasource":{"type":"loki","uid":"loki"},
+      "targets":[{"expr":"{service=\"helen-server\"}"}]
+    }
+  ]
+}

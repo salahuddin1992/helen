@@ -1,0 +1,1783 @@
+{
+  "ethernet": {
+    "methods": [
+      "interface_scan",
+      "driver_check"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter -Physical | Select-Object Name, InterfaceDescription, LinkSpeed",
+      "Get-NetIPConfiguration | Select-Object InterfaceAlias, IPv4Address",
+      "ipconfig /all"
+    ],
+    "linux_commands": [
+      "ip link show",
+      "ethtool -i eth0",
+      "lspci | grep -i ethernet",
+      "cat /sys/class/net/*/speed"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports",
+      "ifconfig | grep -E 'inet|hwaddr'"
+    ],
+    "interface_patterns": [
+      "Ethernet*",
+      "eth*",
+      "en*",
+      "ens*"
+    ],
+    "driver_patterns": [
+      "e1000",
+      "ixgbe",
+      "r8169",
+      "bcmgmac"
+    ],
+    "min_speed_mbps": 10,
+    "ethtool_patterns": [
+      "Speed: \\d+Mb/s"
+    ],
+    "lshw_class": "network"
+  },
+  "wifi": {
+    "methods": [
+      "interface_scan",
+      "service_discovery",
+      "driver_check"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter -Physical | Where-Object {$_.InterfaceDescription -like '*Wireless*' -or $_.InterfaceDescription -like '*Wi-Fi*'}",
+      "netsh wlan show interfaces",
+      "netsh wlan show networks mode=Bssid",
+      "ipconfig /all | findstr /I wireless"
+    ],
+    "linux_commands": [
+      "iwconfig",
+      "iw dev",
+      "ip link show | grep wlan",
+      "nmcli device wifi list",
+      "lspci | grep -i wireless"
+    ],
+    "mac_commands": [
+      "airport -I",
+      "networksetup -listallhardwareports | grep Wi-Fi",
+      "system_profiler SPNetworkDataType"
+    ],
+    "interface_patterns": [
+      "wlan*",
+      "wlp*",
+      "wlo*",
+      "Wireless*",
+      "Wi-Fi*"
+    ],
+    "service_ports": [
+      5000,
+      5001,
+      5353
+    ],
+    "ssid_scan": true,
+    "min_signal_strength": -90
+  },
+  "fiber": {
+    "methods": [
+      "interface_scan",
+      "hardware_probe",
+      "port_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Fiber*' -or $_.InterfaceDescription -like '*SFP*' -or $_.InterfaceDescription -like '*Optical*'}",
+      "wmic logicaldisk get name"
+    ],
+    "linux_commands": [
+      "ethtool eth0 | grep 'Port:.*Fibre'",
+      "lspci | grep -i 'fiber\\|optical\\|sfp'",
+      "cat /sys/class/net/*/transceiver_type"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports | grep Fiber",
+      "system_profiler SPNetworkDataType | grep -i fiber"
+    ],
+    "interface_patterns": [
+      "eth*",
+      "en*"
+    ],
+    "transceiver_types": [
+      "SFP",
+      "SFP+",
+      "QSFP",
+      "XFP"
+    ],
+    "ethtool_port_patterns": [
+      "Fibre"
+    ]
+  },
+  "wireless_bridge": {
+    "methods": [
+      "hardware_probe",
+      "interface_scan",
+      "port_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Wireless*'}",
+      "netsh interface show interface"
+    ],
+    "linux_commands": [
+      "iw dev | grep -i 'band\\|freq\\|power'",
+      "cat /proc/net/wireless",
+      "iwlist wlan0 freq"
+    ],
+    "mac_commands": [
+      "airport -s",
+      "airport -I | grep -i chan"
+    ],
+    "frequency_bands": [
+      2.4,
+      5,
+      28,
+      38,
+      60,
+      71,
+      86
+    ],
+    "port_scan_range": [
+      5000,
+      5100
+    ],
+    "vendor_urls": [
+      "ubnt.com",
+      "mikrotik.com",
+      "arista.com"
+    ]
+  },
+  "cellular": {
+    "methods": [
+      "service_discovery",
+      "hardware_probe",
+      "api_query"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Cellular*' -or $_.InterfaceDescription -like '*LTE*' -or $_.InterfaceDescription -like '*5G*'}",
+      "netsh mbn show interfaces"
+    ],
+    "linux_commands": [
+      "ip link show | grep -i cellular",
+      "mmcli -m any",
+      "nmcli device status | grep -i cellular",
+      "lspci | grep -i modem"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports | grep Cellular",
+      "system_profiler SPNetworkDataType | grep -i cellular"
+    ],
+    "service_discovery_ports": [
+      22,
+      80,
+      443,
+      8080
+    ],
+    "modem_manufacturers": [
+      "Qualcomm",
+      "MediaTek",
+      "Intel",
+      "Sierra Wireless"
+    ],
+    "at_commands": [
+      "AT",
+      "AT+CSQ",
+      "AT+CREG?"
+    ]
+  },
+  "radio": {
+    "methods": [
+      "hardware_probe",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-PnpDevice | Where-Object {$_.Class -eq 'System'} | Select-Object Name, Manufacturer"
+    ],
+    "linux_commands": [
+      "lspci | grep -i 'radio\\|transceiver'",
+      "lsusb | grep -i radio",
+      "cat /proc/device-tree/*/radio 2>/dev/null"
+    ],
+    "mac_commands": [
+      "system_profiler SPPCIDataType | grep -i radio"
+    ],
+    "usb_vendor_ids": [
+      "0x13b1",
+      "0x0bda",
+      "0x0fd9"
+    ],
+    "pci_classes": [
+      "0x0180"
+    ]
+  },
+  "mesh": {
+    "methods": [
+      "interface_scan",
+      "service_discovery"
+    ],
+    "windows_commands": [
+      "netsh wlan show hostednetwork",
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Mesh*'}"
+    ],
+    "linux_commands": [
+      "iw dev | grep mesh",
+      "ip link show | grep -i mesh",
+      "iw mesh dump"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports | grep Mesh"
+    ],
+    "mesh_protocols": [
+      "BATMAN",
+      "Babel",
+      "cjdns",
+      "OpenThread"
+    ],
+    "service_discovery_protocols": [
+      "mDNS",
+      "SSDP"
+    ],
+    "multicast_addresses": [
+      "224.0.0.251",
+      "224.0.0.1"
+    ]
+  },
+  "industrial": {
+    "methods": [
+      "port_scan",
+      "service_discovery",
+      "driver_check"
+    ],
+    "windows_commands": [
+      "Get-Process | Where-Object {$_.ProcessName -like '*profibus*' -or $_.ProcessName -like '*profinet*' -or $_.ProcessName -like '*ethercat*'}",
+      "Get-ChildItem HKLM:\\SOFTWARE\\Classes\\CLSID | Where-Object {$_.Property -like '*OPC*'}"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '502|20000|1200'",
+      "ps aux | grep -i 'modbus\\|profibus\\|profinet'",
+      "lsof -i -P -n | grep -E '502|20000|1200'"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '502|20000|1200'"
+    ],
+    "protocol_ports": {
+      "modbus_tcp": 502,
+      "profinet": 34962,
+      "ethercat": 34980,
+      "opc_ua": 4840,
+      "hart_ip": 5094
+    },
+    "service_names": [
+      "modbus",
+      "profibus",
+      "profinet",
+      "ethercat",
+      "opc",
+      "fieldbus"
+    ],
+    "registry_keys": [
+      "HKLM:\\SOFTWARE\\Siemens",
+      "HKLM:\\SOFTWARE\\Beckhoff",
+      "HKLM:\\SOFTWARE\\Phoenix Contact"
+    ]
+  },
+  "serial": {
+    "methods": [
+      "interface_scan",
+      "port_scan",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-WmiObject Win32_SerialPort",
+      "Get-PnpDevice | Where-Object {$_.Class -eq 'Ports'}",
+      "wmic path Win32_SerialPort get Name,Description"
+    ],
+    "linux_commands": [
+      "ls -la /dev/tty* /dev/usb*",
+      "dmesg | grep -i serial",
+      "cat /proc/tty/drivers",
+      "udevadm info -e | grep -i serial"
+    ],
+    "mac_commands": [
+      "ls -la /dev/tty.*",
+      "system_profiler SPUSBDataType | grep -i serial"
+    ],
+    "port_patterns": [
+      "COM*",
+      "ttyS*",
+      "ttyUSB*",
+      "ttyACM*"
+    ],
+    "baud_rates": [
+      300,
+      1200,
+      2400,
+      4800,
+      9600,
+      19200,
+      38400,
+      57600,
+      115200
+    ],
+    "common_devices": [
+      "/dev/ttyS0",
+      "/dev/ttyUSB0",
+      "COM1",
+      "COM3",
+      "COM4"
+    ]
+  },
+  "powerline": {
+    "methods": [
+      "interface_scan",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Powerline*' -or $_.InterfaceDescription -like '*PLC*'}",
+      "Get-PnpDevice | Where-Object {$_.Name -like '*Powerline*'}"
+    ],
+    "linux_commands": [
+      "lspci | grep -i 'powerline\\|homeplug\\|moca'",
+      "lsusb | grep -i 'powerline\\|homeplug'",
+      "ip link show | grep -i powerline"
+    ],
+    "mac_commands": [
+      "system_profiler SPUSBDataType | grep -i powerline"
+    ],
+    "usb_vendor_ids": [
+      "0x0db0",
+      "0x2386",
+      "0x0403"
+    ],
+    "pci_classes": [
+      "0x0280"
+    ],
+    "device_names": [
+      "Devolo",
+      "TP-Link",
+      "Netgear",
+      "D-Link"
+    ]
+  },
+  "optical_link": {
+    "methods": [
+      "hardware_probe",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Optical*' -or $_.InterfaceDescription -like '*Infrared*' -or $_.InterfaceDescription -like '*Li-Fi*'}"
+    ],
+    "linux_commands": [
+      "ethtool eth0 | grep -i 'optical\\|infrared'",
+      "lspci | grep -i 'optical\\|transceiver'",
+      "dmesg | grep -i 'optical\\|infrared'"
+    ],
+    "mac_commands": [
+      "system_profiler SPNetworkDataType | grep -i optical"
+    ],
+    "frequency_ranges": [
+      "infrared",
+      "visible",
+      "UV"
+    ],
+    "modulation_types": [
+      "OOK",
+      "PAM",
+      "OFDM"
+    ]
+  },
+  "high_performance": {
+    "methods": [
+      "interface_scan",
+      "hardware_probe",
+      "port_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.LinkSpeed -gt 10000000}",
+      "Get-PnpDevice | Where-Object {$_.Name -like '*InfiniBand*' -or $_.Name -like '*Fibre Channel*' -or $_.Name -like '*NVMe*'}"
+    ],
+    "linux_commands": [
+      "ibstat",
+      "ibv_devinfo",
+      "lspci | grep -i 'infiniband\\|fibre channel\\|nvme'",
+      "cat /sys/class/net/*/speed | grep -E '^[0-9]{5,}'",
+      "lsof -i -P -n | grep -E 'ib|fc|roce'"
+    ],
+    "mac_commands": [
+      "system_profiler SPPCIDataType | grep -i 'infiniband\\|fibre channel'"
+    ],
+    "minimum_bandwidth_mbps": 1000,
+    "rdma_libraries": [
+      "libibverbs",
+      "librdmacm",
+      "libfabric"
+    ],
+    "roce_ethertype": 4791,
+    "fc_wwn_patterns": [
+      "50:00:*",
+      "5*:*"
+    ]
+  },
+  "overlay": {
+    "methods": [
+      "api_query",
+      "service_discovery"
+    ],
+    "windows_commands": [
+      "Get-HyperVVirtualNetwork",
+      "Get-VirtualNetworkAdapter",
+      "netstat -rn | findstr 0.0.0.0"
+    ],
+    "linux_commands": [
+      "ip route show | grep -E 'vxlan|geneve|gre'",
+      "ip tunnel show",
+      "brctl show",
+      "ovs-vsctl show",
+      "docker network ls",
+      "containerd namespaces ls"
+    ],
+    "mac_commands": [
+      "networksetup -listallnetworkservices",
+      "ifconfig | grep -i tap"
+    ],
+    "service_discovery_ports": [
+      179,
+      5000,
+      5001,
+      6443,
+      8080
+    ],
+    "vlan_ports": [
+      1,
+      1000,
+      1024,
+      4094
+    ],
+    "docker_apis": [
+      "/var/run/docker.sock"
+    ],
+    "kubernetes_apis": [
+      "127.0.0.1:6443",
+      "127.0.0.1:8080"
+    ]
+  },
+  "av_network": {
+    "methods": [
+      "port_scan",
+      "service_discovery",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-Process | Where-Object {$_.ProcessName -like '*dante*' -or $_.ProcessName -like '*dante*' -or $_.ProcessName -like '*ndi*'}",
+      "netstat -tlnp | grep -E '4440|5353|5000|2100'"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '4440|5353|5000|2100'",
+      "ps aux | grep -i 'dante\\|aes67\\|ndi\\|smpte'",
+      "avahi-browse -at"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '4440|5353|5000|2100'"
+    ],
+    "protocol_ports": {
+      "dante": 4440,
+      "aes67": 5004,
+      "ravenna": 5004,
+      "ndi": 5353,
+      "smpte_2110": 5000,
+      "hdbaset": 21,
+      "madi_over_ip": 5004
+    },
+    "device_names": [
+      "Dante",
+      "AES67",
+      "Ravenna",
+      "NDI",
+      "SMPTE ST 2110"
+    ],
+    "mdns_services": [
+      "_dante._tcp",
+      "_aes67._tcp",
+      "_ndi._tcp"
+    ]
+  },
+  "iot": {
+    "methods": [
+      "service_discovery",
+      "interface_scan",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Select-Object Name, InterfaceDescription | Where-Object {$_.InterfaceDescription -like '*Thread*' -or $_.InterfaceDescription -like '*Zigbee*' -or $_.InterfaceDescription -like '*BLE*'}"
+    ],
+    "linux_commands": [
+      "hciconfig",
+      "hcitool scan",
+      "zigbee-cli info",
+      "thread-cli",
+      "lsusb | grep -i 'dongle\\|zigbee\\|thread'",
+      "iwpan phy",
+      "iwpan dev"
+    ],
+    "mac_commands": [
+      "system_profiler SPBluetoothDataType",
+      "system_profiler SPUSBDataType | grep -i 'zigbee\\|thread\\|ble'"
+    ],
+    "bluetooth_patterns": [
+      "LE",
+      "BR/EDR"
+    ],
+    "ieee_802_15_4_channels": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+    ],
+    "usb_product_ids": [
+      "0x0a12",
+      "0x8087",
+      "0x0c72"
+    ],
+    "mdns_services": [
+      "_thread._tcp",
+      "_zigbee._tcp",
+      "_homekit._tcp"
+    ]
+  },
+  "legacy": {
+    "methods": [
+      "driver_check",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Token Ring*' -or $_.InterfaceDescription -like '*FDDI*' -or $_.InterfaceDescription -like '*ATM*'}",
+      "Get-WmiObject Win32_NetworkAdapterConfiguration | Select-Object Description, IPAddress"
+    ],
+    "linux_commands": [
+      "ip link show | grep -E 'tr|fddi|atm'",
+      "ethtool -i eth0 | grep -i 'token\\|fddi\\|atm'",
+      "lsmod | grep -i 'token\\|fddi\\|atm'"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports | grep -i 'Token\\|FDDI\\|ATM'"
+    ],
+    "interface_patterns": [
+      "tr*",
+      "fddi*",
+      "atm*"
+    ],
+    "driver_patterns": [
+      "tokenring",
+      "fddi",
+      "atm",
+      "arcnet"
+    ],
+    "deprecated_warnings": true
+  },
+  "storage": {
+    "methods": [
+      "interface_scan",
+      "port_scan",
+      "api_query"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Fibre Channel*' -or $_.InterfaceDescription -like '*iSCSI*' -or $_.InterfaceDescription -like '*NVMe*'}",
+      "Get-Disk | Select-Object Number, BusType"
+    ],
+    "linux_commands": [
+      "lsscsi",
+      "nvme list",
+      "cat /sys/class/net/*/speed | grep -E '[0-9]{5,}'",
+      "netstat -tlnp | grep -E '3260|6379|8200'",
+      "ls -la /dev/nvme*",
+      "iscsiadm -m session"
+    ],
+    "mac_commands": [
+      "system_profiler SPSASDataType",
+      "nvmecontrol list"
+    ],
+    "protocol_ports": {
+      "iscsi": 3260,
+      "fcoe": 3260,
+      "nvme_tcp": 4420,
+      "nvme_rdma": 4420,
+      "san_replication": 8200
+    },
+    "iscsi_targets": [
+      "iqn."
+    ],
+    "fc_wwn_range": [
+      "50:00:*"
+    ]
+  },
+  "management": {
+    "methods": [
+      "port_scan",
+      "api_query",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Select-Object Name, InterfaceDescription",
+      "netstat -tlnp | findstr /R '22 80 443 623 5900 6443'",
+      "Get-MpComputerStatus | Select-Object ComputerName"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '22|80|443|623|5900|6443'",
+      "ipmitool lan print",
+      "redfish-cli",
+      "ps aux | grep -i 'ipmi\\|redfish\\|kvm'"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '22|80|443|623|5900|6443'"
+    ],
+    "management_ports": {
+      "ssh": 22,
+      "http": 80,
+      "https": 443,
+      "ipmi": 623,
+      "vnc": 5900,
+      "kvm_ip": 5900,
+      "redfish": 8080,
+      "idrac": 8080
+    },
+    "service_names": [
+      "ipmi",
+      "redfish",
+      "idrac",
+      "ilo",
+      "ipmitool"
+    ],
+    "default_users": [
+      "root",
+      "admin",
+      "administrator"
+    ]
+  },
+  "satellite": {
+    "methods": [
+      "hardware_probe",
+      "service_discovery"
+    ],
+    "windows_commands": [
+      "Get-PnpDevice | Where-Object {$_.Name -like '*Satellite*' -or $_.Name -like '*SATCOM*'}",
+      "Get-Process | Where-Object {$_.ProcessName -like '*satcom*'}"
+    ],
+    "linux_commands": [
+      "lspci | grep -i 'satellite\\|satcom\\|cubesat'",
+      "lsusb | grep -i 'satellite\\|gps\\|gnss'",
+      "ps aux | grep -i 'satcom\\|tracking\\|telemetry'"
+    ],
+    "mac_commands": [
+      "system_profiler SPUSBDataType | grep -i satellite"
+    ],
+    "gnss_ports": [
+      9600,
+      9601
+    ],
+    "telemetry_ports": [
+      2100,
+      2101,
+      5000
+    ],
+    "antenna_types": [
+      "parabolic",
+      "phased_array",
+      "helical"
+    ],
+    "satellite_apis": [
+      "norad_tle",
+      "gpsd"
+    ]
+  },
+  "tactical": {
+    "methods": [
+      "hardware_probe",
+      "service_discovery",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Tactical*' -or $_.InterfaceDescription -like '*Military*' -or $_.InterfaceDescription -like '*PSTN*'}"
+    ],
+    "linux_commands": [
+      "grep -r 'tactical\\|datalink\\|firstnet' /proc/net/ 2>/dev/null",
+      "netstat -tlnp | grep -E '25000|26000|27000'",
+      "lspci | grep -i 'tactical\\|military'"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '25000|26000|27000'"
+    ],
+    "tactical_ports": {
+      "tactical_datalink": 25000,
+      "mission_network": 26000,
+      "first_responder": 27000,
+      "dispatch": 28000
+    },
+    "emergency_services": [
+      "911",
+      "dispatch",
+      "police",
+      "fire",
+      "ems"
+    ],
+    "radio_protocols": [
+      "P25",
+      "DMR",
+      "TETRA"
+    ]
+  },
+  "topology": {
+    "methods": [
+      "api_query",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetRoute | Select-Object DestinationPrefix, NextHop, InterfaceMetric",
+      "Get-NetAdapter | Select-Object Name, InterfaceDescription"
+    ],
+    "linux_commands": [
+      "ip route show",
+      "brctl show",
+      "ovs-vsctl show",
+      "stp -show all",
+      "tree -L 2 /sys/class/net/"
+    ],
+    "mac_commands": [
+      "netstat -rn",
+      "networksetup -getinfo Ethernet"
+    ],
+    "topology_tools": [
+      "brctl",
+      "ovs-vsctl",
+      "ip",
+      "route",
+      "traceroute"
+    ],
+    "spanning_tree_ports": [
+      1900,
+      2000
+    ],
+    "management_vlans": [
+      1,
+      4094
+    ]
+  },
+  "datacenter": {
+    "methods": [
+      "api_query",
+      "interface_scan",
+      "port_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter | Where-Object {$_.LinkSpeed -gt 10000000}",
+      "netstat -tlnp | grep -E '6379|5000|6443'"
+    ],
+    "linux_commands": [
+      "ethtool -i eth0 | head -20",
+      "ovs-vsctl list-br",
+      "ip link show | grep -E 'bond|bridge|vlan'",
+      "netstat -tlnp | grep -E '6379|5000|6443|8080'",
+      "docker ps",
+      "kubectl get nodes"
+    ],
+    "mac_commands": [
+      "networksetup -listallhardwareports"
+    ],
+    "orchestration_ports": {
+      "sdn_controller": 6633,
+      "openflow": 6633,
+      "kubernetes": 6443,
+      "docker": 2375,
+      "docker_secure": 2376
+    },
+    "sdn_tools": [
+      "ovs",
+      "openflow",
+      "p4",
+      "floodlight",
+      "opendaylight"
+    ],
+    "container_runtimes": [
+      "docker",
+      "containerd",
+      "cri-o",
+      "podman"
+    ]
+  },
+  "security": {
+    "methods": [
+      "manual",
+      "interface_scan",
+      "api_query"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "Get-NetFirewallRule | Select-Object DisplayName, Enabled",
+      "ipconfig /all"
+    ],
+    "linux_commands": [
+      "ip link show",
+      "iptables -L -n",
+      "ufw status",
+      "sudo dmidecode | grep -i secure",
+      "tpm2_getcap handles-persistent"
+    ],
+    "mac_commands": [
+      "system_profiler SPSecureElementDataType",
+      "ls -la /dev/*random"
+    ],
+    "security_devices": [
+      "tpm",
+      "tpm2",
+      "hsm",
+      "trusted_platform_module"
+    ],
+    "firewall_tools": [
+      "iptables",
+      "ufw",
+      "firewalld",
+      "pf"
+    ],
+    "isolation_mechanisms": [
+      "vlan",
+      "namespace",
+      "cgroup",
+      "seccomp"
+    ]
+  },
+  "building": {
+    "methods": [
+      "port_scan",
+      "service_discovery",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "netstat -tlnp | grep -E '502|47808|47809|7682'"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '502|47808|47809|7682'",
+      "ps aux | grep -i 'bacnet\\|knx\\|lonworks\\|dali'",
+      "modbus-cli scan"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '502|47808|47809'"
+    ],
+    "building_automation_ports": {
+      "bacnet": 47808,
+      "knx": 3671,
+      "modbus": 502,
+      "lonworks": 1861,
+      "dali": 9999,
+      "mbus": 1234
+    },
+    "device_types": [
+      "thermostat",
+      "light_controller",
+      "valve",
+      "sensor"
+    ],
+    "manufacturer_ids": [
+      "bacnet_vendors",
+      "knx_vendors"
+    ]
+  },
+  "scada": {
+    "methods": [
+      "port_scan",
+      "service_discovery",
+      "interface_scan"
+    ],
+    "windows_commands": [
+      "Get-Process | Where-Object {$_.ProcessName -like '*scada*' -or $_.ProcessName -like '*plc*'}",
+      "netstat -tlnp | grep -E '20000|161|162|502|5000'"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '20000|161|162|502|5000'",
+      "ps aux | grep -i 'scada\\|plc\\|rtu\\|ied'",
+      "snmpwalk -v 2c -c public 127.0.0.1"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '20000|161|162|502'"
+    ],
+    "scada_ports": {
+      "dnp3": 20000,
+      "snmp": 161,
+      "snmp_trap": 162,
+      "modbus": 502,
+      "opc_ua": 4840,
+      "iec_61850": 102,
+      "profinet": 34962
+    },
+    "ics_protocols": [
+      "dnp3",
+      "modbus",
+      "profibus",
+      "profinet",
+      "ethercat"
+    ],
+    "critical_ports": [
+      20000,
+      161,
+      502,
+      4840
+    ]
+  },
+  "transport": {
+    "methods": [
+      "service_discovery",
+      "interface_scan",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "netstat -tlnp | grep -E '2000|3000|4000'"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '2000|3000|4000|5001'",
+      "ps aux | grep -i 'cbtc\\|etcs\\|ptc'",
+      "gps -n"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '2000|3000|4000'"
+    ],
+    "transport_ports": {
+      "cbtc": 2000,
+      "etcs": 3000,
+      "ptc": 4000,
+      "gps_ntp": 123,
+      "telematics": 443
+    },
+    "vehicle_protocols": [
+      "cbtc",
+      "etcs",
+      "ptc",
+      "v2x",
+      "dsrc"
+    ],
+    "location_services": [
+      "gps",
+      "glonass",
+      "galileo",
+      "beidou"
+    ]
+  },
+  "specialty": {
+    "methods": [
+      "port_scan",
+      "api_query",
+      "service_discovery"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "netstat -tlnp | grep -E '5000|8000|8080|9000'"
+    ],
+    "linux_commands": [
+      "netstat -tlnp | grep -E '5000|8000|8080|9000'",
+      "ps aux | grep -i 'pacs\\|dicom\\|trading\\|render'"
+    ],
+    "mac_commands": [
+      "lsof -i -P -n | grep -E '5000|8000|8080|9000'"
+    ],
+    "specialty_ports": {
+      "pacs": 5000,
+      "dicom": 8104,
+      "trading_floor": 8000,
+      "gpu_cluster": 9000,
+      "market_data": 5353
+    },
+    "industry_standards": [
+      "DICOM",
+      "HL7",
+      "FIX",
+      "Conduit"
+    ],
+    "high_value_protocols": [
+      "proprietary",
+      "vendor_specific"
+    ]
+  },
+  "time_sensitive": {
+    "methods": [
+      "interface_scan",
+      "port_scan",
+      "hardware_probe"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "netstat -tlnp | grep -E '123|319|320|1119'"
+    ],
+    "linux_commands": [
+      "timedatectl status",
+      "chronyc sources",
+      "ntpq -p",
+      "netstat -tlnp | grep -E '123|319|320|1119'",
+      "ethtool eth0 | grep -i ptp"
+    ],
+    "mac_commands": [
+      "date",
+      "lsof -i -P -n | grep -E '123|319|320'"
+    ],
+    "time_sync_ports": {
+      "ntp": 123,
+      "ptp_event": 319,
+      "ptp_general": 320,
+      "white_rabbit": 1119
+    },
+    "timing_tolerances_us": {
+      "low": 1000,
+      "medium": 100,
+      "high": 10,
+      "ultra_high": 1
+    },
+    "ptp_clocks": [
+      "hardware",
+      "software"
+    ],
+    "oscillators": [
+      "TCXO",
+      "OCXO",
+      "rubidium"
+    ]
+  },
+  "wan": {
+    "methods": [
+      "interface_scan",
+      "api_query",
+      "port_scan"
+    ],
+    "windows_commands": [
+      "Get-NetAdapter",
+      "Get-NetRoute | Select-Object DestinationPrefix, NextHop, InterfaceMetric"
+    ],
+    "linux_commands": [
+      "ip route show",
+      "netstat -rn",
+      "ethtool eth0",
+      "cat /etc/network/interfaces"
+    ],
+    "mac_commands": [
+      "netstat -rn",
+      "networksetup -getinfo Ethernet"
+    ],
+    "wan_technologies": [
+      "mpls",
+      "bgp",
+      "ospf",
+      "is-is",
+      "sdwan"
+    ],
+    "carrier_services": [
+      "leased_line",
+      "metro_ethernet",
+      "vpls",
+      "evpl"
+    ],
+    "qos_mechanisms": [
+      "policing",
+      "shaping",
+      "queuing"
+    ]
+  },
+  "service_overlay": {
+    "methods": [
+      "api_query",
+      "port_scan",
+      "service_discovery"
+    ],
+    "windows_commands": [
+      "docker ps",
+      "docker network ls",
+      "kubectl get nodes"
+    ],
+    "linux_commands": [
+      "docker ps --all",
+      "docker network inspect",
+      "kubectl get namespaces",
+      "kubectl get pods",
+      "containerd namespaces ls",
+      "cni -plugin-dir /opt/cni/bin"
+    ],
+    "mac_commands": [
+      "docker ps",
+      "docker network ls"
+    ],
+    "container_tools": [
+      "docker",
+      "podman",
+      "containerd",
+      "cri-o"
+    ],
+    "orchestration_tools": [
+      "kubernetes",
+      "docker_swarm",
+      "nomad"
+    ],
+    "mesh_tools": [
+      "istio",
+      "linkerd",
+      "consul",
+      "kuma"
+    ],
+    "message_brokers": [
+      "kafka",
+      "rabbitmq",
+      "redis",
+      "nats"
+    ],
+    "service_discovery_ports": [
+      5353,
+      8500,
+      8600
+    ]
+  },
+  "security_isolated": {
+    "methods": [
+      "interface_scan",
+      "policy_check",
+      "isolation_probe"
+    ],
+    "windows_commands": [
+      "Get-NetFirewallProfile",
+      "Get-NetAdapter | Where-Object {$_.Name -like '*Secure*' -or $_.Name -like '*Isolated*'}"
+    ],
+    "linux_commands": [
+      "ip netns list",
+      "iptables -L -n",
+      "firewall-cmd --list-all"
+    ],
+    "interface_patterns": [
+      "secure*",
+      "isolated*",
+      "crypto*",
+      "dmz*",
+      "enclave*",
+      "airgap*"
+    ],
+    "isolation_indicators": [
+      "no_default_route",
+      "namespaced",
+      "policy_locked"
+    ],
+    "notes": "Air-gapped / zero-trust / microsegmented fabrics — detected by policy and naming"
+  },
+  "military_defense": {
+    "methods": [
+      "hardware_probe",
+      "waveform_detect",
+      "policy_check"
+    ],
+    "interface_patterns": [
+      "sipr*",
+      "nipr*",
+      "jtrs*",
+      "link16*",
+      "link22*",
+      "mads*",
+      "haipe*"
+    ],
+    "waveforms": [
+      "Link-16",
+      "Link-22",
+      "SRW",
+      "WNW",
+      "MUOS",
+      "SINCGARS"
+    ],
+    "notes": "Tactical/classified radios — detection relies on named adapters or crypto modules"
+  },
+  "broadcast_media": {
+    "methods": [
+      "interface_scan",
+      "service_discovery"
+    ],
+    "interface_patterns": [
+      "smpte*",
+      "st2110*",
+      "ndi*",
+      "dante*",
+      "aes67*",
+      "livu*"
+    ],
+    "service_ports": [
+      5004,
+      5353,
+      6000,
+      319,
+      320
+    ],
+    "notes": "Studio / live production networks (SMPTE 2110, NDI, Dante, AES67)"
+  },
+  "deep_space": {
+    "methods": [
+      "hardware_probe",
+      "telemetry_check"
+    ],
+    "interface_patterns": [
+      "ccsds*",
+      "dtnet*",
+      "deepspace*",
+      "prox*"
+    ],
+    "protocols": [
+      "CCSDS",
+      "SPP",
+      "Proximity-1",
+      "AOS",
+      "DTN",
+      "LTP"
+    ],
+    "notes": "Deep-space / inter-satellite links — typically logical, require vendor SDRs"
+  },
+  "cellular_private": {
+    "methods": [
+      "interface_scan",
+      "hardware_probe"
+    ],
+    "interface_patterns": [
+      "cbrs*",
+      "private5g*",
+      "ran*",
+      "oran*",
+      "cpri*",
+      "ecpri*",
+      "fronthaul*",
+      "midhaul*",
+      "backhaul*"
+    ],
+    "notes": "Private LTE/5G, CBRS, O-RAN fronthaul/midhaul/backhaul"
+  },
+  "maritime_underwater": {
+    "methods": [
+      "hardware_probe"
+    ],
+    "interface_patterns": [
+      "marine*",
+      "nmea*",
+      "ship*",
+      "submarine*",
+      "buoy*",
+      "hydrophone*"
+    ],
+    "protocols": [
+      "NMEA 2000",
+      "NMEA 0183",
+      "UWAN",
+      "JANUS"
+    ],
+    "notes": "Shipboard, submarine, buoy, hydrophone links"
+  },
+  "mining_underground": {
+    "methods": [
+      "hardware_probe"
+    ],
+    "interface_patterns": [
+      "mine*",
+      "borehole*",
+      "seismic*",
+      "underground*"
+    ],
+    "notes": "Mine / borehole / underground comms — often leaky-feeder or TTE"
+  },
+  "railway": {
+    "methods": [
+      "hardware_probe"
+    ],
+    "interface_patterns": [
+      "rail*",
+      "train*",
+      "cbtc*",
+      "etcs*",
+      "ptc*"
+    ],
+    "protocols": [
+      "CBTC",
+      "ETCS",
+      "PTC",
+      "TCN"
+    ],
+    "notes": "Train control and wayside signaling networks"
+  },
+  "transport_vehicle": {
+    "methods": [
+      "hardware_probe",
+      "interface_scan"
+    ],
+    "interface_patterns": [
+      "v2x*",
+      "can*",
+      "canbus*",
+      "obd*",
+      "ev*",
+      "chademo*",
+      "ccs*",
+      "ocpp*"
+    ],
+    "protocols": [
+      "V2X",
+      "DSRC",
+      "C-V2X",
+      "OCPP",
+      "ISO 15118"
+    ],
+    "notes": "Vehicular / EV charging / fleet telematics"
+  },
+  "financial_trading": {
+    "methods": [
+      "service_discovery",
+      "latency_probe"
+    ],
+    "service_ports": [
+      4001,
+      9001,
+      9000,
+      443,
+      465,
+      2195
+    ],
+    "protocols": [
+      "FIX",
+      "ITCH",
+      "OUCH",
+      "FAST",
+      "SWIFT"
+    ],
+    "notes": "Low-latency trading — detected by protocol fingerprint, not adapter"
+  },
+  "medical": {
+    "methods": [
+      "service_discovery"
+    ],
+    "service_ports": [
+      104,
+      2761,
+      2762,
+      11112,
+      2575
+    ],
+    "protocols": [
+      "HL7",
+      "DICOM",
+      "IHE"
+    ],
+    "notes": "Hospital / PACS / DICOM / HL7 networks"
+  },
+  "energy_grid": {
+    "methods": [
+      "service_discovery",
+      "hardware_probe"
+    ],
+    "service_ports": [
+      102,
+      502,
+      20000,
+      44818
+    ],
+    "protocols": [
+      "IEC 61850",
+      "DNP3",
+      "Modbus TCP",
+      "IEC 60870-5-104",
+      "IEEE C37.118"
+    ],
+    "interface_patterns": [
+      "substation*",
+      "pmu*",
+      "scada*",
+      "rtu*"
+    ],
+    "notes": "Smart grid / substation automation / PMU synchrophasors"
+  },
+  "quantum_experimental": {
+    "methods": [
+      "hardware_probe"
+    ],
+    "interface_patterns": [
+      "qkd*",
+      "qnet*",
+      "quantum*",
+      "cryo*"
+    ],
+    "notes": "Quantum key distribution and experimental research testbeds"
+  },
+  "drone_uav": {
+    "methods": [
+      "hardware_probe",
+      "radio_scan"
+    ],
+    "interface_patterns": [
+      "uav*",
+      "uas*",
+      "drone*",
+      "mavlink*"
+    ],
+    "protocols": [
+      "MAVLink",
+      "UAVCAN",
+      "DroneID",
+      "RemoteID"
+    ],
+    "service_ports": [
+      14550,
+      14551
+    ],
+    "notes": "UAV command-and-control and telemetry"
+  },
+  "iot_sensor": {
+    "methods": [
+      "radio_scan",
+      "service_discovery"
+    ],
+    "protocols": [
+      "CoAP",
+      "MQTT",
+      "MQTT-SN",
+      "Matter",
+      "Thread",
+      "Zigbee"
+    ],
+    "service_ports": [
+      5683,
+      1883,
+      8883,
+      5540
+    ],
+    "interface_patterns": [
+      "zigbee*",
+      "thread*",
+      "matter*",
+      "xbee*",
+      "6lowpan*"
+    ],
+    "notes": "Personal/body-area, wireless sensor networks, RTLS"
+  },
+  "storage_network": {
+    "methods": [
+      "service_discovery",
+      "hardware_probe"
+    ],
+    "service_ports": [
+      3260,
+      860,
+      4420
+    ],
+    "protocols": [
+      "iSCSI",
+      "NVMe-oF",
+      "FCoE",
+      "FC"
+    ],
+    "interface_patterns": [
+      "san*",
+      "fc*",
+      "fcoe*",
+      "nvme*"
+    ],
+    "notes": "Storage area networks and NVMe over fabric"
+  },
+  "wan_private": {
+    "methods": [
+      "interface_scan",
+      "route_probe"
+    ],
+    "interface_patterns": [
+      "mpls*",
+      "sonet*",
+      "sdh*",
+      "otn*",
+      "mlpp*",
+      "wan*"
+    ],
+    "protocols": [
+      "MPLS",
+      "SONET",
+      "SDH",
+      "OTN",
+      "Segment Routing"
+    ],
+    "notes": "Private WAN / metro transport / leased lines"
+  },
+  "building_campus": {
+    "methods": [
+      "hardware_probe",
+      "service_discovery"
+    ],
+    "protocols": [
+      "BACnet",
+      "KNX",
+      "LonWorks",
+      "Modbus",
+      "ONVIF"
+    ],
+    "service_ports": [
+      47808,
+      3671,
+      1628,
+      3702,
+      80,
+      554
+    ],
+    "interface_patterns": [
+      "bacnet*",
+      "knx*",
+      "lon*",
+      "cctv*",
+      "onvif*"
+    ],
+    "notes": "Building automation, access control, CCTV"
+  },
+  "datacenter_fabric": {
+    "methods": [
+      "hardware_probe",
+      "ecmp_probe"
+    ],
+    "interface_patterns": [
+      "spine*",
+      "leaf*",
+      "tor*",
+      "fabric*"
+    ],
+    "protocols": [
+      "BGP EVPN",
+      "VXLAN",
+      "Clos/Spine-Leaf"
+    ],
+    "notes": "Datacenter spine/leaf/ToR disaggregated fabrics"
+  },
+  "scada_utility": {
+    "methods": [
+      "service_discovery",
+      "hardware_probe"
+    ],
+    "protocols": [
+      "Modbus",
+      "DNP3",
+      "IEC 61850",
+      "IEC 60870-5-104"
+    ],
+    "service_ports": [
+      502,
+      20000,
+      102,
+      2404
+    ],
+    "interface_patterns": [
+      "plc*",
+      "rtu*",
+      "ied*",
+      "scada*"
+    ],
+    "notes": "Utility SCADA, PLC, RTU, IED telemetry"
+  },
+  "tactical_emergency": {
+    "methods": [
+      "radio_scan",
+      "hardware_probe"
+    ],
+    "protocols": [
+      "RoIP",
+      "P25",
+      "TETRA",
+      "DMR"
+    ],
+    "interface_patterns": [
+      "roip*",
+      "p25*",
+      "tetra*",
+      "dmr*",
+      "firstnet*"
+    ],
+    "notes": "Public safety / first-responder / tactical dispatch"
+  },
+  "specialty_vertical": {
+    "methods": [
+      "service_discovery"
+    ],
+    "notes": "Cross-vertical specialty nets — detection is per-protocol, not per-adapter"
+  },
+  "overlay_tunnel": {
+    "methods": [
+      "interface_scan",
+      "tunnel_probe"
+    ],
+    "interface_patterns": [
+      "vxlan*",
+      "geneve*",
+      "gre*",
+      "ipip*",
+      "l2tp*",
+      "evpn*"
+    ],
+    "protocols": [
+      "VXLAN",
+      "Geneve",
+      "GRE",
+      "L2TP",
+      "EVPN",
+      "SR-MPLS",
+      "SRv6"
+    ],
+    "notes": "Overlay / SDN tunnel fabrics"
+  },
+  "vpn": {
+    "methods": [
+      "interface_scan",
+      "tunnel_probe"
+    ],
+    "interface_patterns": [
+      "tun*",
+      "tap*",
+      "wg*",
+      "ipsec*",
+      "tailscale*",
+      "zerotier*",
+      "zt*"
+    ],
+    "protocols": [
+      "WireGuard",
+      "OpenVPN",
+      "IPsec/IKEv2",
+      "Tailscale",
+      "ZeroTier"
+    ],
+    "notes": "Encrypted virtual tunnels — detected by kernel interface"
+  },
+  "virtual": {
+    "methods": [
+      "interface_scan"
+    ],
+    "interface_patterns": [
+      "docker*",
+      "br-*",
+      "veth*",
+      "virbr*",
+      "vmnet*",
+      "vethernet*",
+      "hyperv*",
+      "wsl*",
+      "vbox*"
+    ],
+    "notes": "Virtual switches / container bridges / hypervisor adapters"
+  },
+  "automotive": {
+    "keywords": [
+      "can",
+      "obd",
+      "auto",
+      "vehicle",
+      "automotive"
+    ],
+    "interfaces": [
+      "can*",
+      "vcan*",
+      "obd*"
+    ],
+    "default_protocol": "CAN-bus",
+    "lan_mappable": false
+  },
+  "aviation": {
+    "keywords": [
+      "arinc",
+      "afdx",
+      "ads-b",
+      "acars",
+      "cpdlc",
+      "aviation"
+    ],
+    "interfaces": [
+      "arinc*",
+      "afdx*"
+    ],
+    "default_protocol": "ARINC-664/AFDX",
+    "lan_mappable": true
+  },
+  "emergency_public_safety": {
+    "keywords": [
+      "p25",
+      "tetra",
+      "dmr",
+      "first-responder",
+      "publicsafety"
+    ],
+    "interfaces": [
+      "p25*",
+      "tetra*"
+    ],
+    "default_protocol": "P25/TETRA",
+    "lan_mappable": false
+  },
+  "nuclear": {
+    "keywords": [
+      "nuclear",
+      "reactor",
+      "iaea",
+      "safety-bus",
+      "rad"
+    ],
+    "interfaces": [
+      "nuc*",
+      "safety*"
+    ],
+    "default_protocol": "Nuclear-Safety-Bus",
+    "lan_mappable": false
+  },
+  "acoustic": {
+    "keywords": [
+      "acoustic",
+      "hydrophone",
+      "ultrasound",
+      "sonar"
+    ],
+    "interfaces": [
+      "acoustic*",
+      "hydro*"
+    ],
+    "default_protocol": "Acoustic-Modem",
+    "lan_mappable": false
+  },
+  "satellite_aerospace": {
+    "keywords": [
+      "satellite",
+      "gps",
+      "gnss",
+      "inmarsat",
+      "iridium",
+      "starlink"
+    ],
+    "interfaces": [
+      "sat*",
+      "gnss*"
+    ],
+    "default_protocol": "Satellite-IP",
+    "lan_mappable": true
+  },
+  "serial_bus": {
+    "keywords": [
+      "serial",
+      "rs232",
+      "rs485",
+      "rs422",
+      "uart",
+      "modbus-rtu"
+    ],
+    "interfaces": [
+      "COM*",
+      "/dev/tty*",
+      "/dev/ttyUSB*",
+      "/dev/ttyS*"
+    ],
+    "default_protocol": "Serial-RS-x",
+    "lan_mappable": false
+  }
+}

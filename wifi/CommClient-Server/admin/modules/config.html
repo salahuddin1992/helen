@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Config Editor</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .tab{padding:8px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:13px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  h2{margin:0 0 10px 0;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
+  .field{display:grid;grid-template-columns:240px 1fr 90px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #0d1736}
+  .field:last-child{border-bottom:none}
+  .field .nm{font-family:var(--mono);font-size:11px;color:var(--ink)}
+  .field .nm .secret{color:var(--warn);font-size:10px;margin-inline-start:4px}
+  .field .desc{font-size:10px;color:var(--muted);font-style:italic;margin-top:2px}
+  .field input,.field select{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:7px;padding:6px 9px;font-family:var(--mono);font-size:12px;width:100%;
+  }
+  .field .type{font-family:var(--mono);font-size:10px;color:var(--muted2);text-align:end}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:6px 11px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit
+  }
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081224;border-color:transparent;font-weight:600}
+  .btn.warn{background:#3a2a15;border-color:#5c3a18;color:#f5cf85}
+  .pill{padding:2px 9px;border-radius:999px;background:#1b2945;color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.err{color:var(--err)}
+  pre.diff{background:#020610;border:1px solid var(--line);border-radius:9px;padding:10px;
+    font-family:var(--mono);font-size:11px;color:#cbd9f1;max-height:300px;overflow:auto}
+  .reveal{cursor:pointer;color:var(--accent);font-size:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Live Configuration
+  <span class="pill" id="dirtyPill" style="display:none">unsaved changes</span>
+</h1>
+
+<div class="tabs">
+  <div class="tab active" data-tab="editor">Editor</div>
+  <div class="tab" data-tab="history">Change history</div>
+</div>
+
+<div id="tab-editor">
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input class="in" id="searchBox" placeholder="filter fields…"
+        style="background:#0c1630;border:1px solid var(--line);color:var(--ink);
+               border-radius:7px;padding:6px 10px;font-family:inherit;font-size:12px;flex:1;min-width:200px">
+      <button class="btn" id="btnReload">Reload</button>
+      <button class="btn warn" id="btnPreview">Preview diff</button>
+      <button class="btn primary" id="btnApply">Apply</button>
+    </div>
+    <pre class="diff" id="diffArea" style="display:none;margin-top:10px"></pre>
+  </div>
+  <div id="catContainer"></div>
+</div>
+
+<div id="tab-history" style="display:none">
+  <div class="card">
+    <h2>Recent config changes</h2>
+    <div id="historyArea">…</div>
+  </div>
+</div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+async function call(method, path, body){
+  const r = await fetch(api(path), { method,
+    headers: { "Content-Type":"application/json",
+               Authorization:"Bearer " + getToken() },
+    body: body ? JSON.stringify(body) : null });
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
+  return r.json();
+}
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+let SCHEMA = [];
+let DIRTY = {};
+
+async function load(){
+  const j = await call("GET", "/api/admin/config/schema");
+  SCHEMA = j.fields;
+  render();
+}
+
+function render(){
+  const q = $("searchBox").value.toLowerCase();
+  const groups = {};
+  for (const f of SCHEMA){
+    if (q && !f.name.toLowerCase().includes(q) &&
+        !(f.description || "").toLowerCase().includes(q)) continue;
+    (groups[f.category] = groups[f.category] || []).push(f);
+  }
+  $("catContainer").innerHTML = Object.entries(groups).map(([cat, fs]) => `
+    <div class="card">
+      <h2>${esc(cat)}</h2>
+      ${fs.map(renderField).join("")}
+    </div>
+  `).join("");
+  Object.keys(DIRTY).forEach(k => {
+    const el = document.querySelector(`[data-fname="${k}"] input,[data-fname="${k}"] select`);
+    if (el) el.value = DIRTY[k];
+  });
+}
+
+function renderField(f){
+  const sec = f.secret ? '<span class="secret">SECRET</span>' : '';
+  let editor;
+  if (f.type === "bool") {
+    editor = `<select data-name="${esc(f.name)}">
+      <option value="false"${f.current===false?' selected':''}>false</option>
+      <option value="true" ${f.current===true ?' selected':''}>true</option>
+    </select>`;
+  } else if (f.secret){
+    const val = (f.current ?? "");
+    editor = `<input data-name="${esc(f.name)}" type="password" value="${esc(val)}" placeholder="(masked)" />`;
+  } else {
+    const val = (typeof f.current === "object" ? JSON.stringify(f.current) : (f.current ?? ""));
+    editor = `<input data-name="${esc(f.name)}" value="${esc(val)}" />`;
+  }
+  return `
+    <div class="field" data-fname="${esc(f.name)}">
+      <div>
+        <div class="nm">${esc(f.name)}${sec}</div>
+        ${f.description ? `<div class="desc">${esc(f.description)}</div>` : ''}
+      </div>
+      <div>${editor}</div>
+      <div class="type">${esc(f.type)}</div>
+    </div>
+  `;
+}
+
+$("searchBox").addEventListener("input", render);
+
+document.addEventListener("input", (ev) => {
+  const t = ev.target;
+  if (!t.dataset || !t.dataset.name) return;
+  let v = t.value;
+  if (t.tagName === "SELECT" && (v === "true" || v === "false")) v = (v === "true");
+  else if (/^-?\d+$/.test(v)) v = Number(v);
+  else if (/^-?\d+\.\d+$/.test(v)) v = Number(v);
+  DIRTY[t.dataset.name] = v;
+  $("dirtyPill").style.display = "inline-block";
+  $("dirtyPill").textContent = Object.keys(DIRTY).length + " unsaved";
+});
+
+$("btnReload").onclick = () => { DIRTY = {}; $("dirtyPill").style.display="none"; load(); };
+
+$("btnPreview").onclick = async () => {
+  if (!Object.keys(DIRTY).length){ alert("Nothing to preview"); return; }
+  try {
+    const j = await call("POST", "/api/admin/config/preview", { updates: DIRTY });
+    const area = $("diffArea");
+    if (j.ok){
+      area.style.display = "block";
+      area.textContent = JSON.stringify(j.diff, null, 2);
+    } else {
+      area.style.display = "block";
+      area.textContent = "Validation errors:\n" + JSON.stringify(j.errors, null, 2);
+    }
+  } catch(e){ alert(e.message); }
+};
+
+$("btnApply").onclick = async () => {
+  if (!Object.keys(DIRTY).length){ alert("Nothing to apply"); return; }
+  if (!confirm("Apply " + Object.keys(DIRTY).length + " changes?")) return;
+  try {
+    const j = await call("POST", "/api/admin/config/apply", { updates: DIRTY });
+    DIRTY = {};
+    $("dirtyPill").style.display = "none";
+    alert(j.restart_required ? "Saved. Restart required." : "Applied live.");
+    load();
+  } catch(e){ alert(e.message); }
+};
+
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    $("tab-editor").style.display  = t.dataset.tab === "editor" ? "" : "none";
+    $("tab-history").style.display = t.dataset.tab === "history" ? "" : "none";
+    if (t.dataset.tab === "history") loadHistory();
+  };
+});
+
+async function loadHistory(){
+  try {
+    const j = await call("GET", "/api/admin/config/history");
+    $("historyArea").innerHTML = (j.changes || []).map(c =>
+      `<div style="border-bottom:1px solid var(--line);padding:7px 0">
+        <div><span class="pill">#${c.seq}</span> ${new Date(c.timestamp*1000).toISOString()}</div>
+        <pre style="margin-top:4px;font-size:11px;color:var(--muted);font-family:var(--mono)">${
+          esc(JSON.stringify(c.payload, null, 2))
+        }</pre>
+      </div>`).join("") || '<div style="color:var(--muted)">No history.</div>';
+  } catch(e){ $("historyArea").textContent = e.message; }
+}
+
+load();
+</script>
+</body>
+</html>

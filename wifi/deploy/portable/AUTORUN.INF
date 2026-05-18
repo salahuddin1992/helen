@@ -1,0 +1,6 @@
+[autorun]
+label=Helen Internal LAN Suite
+icon=installer-icon.ico
+open=Launcher.cmd
+action=Install Helen LAN suite (offline)
+shellexecute=Launcher.cmd

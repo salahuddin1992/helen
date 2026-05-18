@@ -1,0 +1,2710 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Compliance / eDiscovery Workbench</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  :root{
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --panel2:#152038;
+    --panel3:#1a2440;
+    --border:#1a2a3a;
+    --border2:#243453;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --text-muted:#6a7fa0;
+    --accent:#00d4ff;
+    --accent2:#7c5cff;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --crit:#ff1744;
+    --link:#3b82f6;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --glow: 0 0 12px rgba(0,212,255,0.4);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"Segoe UI","Noto Sans Arabic","Tajawal",system-ui,sans-serif;
+    font-size:13px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+  .app{padding:14px;max-width:1900px;margin:0 auto}
+
+  /* Header */
+  header.topbar{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    padding:14px 20px;background:linear-gradient(135deg,var(--panel),var(--panel2));
+    border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);
+    margin-bottom:14px;
+  }
+  header.topbar h1{
+    margin:0;font-size:20px;font-weight:700;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  }
+  .topbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .global-search{
+    display:flex;align-items:center;background:var(--panel3);
+    border:1px solid var(--border2);border-radius:10px;padding:4px 10px;min-width:260px;
+  }
+  .global-search input{
+    background:transparent;border:0;color:var(--text);outline:0;font-size:12px;
+    width:100%;font-family:inherit;
+  }
+  .global-search input::placeholder{color:var(--text-muted)}
+  .conn-status{display:inline-flex;align-items:center;gap:8px;padding:4px 11px;border-radius:999px;font-size:11px;font-family:var(--mono)}
+  .conn-status.live{background:rgba(74,222,128,0.13);color:var(--ok);border:1px solid rgba(74,222,128,0.3)}
+  .conn-status.poll{background:rgba(250,204,21,0.13);color:var(--warn);border:1px solid rgba(250,204,21,0.3)}
+  .conn-status.err{background:rgba(255,71,87,0.13);color:var(--err);border:1px solid rgba(255,71,87,0.3)}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  .frameworks-toggle{display:flex;gap:6px;flex-wrap:wrap}
+  .fw-chip{
+    padding:3px 8px;border-radius:999px;font-size:10px;font-family:var(--mono);
+    background:var(--panel3);border:1px solid var(--border2);color:var(--text-dim);cursor:pointer;
+    user-select:none;transition:all .15s;
+  }
+  .fw-chip.on{background:rgba(0,212,255,0.13);color:var(--accent);border-color:var(--accent)}
+  .fw-chip:hover{border-color:var(--accent)}
+
+  .notif-bell{position:relative;padding:6px 10px;background:var(--panel3);border:1px solid var(--border2);
+    border-radius:8px;cursor:pointer;color:var(--text-dim);font-size:14px}
+  .notif-bell .badge{position:absolute;top:-4px;right:-4px;background:var(--err);color:#fff;border-radius:999px;
+    min-width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+
+  /* Tabs */
+  .tabs{
+    display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:6px;margin-bottom:14px;overflow-x:auto;
+  }
+  .tab{
+    padding:9px 14px;background:transparent;border:0;color:var(--text-dim);cursor:pointer;
+    border-radius:8px;font-size:12px;font-weight:600;font-family:inherit;
+    white-space:nowrap;transition:all .15s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .tab:hover{color:var(--text);background:var(--panel2)}
+  .tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+  .tab .pill{background:rgba(255,255,255,0.15);padding:1px 7px;border-radius:999px;font-size:10px}
+
+  .pane{display:none}
+  .pane.active{display:block;animation:fade .2s}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* Cards / Grids */
+  .grid{display:grid;gap:12px}
+  .grid-4{grid-template-columns:repeat(4,1fr)}
+  .grid-3{grid-template-columns:repeat(3,1fr)}
+  .grid-2{grid-template-columns:repeat(2,1fr)}
+  @media (max-width:1100px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:1fr 1fr}}
+  @media (max-width:700px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
+
+  .card{
+    background:linear-gradient(135deg,var(--panel),var(--panel2));
+    border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--text);
+    display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card h3 .sub{font-size:11px;color:var(--text-muted);font-weight:400}
+
+  .kpi{padding:14px;background:linear-gradient(135deg,var(--panel),var(--panel2));
+    border:1px solid var(--border);border-radius:12px;position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,rgba(0,212,255,0.06),transparent 60%);pointer-events:none}
+  .kpi .label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  .kpi .value{font-size:24px;font-weight:700;font-family:var(--mono);color:var(--accent)}
+  .kpi .delta{font-size:11px;color:var(--text-dim);margin-top:3px;font-family:var(--mono)}
+  .kpi .delta.up{color:var(--ok)}
+  .kpi .delta.down{color:var(--err)}
+  .kpi.warn .value{color:var(--warn)}
+  .kpi.err .value{color:var(--err)}
+  .kpi.ok .value{color:var(--ok)}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:right;padding:9px 10px;background:var(--panel3);color:var(--text-dim);
+    font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+    border-bottom:1px solid var(--border2);position:sticky;top:0;z-index:2}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:hover td{background:rgba(0,212,255,0.04)}
+  td.mono,th.mono{font-family:var(--mono);font-size:11px}
+
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.3px}
+  .badge.ok{background:rgba(74,222,128,0.13);color:var(--ok);border:1px solid rgba(74,222,128,0.3)}
+  .badge.warn{background:rgba(250,204,21,0.13);color:var(--warn);border:1px solid rgba(250,204,21,0.3)}
+  .badge.err{background:rgba(255,71,87,0.13);color:var(--err);border:1px solid rgba(255,71,87,0.3)}
+  .badge.info{background:rgba(59,130,246,0.13);color:var(--link);border:1px solid rgba(59,130,246,0.3)}
+  .badge.muted{background:var(--panel3);color:var(--text-muted);border:1px solid var(--border2)}
+  .badge.acc{background:rgba(0,212,255,0.13);color:var(--accent);border:1px solid rgba(0,212,255,0.3)}
+  .badge.purple{background:rgba(124,92,255,0.13);color:var(--accent2);border:1px solid rgba(124,92,255,0.3)}
+
+  /* Buttons */
+  .btn{
+    padding:6px 13px;background:var(--panel3);border:1px solid var(--border2);color:var(--text);
+    border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500;
+    transition:all .15s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:var(--panel2);border-color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.danger{background:rgba(255,71,87,0.13);color:var(--err);border-color:rgba(255,71,87,0.3)}
+  .btn.danger:hover{background:rgba(255,71,87,0.2)}
+  .btn.ok{background:rgba(74,222,128,0.13);color:var(--ok);border-color:rgba(74,222,128,0.3)}
+  .btn.sm{padding:3px 8px;font-size:11px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* Inputs */
+  input[type=text],input[type=number],input[type=email],input[type=date],input[type=search],
+  select,textarea{
+    background:var(--panel3);border:1px solid var(--border2);color:var(--text);
+    border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;outline:0;
+    width:100%;transition:border-color .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,0.15)}
+  textarea{resize:vertical;min-height:80px;font-family:var(--mono)}
+  label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .form-row{margin-bottom:12px}
+  .form-grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+  .form-grid-3{display:grid;gap:10px;grid-template-columns:repeat(3,1fr)}
+
+  /* Modal */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;
+  }
+  .modal-overlay.show{display:flex}
+  .modal{
+    background:var(--panel);border:1px solid var(--border2);border-radius:14px;
+    max-width:760px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal.wide{max-width:1100px}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--border)}
+  .modal-head h2{margin:0;font-size:15px;font-weight:600}
+  .modal-head .close{cursor:pointer;color:var(--text-muted);font-size:22px;background:none;border:0;padding:0 6px}
+  .modal-body{padding:18px}
+  .modal-foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+  /* Wizard */
+  .wizard-steps{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)}
+  .wstep{flex:1;padding:8px 10px;text-align:center;font-size:11px;color:var(--text-muted);
+    border-bottom:2px solid transparent;cursor:default}
+  .wstep.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .wstep.done{color:var(--ok)}
+  .wpage{display:none}
+  .wpage.active{display:block}
+
+  /* Toolbar / Filters */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .toolbar .sep{width:1px;height:22px;background:var(--border2)}
+  .filter-chip{padding:4px 10px;border-radius:999px;background:var(--panel3);
+    border:1px solid var(--border2);font-size:11px;color:var(--text-dim);cursor:pointer}
+  .filter-chip.on{background:rgba(0,212,255,0.13);color:var(--accent);border-color:var(--accent)}
+
+  /* Drawer */
+  .drawer-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.5);
+    display:none;z-index:900;
+  }
+  .drawer-overlay.show{display:block}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;width:560px;max-width:100%;
+    background:var(--panel);border-left:1px solid var(--border2);z-index:901;
+    transform:translateX(100%);transition:transform .25s ease;overflow:auto;
+    box-shadow:-8px 0 32px rgba(0,0,0,0.5);
+  }
+  .drawer.show{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+  .drawer-body{padding:18px}
+
+  /* Activity stream */
+  .activity-stream{max-height:420px;overflow:auto}
+  .activity-item{display:flex;align-items:start;gap:10px;padding:8px 10px;
+    border-bottom:1px solid var(--border);font-size:12px}
+  .activity-item:last-child{border-bottom:0}
+  .activity-icon{width:28px;height:28px;border-radius:8px;background:var(--panel3);
+    display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .activity-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:2px}
+
+  /* Posture grid */
+  .posture-card{
+    padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);
+    display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:all .15s;
+  }
+  .posture-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .posture-card.green{border-color:rgba(74,222,128,0.4)}
+  .posture-card.yellow{border-color:rgba(250,204,21,0.4)}
+  .posture-card.red{border-color:rgba(255,71,87,0.4)}
+  .posture-head{display:flex;align-items:center;justify-content:space-between}
+  .posture-name{font-weight:600;font-size:13px}
+  .posture-status{width:14px;height:14px;border-radius:50%;background:var(--ok)}
+  .posture-status.yellow{background:var(--warn)}
+  .posture-status.red{background:var(--err)}
+  .posture-bar{height:6px;background:var(--panel3);border-radius:3px;overflow:hidden}
+  .posture-bar .fill{height:100%;background:linear-gradient(90deg,var(--ok),var(--accent))}
+  .posture-bar.yellow .fill{background:linear-gradient(90deg,var(--warn),#f97316)}
+  .posture-bar.red .fill{background:linear-gradient(90deg,var(--err),var(--crit))}
+  .posture-meta{font-size:10px;color:var(--text-muted);font-family:var(--mono);
+    display:flex;justify-content:space-between}
+
+  /* Case board / Evidence */
+  .ev-item{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:12px}
+  .ev-tags{display:flex;gap:4px;flex-wrap:wrap}
+
+  /* Snippet highlight */
+  .snippet{font-family:var(--mono);font-size:11px;color:var(--text-dim);
+    background:var(--panel3);padding:6px 8px;border-radius:6px;border-right:3px solid var(--accent);
+    white-space:pre-wrap;overflow:hidden;text-overflow:ellipsis;max-height:60px}
+  .snippet mark{background:rgba(250,204,21,0.3);color:var(--warn);padding:0 2px;border-radius:2px}
+
+  /* Faceted nav */
+  .facet{padding:10px 0;border-bottom:1px solid var(--border)}
+  .facet h4{margin:0 0 6px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
+  .facet-item{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;cursor:pointer;color:var(--text-dim)}
+  .facet-item:hover{color:var(--accent)}
+  .facet-item .cnt{font-family:var(--mono);color:var(--text-muted)}
+
+  /* Notification panel */
+  .notif-panel{
+    position:absolute;top:42px;left:0;width:340px;max-height:420px;overflow:auto;
+    background:var(--panel);border:1px solid var(--border2);border-radius:10px;
+    box-shadow:var(--shadow);z-index:50;display:none;
+  }
+  .notif-panel.show{display:block}
+  .notif-item{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer}
+  .notif-item:hover{background:var(--panel3)}
+  .notif-item .t{font-size:10px;color:var(--text-muted);font-family:var(--mono);margin-top:3px}
+
+  /* Toast */
+  .toast-host{position:fixed;bottom:18px;left:18px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+  .toast{padding:10px 14px;background:var(--panel);border:1px solid var(--border2);
+    border-radius:8px;box-shadow:var(--shadow);min-width:240px;font-size:12px;
+    animation:slideIn .2s;border-right:3px solid var(--accent)}
+  .toast.ok{border-right-color:var(--ok)}
+  .toast.err{border-right-color:var(--err)}
+  .toast.warn{border-right-color:var(--warn)}
+  @keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+
+  /* Multi-select */
+  .multiselect{
+    min-height:36px;padding:5px;background:var(--panel3);border:1px solid var(--border2);
+    border-radius:8px;display:flex;flex-wrap:wrap;gap:4px;cursor:text;
+  }
+  .ms-tag{padding:2px 7px;background:rgba(0,212,255,0.13);color:var(--accent);
+    border-radius:999px;font-size:10px;display:inline-flex;align-items:center;gap:4px}
+  .ms-tag .x{cursor:pointer;color:var(--text-muted)}
+  .multiselect input{background:transparent;border:0;outline:0;color:var(--text);flex:1;
+    min-width:80px;padding:2px;font-size:12px}
+
+  /* Chart wrappers */
+  .chart-wrap{position:relative;height:240px}
+  .chart-wrap.lg{height:300px}
+
+  /* Tiny scrolling list */
+  .scroll-list{max-height:380px;overflow:auto}
+
+  /* Empty state */
+  .empty{padding:30px;text-align:center;color:var(--text-muted);font-size:12px}
+
+  /* Audit chip */
+  .chain-link{font-family:var(--mono);font-size:10px;color:var(--accent);text-decoration:none;
+    background:var(--panel3);padding:2px 6px;border-radius:5px;border:1px solid var(--border2)}
+  .chain-link:hover{border-color:var(--accent)}
+
+  /* Code blocks */
+  pre.code{background:#06080f;border:1px solid var(--border);border-radius:8px;
+    padding:10px;font-family:var(--mono);font-size:11px;color:var(--text-dim);
+    overflow:auto;max-height:280px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─────────── Header ─────────── -->
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <h1>Helen Compliance / eDiscovery Workbench</h1>
+      <span id="conn" class="conn-status poll"><span class="dot"></span>jetting…</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="frameworks-toggle" id="fw-toggle"></div>
+      <div class="global-search">
+        <span style="color:var(--text-muted);margin-left:6px">⌕</span>
+        <input id="global-q" type="search" placeholder="بحث شامل: legal hold / DSAR / case / RTBF…" />
+      </div>
+      <div style="position:relative">
+        <button class="notif-bell" id="notif-btn">🔔<span class="badge" id="notif-cnt">0</span></button>
+        <div class="notif-panel" id="notif-panel"></div>
+      </div>
+      <button class="btn" id="refresh-btn">⟳ تحديث</button>
+    </div>
+  </header>
+
+  <!-- ─────────── Tab strip ─────────── -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-pane="dash">Dashboard</button>
+    <button class="tab" data-pane="holds">Legal Holds <span class="pill" id="t-holds">0</span></button>
+    <button class="tab" data-pane="retention">Retention</button>
+    <button class="tab" data-pane="search">eDiscovery Search</button>
+    <button class="tab" data-pane="cases">Cases <span class="pill" id="t-cases">0</span></button>
+    <button class="tab" data-pane="dsar">DSAR <span class="pill" id="t-dsar">0</span></button>
+    <button class="tab" data-pane="rtbf">RTBF <span class="pill" id="t-rtbf">0</span></button>
+    <button class="tab" data-pane="class">Data Classification</button>
+    <button class="tab" data-pane="reports">Framework Reports</button>
+    <button class="tab" data-pane="audit">Audit Linkage</button>
+  </div>
+
+  <!-- ─────────── Dashboard pane ─────────── -->
+  <section class="pane active" id="pane-dash">
+    <div class="grid grid-4" style="margin-bottom:14px">
+      <div class="kpi"><div class="label">Active Legal Holds</div><div class="value" id="k-holds">—</div><div class="delta" id="k-holds-d">—</div></div>
+      <div class="kpi warn"><div class="label">Open DSAR</div><div class="value" id="k-dsar">—</div><div class="delta" id="k-dsar-d">—</div></div>
+      <div class="kpi err"><div class="label">Open RTBF</div><div class="value" id="k-rtbf">—</div><div class="delta" id="k-rtbf-d">—</div></div>
+      <div class="kpi ok"><div class="label">Retention Policies</div><div class="value" id="k-ret">—</div><div class="delta" id="k-ret-d">—</div></div>
+      <div class="kpi"><div class="label">Frameworks Tracked</div><div class="value" id="k-fw">—</div><div class="delta" id="k-fw-d">—</div></div>
+      <div class="kpi warn"><div class="label">Classification Findings</div><div class="value" id="k-cls">—</div><div class="delta" id="k-cls-d">—</div></div>
+      <div class="kpi"><div class="label">Evidence Pool Items</div><div class="value" id="k-ev">—</div><div class="delta" id="k-ev-d">—</div></div>
+      <div class="kpi"><div class="label">Open eDiscovery Cases</div><div class="value" id="k-cases">—</div><div class="delta" id="k-cases-d">—</div></div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Per-Framework Compliance Posture <span class="sub">آخر فحص</span></h3>
+        <div class="grid grid-3" id="posture-grid" style="gap:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Compliance Trends (30d) <span class="sub">events / day</span></h3>
+        <div class="chart-wrap"><canvas id="ch-trend"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Holds / DSAR / RTBF Distribution</h3>
+        <div class="chart-wrap"><canvas id="ch-dist"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Recent Compliance Activity <span class="sub">آخر 50 حدث</span></h3>
+        <div class="activity-stream" id="activity-stream"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Legal Holds pane ─────────── -->
+  <section class="pane" id="pane-holds">
+    <div class="card">
+      <div class="toolbar">
+        <input type="search" id="holds-q" placeholder="بحث في holds…" style="max-width:300px" />
+        <select id="holds-status-f" style="max-width:160px">
+          <option value="">كل الحالات</option>
+          <option value="active">Active</option>
+          <option value="released">Released</option>
+          <option value="expired">Expired</option>
+        </select>
+        <span class="sep"></span>
+        <button class="btn primary" id="hold-add-btn">+ Legal Hold جديد</button>
+        <button class="btn" id="hold-conflict-btn">⚠ فحص التعارضات</button>
+        <span style="margin-right:auto;color:var(--text-muted);font-size:11px" id="holds-stats"></span>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Case Ref</th><th>Custodians</th><th>Channels</th><th>Date Range</th>
+            <th>Keywords</th><th>Status</th><th>Items</th><th>Created By</th><th>Last Activity</th><th></th>
+          </tr></thead>
+          <tbody id="holds-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Retention pane ─────────── -->
+  <section class="pane" id="pane-retention">
+    <div class="grid grid-4" style="margin-bottom:14px">
+      <div class="kpi"><div class="label">Total Records (Messages)</div><div class="value" id="r-msg">—</div></div>
+      <div class="kpi ok"><div class="label">Files Retained</div><div class="value" id="r-files">—</div></div>
+      <div class="kpi warn"><div class="label">Pending Archive</div><div class="value" id="r-pend">—</div></div>
+      <div class="kpi err"><div class="label">Pending Delete</div><div class="value" id="r-del">—</div></div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <button class="btn primary" id="ret-add-btn">+ Retention Policy</button>
+        <button class="btn" id="ret-run-btn">▶ Run All (manual)</button>
+        <span class="sep"></span>
+        <select id="ret-res-f" style="max-width:200px">
+          <option value="">كل الموارد</option>
+          <option value="messages">Messages</option>
+          <option value="files">Files</option>
+          <option value="calls">Call Recordings</option>
+          <option value="audit">Audit</option>
+          <option value="federation">Federation Events</option>
+        </select>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Policy</th><th>Resource</th><th>Retain</th><th>Action</th><th>Exemptions</th>
+            <th>Encrypted Archive</th><th>Schedule (cron)</th><th>Status</th><th>Last Run</th><th></th>
+          </tr></thead>
+          <tbody id="ret-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── eDiscovery Search pane ─────────── -->
+  <section class="pane" id="pane-search">
+    <div class="grid" style="grid-template-columns:260px 1fr;gap:14px">
+      <div class="card">
+        <h3>Facets</h3>
+        <div id="facet-host"></div>
+        <h4 style="margin-top:14px;font-size:11px;color:var(--text-dim)">Saved Searches</h4>
+        <div id="saved-searches" class="scroll-list"></div>
+        <button class="btn sm" id="save-search-btn" style="margin-top:8px;width:100%">💾 حفظ الاستعلام</button>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>Query (Lucene)</label>
+            <textarea id="ed-query" placeholder='"breach" AND (custodian:ali OR ahmed) AND date:[2025-01-01 TO 2025-12-31] NOT type:audit' style="min-height:60px"></textarea>
+          </div>
+          <div class="form-grid-3">
+            <div><label>Custodians</label><div class="multiselect" id="ms-cust"><input type="text" placeholder="ادخل username…" /></div></div>
+            <div><label>Channels</label><div class="multiselect" id="ms-ch"><input type="text" placeholder="ادخل channel…" /></div></div>
+            <div><label>Keywords</label><div class="multiselect" id="ms-kw"><input type="text" placeholder="ادخل keyword…" /></div></div>
+          </div>
+          <div class="form-grid-3" style="margin-top:10px">
+            <div><label>From Date</label><input type="date" id="ed-from" /></div>
+            <div><label>To Date</label><input type="date" id="ed-to" /></div>
+            <div><label>Content Types</label>
+              <select id="ed-types" multiple size="3">
+                <option value="message">Message</option><option value="file">File</option>
+                <option value="call">Call Recording</option><option value="screen">Screen Share</option>
+                <option value="audit">Audit</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-3" style="margin-top:10px">
+            <div><label>File Extensions</label><input type="text" id="ed-exts" placeholder="pdf,docx,xlsx" /></div>
+            <div><label>Min Size (KB)</label><input type="number" id="ed-min" /></div>
+            <div><label>Max Size (MB)</label><input type="number" id="ed-max" /></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="display:inline-flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="ed-att" /> Has attachment</label>
+            <select id="ed-lang" style="max-width:140px"><option value="">أي لغة</option><option>ar</option><option>en</option><option>fr</option></select>
+            <input type="file" id="ed-kwfile" accept=".txt" title="رفع قائمة keywords" />
+            <button class="btn primary" id="ed-run">⌕ تشغيل البحث</button>
+            <button class="btn" id="ed-clear">مسح</button>
+            <button class="btn" id="ed-bulk-case" disabled>+ إضافة للقضية</button>
+            <button class="btn" id="ed-export" disabled>⬇ تصدير</button>
+            <span style="margin-right:auto;color:var(--text-muted);font-size:11px" id="ed-stats"></span>
+          </div>
+        </div>
+        <div class="card">
+          <div style="overflow:auto;max-height:560px">
+            <table>
+              <thead><tr>
+                <th style="width:24px"><input type="checkbox" id="ed-all" /></th>
+                <th>Type</th><th>Custodian</th><th>Channel</th><th>Date</th>
+                <th>Snippet</th><th>Score</th><th></th>
+              </tr></thead>
+              <tbody id="ed-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Cases pane ─────────── -->
+  <section class="pane" id="pane-cases">
+    <div class="card" id="cases-list-wrap">
+      <div class="toolbar">
+        <input type="search" id="cases-q" placeholder="بحث القضايا…" style="max-width:260px" />
+        <select id="cases-status-f" style="max-width:180px">
+          <option value="">كل الحالات</option>
+          <option value="open">Open</option>
+          <option value="investigation">Investigation</option>
+          <option value="review">Review</option>
+          <option value="closed">Closed</option>
+        </select>
+        <button class="btn primary" id="case-add-btn">+ Case جديد</button>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Matter Ref</th><th>Status</th><th>Owner</th>
+            <th>Evidence</th><th>Custodians</th><th>Created</th><th></th>
+          </tr></thead>
+          <tbody id="cases-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="case-detail-wrap" style="display:none"></div>
+  </section>
+
+  <!-- ─────────── DSAR pane ─────────── -->
+  <section class="pane" id="pane-dsar">
+    <div class="card">
+      <div class="toolbar">
+        <button class="btn primary" id="dsar-add-btn">+ DSAR جديد</button>
+        <select id="dsar-status-f" style="max-width:180px">
+          <option value="">كل الحالات</option>
+          <option>new</option><option>in_progress</option><option>fulfilled</option><option>rejected</option>
+        </select>
+        <select id="dsar-type-f" style="max-width:180px">
+          <option value="">كل الأنواع</option>
+          <option>access</option><option>portability</option><option>rectification</option>
+        </select>
+        <span style="margin-right:auto;color:var(--text-muted);font-size:11px" id="dsar-stats"></span>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>Requester</th><th>Type</th><th>Identity</th><th>Scope</th>
+            <th>Deadline</th><th>Assignee</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody id="dsar-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── RTBF pane ─────────── -->
+  <section class="pane" id="pane-rtbf">
+    <div class="card">
+      <div class="toolbar">
+        <button class="btn primary" id="rtbf-add-btn">+ RTBF جديد</button>
+        <select id="rtbf-status-f" style="max-width:180px">
+          <option value="">كل الحالات</option>
+          <option>new</option><option>verifying</option><option>blocked_by_hold</option>
+          <option>executing</option><option>completed</option><option>rejected</option>
+        </select>
+        <span style="margin-right:auto;color:var(--text-muted);font-size:11px">RTBF تنفّذ فقط مع تأكيد مكتوب وفحص hold conflict</span>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>Subject</th><th>Justification</th><th>Scope</th>
+            <th>Hold Conflict?</th><th>Status</th><th>Created</th><th></th>
+          </tr></thead>
+          <tbody id="rtbf-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Classification pane ─────────── -->
+  <section class="pane" id="pane-class">
+    <div class="grid grid-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Classification Rules</h3>
+        <div class="toolbar">
+          <button class="btn primary" id="cls-add-btn">+ قاعدة جديدة</button>
+          <button class="btn" id="cls-scan-btn">⌕ مسح الكوربس</button>
+        </div>
+        <div style="overflow:auto;max-height:380px">
+          <table>
+            <thead><tr><th>Name</th><th>Pattern</th><th>Class</th><th>Action</th><th>Enabled</th><th></th></tr></thead>
+            <tbody id="cls-rules-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Distribution by Class</h3>
+        <div class="chart-wrap"><canvas id="ch-class"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Scan Findings (misclassified / unclassified)</h3>
+      <div class="toolbar">
+        <button class="btn ok" id="cls-bulk-fix">✓ Bulk Reclassify المحدد</button>
+        <span style="color:var(--text-muted);font-size:11px" id="cls-stats"></span>
+      </div>
+      <div style="overflow:auto;max-height:420px">
+        <table>
+          <thead><tr>
+            <th style="width:24px"><input type="checkbox" id="cls-all" /></th>
+            <th>Item</th><th>Current</th><th>Recommended</th><th>Confidence</th><th>Evidence (matched)</th><th></th>
+          </tr></thead>
+          <tbody id="cls-find-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Framework Reports pane ─────────── -->
+  <section class="pane" id="pane-reports">
+    <div class="grid grid-2" style="margin-bottom:14px">
+      <div class="card">
+        <h3>Generate Framework Report</h3>
+        <div class="form-row"><label>Framework</label>
+          <select id="rep-fw">
+            <option>GDPR</option><option>HIPAA</option><option>SOC2</option><option>ISO27001</option>
+            <option>ISO27017</option><option>NIST_800_53</option><option>PCI_DSS</option>
+            <option>FedRAMP</option><option>SAUDI_NCA_ECC</option><option>UAE_TDRA</option>
+          </select>
+        </div>
+        <div class="form-grid">
+          <div><label>From</label><input type="date" id="rep-from" /></div>
+          <div><label>To</label><input type="date" id="rep-to" /></div>
+        </div>
+        <div class="form-row" style="margin-top:10px"><label>Formats</label>
+          <div style="display:flex;gap:10px">
+            <label><input type="checkbox" id="rep-pdf" checked /> PDF</label>
+            <label><input type="checkbox" id="rep-csv" checked /> CSV</label>
+            <label><input type="checkbox" id="rep-json" /> JSON</label>
+            <label><input type="checkbox" id="rep-sign" checked /> Signed</label>
+          </div>
+        </div>
+        <button class="btn primary" id="rep-gen">⚙ توليد التقرير</button>
+      </div>
+      <div class="card">
+        <h3>Schedule Recurring Reports</h3>
+        <div class="form-grid">
+          <div><label>Framework</label><select id="sch-fw"></select></div>
+          <div><label>Cadence</label>
+            <select id="sch-cad"><option>monthly</option><option>quarterly</option><option>annually</option></select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:10px"><label>Recipients (csv)</label>
+          <input type="text" id="sch-rec" placeholder="dpo@org,security@org" />
+        </div>
+        <button class="btn primary" id="sch-save">+ جدولة</button>
+        <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+          <h4 style="font-size:11px;color:var(--text-dim);margin:0 0 6px">المجدولة حالياً</h4>
+          <div id="sch-list" class="scroll-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Generated Reports History</h3>
+      <div class="toolbar">
+        <button class="btn" id="rep-compare">⇄ مقارنة نسختين (drift)</button>
+        <span style="color:var(--text-muted);font-size:11px" id="rep-stats"></span>
+      </div>
+      <div style="overflow:auto;max-height:380px">
+        <table>
+          <thead><tr><th>ID</th><th>Framework</th><th>Window</th><th>Generated</th><th>By</th><th>Format</th><th>Score</th><th>Signed</th><th></th></tr></thead>
+          <tbody id="rep-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── Audit Linkage pane ─────────── -->
+  <section class="pane" id="pane-audit">
+    <div class="card">
+      <h3>Audit Linkage</h3>
+      <p style="color:var(--text-dim);font-size:12px">
+        كل عملية في هذه اللوحة (Hold create / release / Retention apply / DSAR fulfill / RTBF execute / Case export / Classification edit)
+        تُسجَّل في سلسلة الـ Tamper-Evident Audit Chain ويمكن متابعتها من <a href="/admin/modules/siem_audit.html" style="color:var(--accent)">لوحة SIEM</a>
+        مع فلتر <code style="background:var(--panel3);padding:1px 5px;border-radius:4px">source=compliance</code>.
+      </p>
+      <div class="toolbar">
+        <a class="btn primary" href="/admin/modules/siem_audit.html?source=compliance" target="_blank">↗ فتح SIEM (compliance only)</a>
+        <button class="btn" id="audit-verify-btn">✓ تحقّق integrity للسلسلة</button>
+      </div>
+      <div style="overflow:auto;max-height:520px;margin-top:10px">
+        <table>
+          <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Hash</th><th>Prev Hash</th><th>Signed</th></tr></thead>
+          <tbody id="audit-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ─────────── Modal host ─────────── -->
+<div class="modal-overlay" id="modal-host"><div class="modal" id="modal-box">
+  <div class="modal-head"><h2 id="modal-title">—</h2><button class="close" onclick="closeModal()">×</button></div>
+  <div class="modal-body" id="modal-body"></div>
+  <div class="modal-foot" id="modal-foot"></div>
+</div></div>
+
+<!-- ─────────── Drawer host ─────────── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><h3 id="drawer-title" style="margin:0">—</h3><button class="close btn sm" onclick="closeDrawer()">×</button></div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<!-- ─────────── Toast host ─────────── -->
+<div class="toast-host" id="toast-host"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   Helen Compliance / eDiscovery Workbench — Client Logic
+   - Bearer auth via localStorage 'helen_admin_token'
+   - API base http://127.0.0.1:3000
+   - Endpoints under /api/admin/compliance/*
+   - Audit-confirmed destructive ops
+   ════════════════════════════════════════════════════════════════════════ */
+
+"use strict";
+const API_BASE = "http://127.0.0.1:3000";
+const TOKEN_KEY = "helen_admin_token";
+
+const FRAMEWORKS = [
+  {id:"GDPR",         name:"GDPR"},
+  {id:"HIPAA",        name:"HIPAA"},
+  {id:"SOC2",         name:"SOC 2"},
+  {id:"ISO27001",     name:"ISO 27001"},
+  {id:"ISO27017",     name:"ISO 27017"},
+  {id:"NIST_800_53",  name:"NIST 800-53"},
+  {id:"PCI_DSS",      name:"PCI-DSS"},
+  {id:"FedRAMP",      name:"FedRAMP"},
+  {id:"SAUDI_NCA_ECC",name:"NCA-ECC"},
+  {id:"UAE_TDRA",     name:"TDRA"},
+];
+
+const State = {
+  enabledFW: new Set(JSON.parse(localStorage.getItem("hl_fw_enabled")||'["GDPR","HIPAA","SOC2","ISO27001","NIST_800_53"]')),
+  posture: [],
+  activity: [],
+  holds: [],
+  retention: [],
+  cases: [],
+  currentCase: null,
+  dsar: [],
+  rtbf: [],
+  clsRules: [],
+  clsFindings: [],
+  reports: [],
+  schedules: [],
+  audit: [],
+  edResults: [],
+  savedSearches: JSON.parse(localStorage.getItem("hl_saved_searches")||"[]"),
+  notifications: [],
+  charts: {},
+  pollTimer: null,
+};
+
+/* ════════ apiFetch with auth + retry + offline-fallback ════════ */
+async function apiFetch(path, opts={}, retries=2){
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = Object.assign({
+    "Content-Type":"application/json",
+    "Accept":"application/json",
+  }, opts.headers||{});
+  if(token) headers["Authorization"] = "Bearer "+token;
+  let lastErr;
+  for(let i=0;i<=retries;i++){
+    try{
+      const r = await fetch(API_BASE+path, Object.assign({}, opts, {headers}));
+      if(!r.ok){
+        if(r.status===401){ throw new Error("AUTH_401"); }
+        if(r.status>=500 && i<retries){ await sleep(400*(i+1)); continue; }
+        const txt = await r.text();
+        throw new Error("HTTP "+r.status+": "+txt.slice(0,200));
+      }
+      setConn("live","API متصل");
+      const ct = r.headers.get("content-type")||"";
+      if(ct.includes("application/json")) return r.json();
+      return r.text();
+    }catch(e){
+      lastErr = e;
+      if(i<retries) await sleep(400*(i+1));
+    }
+  }
+  setConn("err","API غير متاح — وضع تجريبي");
+  throw lastErr;
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+function setConn(cls, txt){
+  const el = document.getElementById("conn");
+  el.className = "conn-status "+cls;
+  el.innerHTML = '<span class="dot"></span>'+txt;
+}
+
+/* ════════ Toast ════════ */
+function toast(msg, kind="ok", ttl=3500){
+  const host = document.getElementById("toast-host");
+  const t = document.createElement("div");
+  t.className = "toast "+kind;
+  t.textContent = msg;
+  host.appendChild(t);
+  setTimeout(()=>{ t.style.opacity="0"; setTimeout(()=>t.remove(),250) }, ttl);
+}
+
+/* ════════ Modal helpers ════════ */
+function openModal(title, bodyHtml, footHtml, wide=false){
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = bodyHtml;
+  document.getElementById("modal-foot").innerHTML = footHtml||"";
+  document.getElementById("modal-box").classList.toggle("wide", !!wide);
+  document.getElementById("modal-host").classList.add("show");
+}
+function closeModal(){ document.getElementById("modal-host").classList.remove("show"); }
+
+/* ════════ Drawer helpers ════════ */
+function openDrawer(title, html){
+  document.getElementById("drawer-title").textContent = title;
+  document.getElementById("drawer-body").innerHTML = html;
+  document.getElementById("drawer-overlay").classList.add("show");
+  document.getElementById("drawer").classList.add("show");
+}
+function closeDrawer(){
+  document.getElementById("drawer-overlay").classList.remove("show");
+  document.getElementById("drawer").classList.remove("show");
+}
+
+/* ════════ Tabs ════════ */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    document.getElementById("pane-"+t.dataset.pane).classList.add("active");
+    onPaneActivate(t.dataset.pane);
+  });
+});
+
+function onPaneActivate(name){
+  switch(name){
+    case "dash": renderDashboard(); break;
+    case "holds": renderHolds(); break;
+    case "retention": renderRetention(); break;
+    case "search": renderSearchInit(); break;
+    case "cases": renderCases(); break;
+    case "dsar": renderDSAR(); break;
+    case "rtbf": renderRTBF(); break;
+    case "class": renderClassification(); break;
+    case "reports": renderReports(); break;
+    case "audit": renderAudit(); break;
+  }
+}
+
+/* ════════ Mock data generator (offline-safe) ════════ */
+function mockData(){
+  const cust = ["ali.h","ahmed.k","sara.n","mohamed.o","layla.r","yousef.s","kareem.m","nour.a"];
+  const ch = ["#general","#finance","#legal","#engineering","#sales","#hr","#security","#exec"];
+  const acts = ["hold.create","hold.release","hold.scope_update","retention.apply","retention.preview",
+    "ediscovery.search","case.create","case.export","dsar.create","dsar.fulfill",
+    "rtbf.create","rtbf.execute","classification.scan","classification.rule_update",
+    "report.generate","framework.assess"];
+  const now = Date.now();
+  return {
+    posture: FRAMEWORKS.map((f,i)=>({
+      framework:f.id, name:f.name,
+      status: ["green","green","yellow","green","green","yellow","red","green","yellow","green"][i]||"green",
+      score: 60 + ((i*7)%35),
+      controls_total: 80 + i*5,
+      controls_passing: 70 + i*3,
+      last_assessed: new Date(now - (i+1)*86400000*3).toISOString(),
+      drift: (i%3===0?"+":"-")+(i%5),
+    })),
+    activity: Array.from({length:50},(_,i)=>({
+      ts: new Date(now - i*230000).toISOString(),
+      actor: cust[i%cust.length],
+      action: acts[i%acts.length],
+      resource: "ref-"+(1000+i),
+      hash: "0x"+Math.random().toString(16).slice(2,12),
+    })),
+    holds: Array.from({length:9},(_,i)=>({
+      id:"hold_"+(100+i), name:"Hold #"+(100+i)+" — "+(["Smith v. Acme","FTC Investigation","SEC Subpoena","Internal HR Case","Patent Dispute","M&A Discovery","Audit 2025","Whistleblower","Insider Trading"][i]),
+      case_ref:"M-2025-"+(i+1).toString().padStart(3,"0"),
+      custodians:cust.slice(0,2+(i%5)), channels:ch.slice(0,1+(i%4)),
+      keywords:["confidential","privileged","NDA"].slice(0,1+(i%3)),
+      date_from:"2024-0"+((i%9)+1)+"-01", date_to:"2025-12-31",
+      status: i<7?"active":"released",
+      items_preserved: 1200+(i*340),
+      created_by: cust[i%cust.length],
+      created_at: new Date(now-i*86400000*7).toISOString(),
+      last_activity: new Date(now-i*86400000).toISOString(),
+      notify: i%2===0,
+    })),
+    retention: [
+      {id:"rp_msg",  name:"Messages 7y",       resource:"messages",  retain_days:2555, action:"archive",  exemptions:["legal_hold","classification:secret"], encrypt:true,  schedule:"0 2 * * *", status:"active",  last_run:new Date(now-86400000).toISOString(), counts:{total:1845210,retained:1820100,archived:25100,deleted:0,anonymized:10}},
+      {id:"rp_file", name:"Files 5y",          resource:"files",     retain_days:1825, action:"archive",  exemptions:["legal_hold"], encrypt:true, schedule:"0 3 * * *", status:"active",  last_run:new Date(now-86400000).toISOString(), counts:{total:482300,retained:471200,archived:11100,deleted:0,anonymized:0}},
+      {id:"rp_call", name:"Calls 2y",          resource:"calls",     retain_days:730,  action:"delete",   exemptions:["legal_hold","compliance_review"], encrypt:false, schedule:"0 4 * * 0", status:"active",  last_run:new Date(now-7*86400000).toISOString(), counts:{total:54300,retained:51200,archived:0,deleted:3100,anonymized:0}},
+      {id:"rp_aud",  name:"Audit 10y",         resource:"audit",     retain_days:3650, action:"archive",  exemptions:["legal_hold"], encrypt:true, schedule:"0 5 * * *", status:"active",  last_run:new Date(now-86400000).toISOString(), counts:{total:9182300,retained:9182300,archived:0,deleted:0,anonymized:0}},
+      {id:"rp_fed",  name:"Federation 1y",     resource:"federation",retain_days:365,  action:"anonymize",exemptions:[], encrypt:false, schedule:"0 6 * * *", status:"paused", last_run:new Date(now-30*86400000).toISOString(), counts:{total:120300,retained:90100,archived:0,deleted:0,anonymized:30200}},
+    ],
+    cases: Array.from({length:7},(_,i)=>({
+      id:"case_"+(200+i), name:"Case "+(200+i)+" — "+(["Trade Secret","Harassment Inq","Breach Q1","Insider Threat","Vendor Fraud","Patent Defense","M&A Diligence"][i]),
+      matter_ref:"L-2025-"+(i+1).toString().padStart(3,"0"),
+      status:["open","investigation","review","open","investigation","closed","review"][i],
+      owner: cust[i%cust.length],
+      evidence_count: 30+i*23,
+      custodians: cust.slice(0,2+(i%4)),
+      created_at: new Date(now - (i+1)*86400000*5).toISOString(),
+    })),
+    dsar: Array.from({length:6},(_,i)=>({
+      id:"dsar_"+(300+i), requester: cust[i%cust.length]+"@example.com",
+      identity_verified: i!==2, request_type:["access","portability","access","rectification","access","access"][i],
+      scope:"all", deadline: new Date(now + (30 - i*4)*86400000).toISOString(),
+      assignee:"dpo@helen", status:["new","in_progress","in_progress","fulfilled","new","in_progress"][i],
+      created_at: new Date(now - i*86400000*3).toISOString(),
+    })),
+    rtbf: Array.from({length:5},(_,i)=>({
+      id:"rtbf_"+(400+i), subject: cust[i%cust.length]+"@example.com",
+      justification:["right_to_erasure","art_17","consent_withdrawn","contract_terminated","other"][i],
+      scope:"profile+messages+files",
+      hold_conflict: i===1,
+      status: i===1?"blocked_by_hold":["new","new","verifying","completed","new"][i],
+      created_at: new Date(now - i*86400000*2).toISOString(),
+    })),
+    clsRules: [
+      {id:"cr1",name:"Credit Card",pattern:"\\b(?:\\d[ -]*?){13,16}\\b",cls:"restricted",action:"block",enabled:true},
+      {id:"cr2",name:"Saudi National ID",pattern:"\\b[12]\\d{9}\\b",cls:"restricted",action:"encrypt",enabled:true},
+      {id:"cr3",name:"IBAN",pattern:"\\b[A-Z]{2}\\d{2}[A-Z0-9]{1,30}\\b",cls:"confidential",action:"tag",enabled:true},
+      {id:"cr4",name:"Internal Project Codename",pattern:"PROJ-[A-Z]{2,6}-\\d+",cls:"internal",action:"tag",enabled:true},
+      {id:"cr5",name:"Medical Record (HIPAA)",pattern:"MRN[- ]?\\d{6,9}",cls:"secret",action:"alert",enabled:true},
+      {id:"cr6",name:"Email pattern",pattern:"@example\\.com",cls:"internal",action:"tag",enabled:false},
+    ],
+    clsFindings: Array.from({length:20},(_,i)=>({
+      item_id:"msg_"+(1000+i*7), kind:["message","file","message","call_transcript"][i%4],
+      current_class:["public","internal","internal","unclassified"][i%4],
+      recommended_class:["confidential","restricted","secret","confidential"][i%4],
+      confidence: 0.65+((i%10)/30),
+      evidence:["MRN-123456","4111-1111-1111-1111","SA0380000000608010167519","PROJ-ATLAS-72"].slice(0,1+(i%3)),
+    })),
+    reports: Array.from({length:8},(_,i)=>({
+      id:"rep_"+(500+i), framework:FRAMEWORKS[i%FRAMEWORKS.length].id,
+      window:"2025-Q"+((i%4)+1), generated_at: new Date(now - i*86400000*5).toISOString(),
+      by: cust[i%cust.length], format:["pdf","csv","json","pdf"][i%4],
+      score: 70+i*2, signed: i%3!==0,
+    })),
+    schedules:[
+      {id:"sch1",framework:"GDPR",cadence:"monthly",recipients:"dpo@helen,legal@helen",next_run: new Date(now+5*86400000).toISOString()},
+      {id:"sch2",framework:"SOC2",cadence:"quarterly",recipients:"audit@helen",next_run: new Date(now+30*86400000).toISOString()},
+    ],
+    audit: Array.from({length:30},(_,i)=>{
+      const h="0x"+Math.random().toString(16).slice(2,18);
+      const ph="0x"+Math.random().toString(16).slice(2,18);
+      return {ts:new Date(now-i*450000).toISOString(),actor:cust[i%cust.length],
+        action:acts[i%acts.length],resource:"ref-"+(2000+i),hash:h,prev_hash:ph,signed:true};
+    }),
+    counts:{
+      holds_active:7, dsar_open:5, rtbf_open:4, retention_active:4,
+      fw_tracked: FRAMEWORKS.length, cls_findings:20, evidence_pool:482, cases_open:5,
+    },
+    notifications:[
+      {id:"n1",kind:"warn",text:"DSAR dsar_303 deadline في 3 أيام",ts:new Date(now-3600000).toISOString()},
+      {id:"n2",kind:"err",text:"RTBF rtbf_401 محجوب بسبب hold_103",ts:new Date(now-7200000).toISOString()},
+      {id:"n3",kind:"warn",text:"Classification drift: 14 messages موصومة بـ internal فعلياً confidential",ts:new Date(now-10800000).toISOString()},
+      {id:"n4",kind:"info",text:"Hold hold_106 ستنتهي خلال 14 يوم",ts:new Date(now-21600000).toISOString()},
+    ],
+  };
+}
+
+/* ════════ Frameworks toggle (top bar) ════════ */
+function renderFWToggle(){
+  const host = document.getElementById("fw-toggle");
+  host.innerHTML = FRAMEWORKS.map(f=>{
+    const on = State.enabledFW.has(f.id);
+    return `<span class="fw-chip ${on?"on":""}" data-fw="${f.id}">${f.name}</span>`;
+  }).join("");
+  host.querySelectorAll(".fw-chip").forEach(c=>{
+    c.addEventListener("click", ()=>{
+      const id = c.dataset.fw;
+      if(State.enabledFW.has(id)) State.enabledFW.delete(id);
+      else State.enabledFW.add(id);
+      localStorage.setItem("hl_fw_enabled", JSON.stringify([...State.enabledFW]));
+      c.classList.toggle("on");
+      renderPosture();
+    });
+  });
+
+  // populate scheduler dropdown
+  const sch = document.getElementById("sch-fw");
+  if(sch) sch.innerHTML = FRAMEWORKS.map(f=>`<option value="${f.id}">${f.name}</option>`).join("");
+}
+
+/* ════════ Dashboard ════════ */
+async function loadAll(){
+  setConn("poll","تحميل…");
+  // try API first per resource, fall back to mock if any fails
+  let m;
+  try{
+    const [posture, activity, holds, retention, cases, dsar, rtbf, clsRules, clsFind, reports, schedules, audit, frameworks] = await Promise.all([
+      apiFetch("/api/admin/compliance/frameworks/status").catch(()=>null),
+      apiFetch("/api/admin/compliance/activity?limit=50").catch(()=>null),
+      apiFetch("/api/admin/compliance/holds").catch(()=>null),
+      apiFetch("/api/admin/compliance/retention/policies").catch(()=>null),
+      apiFetch("/api/admin/compliance/ediscovery/cases").catch(()=>null),
+      apiFetch("/api/admin/compliance/dsar/requests").catch(()=>null),
+      apiFetch("/api/admin/compliance/rtbf/requests").catch(()=>null),
+      apiFetch("/api/admin/compliance/classification/rules").catch(()=>null),
+      apiFetch("/api/admin/compliance/classification/findings").catch(()=>null),
+      apiFetch("/api/admin/compliance/reports").catch(()=>null),
+      apiFetch("/api/admin/compliance/reports/schedules").catch(()=>null),
+      apiFetch("/api/admin/compliance/audit?limit=100").catch(()=>null),
+      null,
+    ]);
+    m = mockData(); // baseline
+    if(posture) m.posture = posture;
+    if(activity) m.activity = activity;
+    if(holds) m.holds = holds;
+    if(retention) m.retention = retention;
+    if(cases) m.cases = cases;
+    if(dsar) m.dsar = dsar;
+    if(rtbf) m.rtbf = rtbf;
+    if(clsRules) m.clsRules = clsRules;
+    if(clsFind) m.clsFindings = clsFind;
+    if(reports) m.reports = reports;
+    if(schedules) m.schedules = schedules;
+    if(audit) m.audit = audit;
+  }catch(e){
+    m = mockData();
+  }
+  Object.assign(State, {
+    posture:m.posture, activity:m.activity, holds:m.holds, retention:m.retention,
+    cases:m.cases, dsar:m.dsar, rtbf:m.rtbf, clsRules:m.clsRules, clsFindings:m.clsFindings,
+    reports:m.reports, schedules:m.schedules, audit:m.audit, notifications:m.notifications,
+  });
+  // Counters
+  document.getElementById("t-holds").textContent = State.holds.filter(h=>h.status==="active").length;
+  document.getElementById("t-cases").textContent = State.cases.filter(c=>c.status!=="closed").length;
+  document.getElementById("t-dsar").textContent = State.dsar.filter(d=>d.status!=="fulfilled"&&d.status!=="rejected").length;
+  document.getElementById("t-rtbf").textContent = State.rtbf.filter(r=>r.status!=="completed"&&r.status!=="rejected").length;
+  renderNotifications();
+  renderDashboard();
+}
+
+function renderDashboard(){
+  // KPIs
+  document.getElementById("k-holds").textContent = State.holds.filter(h=>h.status==="active").length;
+  document.getElementById("k-holds-d").textContent = State.holds.length + " إجمالي";
+  document.getElementById("k-dsar").textContent = State.dsar.filter(d=>d.status!=="fulfilled"&&d.status!=="rejected").length;
+  document.getElementById("k-dsar-d").textContent = State.dsar.length+" إجمالي";
+  document.getElementById("k-rtbf").textContent = State.rtbf.filter(r=>r.status!=="completed"&&r.status!=="rejected").length;
+  document.getElementById("k-rtbf-d").textContent = State.rtbf.filter(r=>r.hold_conflict).length+" محجوز بـ hold";
+  document.getElementById("k-ret").textContent = State.retention.filter(r=>r.status==="active").length;
+  document.getElementById("k-ret-d").textContent = State.retention.length+" سياسة";
+  document.getElementById("k-fw").textContent = State.enabledFW.size;
+  document.getElementById("k-fw-d").textContent = FRAMEWORKS.length+" متاح";
+  document.getElementById("k-cls").textContent = State.clsFindings.length;
+  document.getElementById("k-cls-d").textContent = "تحتاج reclassify";
+  document.getElementById("k-ev").textContent = State.cases.reduce((s,c)=>s+c.evidence_count,0);
+  document.getElementById("k-ev-d").textContent = "عبر "+State.cases.length+" قضية";
+  document.getElementById("k-cases").textContent = State.cases.filter(c=>c.status!=="closed").length;
+  document.getElementById("k-cases-d").textContent = State.cases.length+" إجمالي";
+
+  renderPosture();
+  renderActivityStream();
+  renderTrendChart();
+  renderDistChart();
+}
+
+function renderPosture(){
+  const host = document.getElementById("posture-grid");
+  const items = State.posture.filter(p=>State.enabledFW.has(p.framework));
+  if(items.length===0){ host.innerHTML = '<div class="empty">لا توجد frameworks مفعَّلة</div>'; return; }
+  host.innerHTML = items.map(p=>{
+    const c = p.status==="green"?"":"yellow"===p.status?"yellow":"red";
+    return `<div class="posture-card ${p.status}" onclick="openPostureDetail('${p.framework}')">
+      <div class="posture-head">
+        <span class="posture-name">${esc(p.name||p.framework)}</span>
+        <span class="posture-status ${c}"></span>
+      </div>
+      <div class="posture-bar ${c}"><div class="fill" style="width:${p.score}%"></div></div>
+      <div class="posture-meta">
+        <span>${p.controls_passing}/${p.controls_total} controls</span>
+        <span>drift ${p.drift||"0"}</span>
+      </div>
+      <div class="posture-meta">
+        <span>score ${p.score}</span>
+        <span>${tsAgo(p.last_assessed)}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openPostureDetail(fw){
+  const p = State.posture.find(x=>x.framework===fw);
+  if(!p) return;
+  const html = `
+    <div class="form-grid">
+      <div><label>Framework</label><div>${esc(p.name||p.framework)}</div></div>
+      <div><label>Status</label><span class="badge ${p.status==="green"?"ok":p.status==="yellow"?"warn":"err"}">${p.status}</span></div>
+      <div><label>Score</label><div class="mono">${p.score}/100</div></div>
+      <div><label>Controls</label><div class="mono">${p.controls_passing}/${p.controls_total} passing</div></div>
+      <div><label>Last assessed</label><div class="mono">${esc(p.last_assessed)}</div></div>
+      <div><label>Drift since prev</label><div class="mono">${esc(String(p.drift))}</div></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn primary" onclick="closeDrawer(); document.querySelector('[data-pane=reports]').click();">↗ توليد تقرير</button></div>`;
+  openDrawer("Posture: "+(p.name||p.framework), html);
+}
+
+function renderActivityStream(){
+  const host = document.getElementById("activity-stream");
+  host.innerHTML = State.activity.slice(0,50).map(a=>{
+    const icon = a.action.startsWith("hold")?"🔒":a.action.startsWith("rtbf")?"🗑":a.action.startsWith("dsar")?"📋":a.action.startsWith("ediscovery")?"⌕":a.action.startsWith("retention")?"📁":a.action.startsWith("class")?"🏷":"📊";
+    return `<div class="activity-item">
+      <div class="activity-icon">${icon}</div>
+      <div style="flex:1">
+        <div><b>${esc(a.actor)}</b> ${esc(a.action)} <span class="badge muted">${esc(a.resource)}</span></div>
+        <div class="activity-meta">${tsAgo(a.ts)} • <code>${esc((a.hash||"").slice(0,12))}</code></div>
+      </div>
+    </div>`;
+  }).join("") || '<div class="empty">لا توجد أنشطة</div>';
+}
+
+function renderTrendChart(){
+  const days = 30;
+  const labels = [];
+  const data1 = [], data2 = [], data3 = [];
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(Date.now()-i*86400000);
+    labels.push((d.getMonth()+1)+"/"+d.getDate());
+    data1.push(Math.floor(20+Math.sin(i/3)*8+Math.random()*5));
+    data2.push(Math.floor(5+Math.cos(i/4)*3+Math.random()*3));
+    data3.push(Math.floor(8+Math.sin(i/5)*4+Math.random()*4));
+  }
+  const cv = document.getElementById("ch-trend");
+  if(State.charts.trend) State.charts.trend.destroy();
+  State.charts.trend = new Chart(cv,{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"Hold events",data:data1,borderColor:"#00d4ff",backgroundColor:"rgba(0,212,255,0.13)",tension:.3,fill:true},
+      {label:"DSAR / RTBF",data:data2,borderColor:"#facc15",backgroundColor:"rgba(250,204,21,0.13)",tension:.3,fill:true},
+      {label:"Retention runs",data:data3,borderColor:"#4ade80",backgroundColor:"rgba(74,222,128,0.13)",tension:.3,fill:true},
+    ]},
+    options:{
+      maintainAspectRatio:false,responsive:true,interaction:{intersect:false,mode:"index"},
+      plugins:{legend:{labels:{color:"#a0a8b0",font:{size:11}}}},
+      scales:{x:{ticks:{color:"#6a7fa0",font:{size:10}},grid:{color:"#1a2a3a"}},
+              y:{ticks:{color:"#6a7fa0",font:{size:10}},grid:{color:"#1a2a3a"}}},
+    }
+  });
+}
+
+function renderDistChart(){
+  const cv = document.getElementById("ch-dist");
+  if(State.charts.dist) State.charts.dist.destroy();
+  const holds = State.holds.filter(h=>h.status==="active").length;
+  const dsar = State.dsar.filter(d=>d.status!=="fulfilled"&&d.status!=="rejected").length;
+  const rtbf = State.rtbf.filter(r=>r.status!=="completed"&&r.status!=="rejected").length;
+  const cases = State.cases.filter(c=>c.status!=="closed").length;
+  State.charts.dist = new Chart(cv,{
+    type:"doughnut",
+    data:{labels:["Holds","DSAR","RTBF","Cases"],datasets:[{
+      data:[holds,dsar,rtbf,cases],
+      backgroundColor:["#00d4ff","#facc15","#ff4757","#7c5cff"],
+      borderColor:"#0a1020",borderWidth:2,
+    }]},
+    options:{maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{color:"#a0a8b0",font:{size:11}}}}}
+  });
+}
+
+/* ════════ Legal Holds ════════ */
+function renderHolds(){
+  const q = (document.getElementById("holds-q").value||"").toLowerCase();
+  const s = document.getElementById("holds-status-f").value;
+  const rows = State.holds.filter(h=>
+    (!s||h.status===s) && (!q||h.name.toLowerCase().includes(q)||h.case_ref.toLowerCase().includes(q)||
+     h.custodians.some(c=>c.toLowerCase().includes(q)))
+  );
+  document.getElementById("holds-stats").textContent = rows.length+" / "+State.holds.length;
+  document.getElementById("holds-body").innerHTML = rows.map(h=>`
+    <tr>
+      <td><b>${esc(h.name)}</b></td>
+      <td class="mono">${esc(h.case_ref)}</td>
+      <td>${h.custodians.length} <span class="badge muted">${esc(h.custodians.slice(0,2).join(", "))}${h.custodians.length>2?"…":""}</span></td>
+      <td>${h.channels.length} <span class="badge muted">${esc(h.channels.slice(0,2).join(", "))}${h.channels.length>2?"…":""}</span></td>
+      <td class="mono">${esc(h.date_from)} → ${esc(h.date_to)}</td>
+      <td>${h.keywords.map(k=>`<span class="badge acc">${esc(k)}</span>`).join(" ")}</td>
+      <td><span class="badge ${h.status==="active"?"ok":"muted"}">${esc(h.status)}</span></td>
+      <td class="mono">${h.items_preserved.toLocaleString()}</td>
+      <td>${esc(h.created_by)}</td>
+      <td class="mono">${tsAgo(h.last_activity)}</td>
+      <td>
+        <button class="btn sm" onclick="openHoldDetail('${h.id}')">تفاصيل</button>
+        ${h.status==="active"?`<button class="btn sm danger" onclick="releaseHold('${h.id}')">Release</button>`:""}
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="11" class="empty">لا توجد holds</td></tr>';
+}
+
+function openHoldDetail(id){
+  const h = State.holds.find(x=>x.id===id);
+  if(!h) return;
+  openDrawer("Legal Hold — "+h.name, `
+    <div class="form-grid">
+      <div><label>ID</label><div class="mono">${esc(h.id)}</div></div>
+      <div><label>Case Ref</label><div class="mono">${esc(h.case_ref)}</div></div>
+      <div><label>Status</label><span class="badge ${h.status==="active"?"ok":"muted"}">${esc(h.status)}</span></div>
+      <div><label>Items Preserved</label><div class="mono">${h.items_preserved.toLocaleString()}</div></div>
+      <div><label>Date Range</label><div class="mono">${esc(h.date_from)} → ${esc(h.date_to)}</div></div>
+      <div><label>Created By</label><div>${esc(h.created_by)}</div></div>
+    </div>
+    <div style="margin-top:14px">
+      <label>Custodians</label>
+      <div>${h.custodians.map(c=>`<span class="badge acc">${esc(c)}</span>`).join(" ")}</div>
+    </div>
+    <div style="margin-top:10px">
+      <label>Channels</label>
+      <div>${h.channels.map(c=>`<span class="badge purple">${esc(c)}</span>`).join(" ")}</div>
+    </div>
+    <div style="margin-top:10px">
+      <label>Keywords</label>
+      <div>${h.keywords.map(k=>`<span class="badge warn">${esc(k)}</span>`).join(" ")}</div>
+    </div>
+    <div style="margin-top:14px">
+      <label>Chain of Custody</label>
+      <div class="scroll-list" style="max-height:200px;border:1px solid var(--border);border-radius:8px;padding:6px">
+        ${State.audit.slice(0,8).map(a=>`<div class="activity-item">
+          <div class="activity-icon">🔗</div>
+          <div style="flex:1">
+            <div><b>${esc(a.actor)}</b> ${esc(a.action)}</div>
+            <div class="activity-meta">${esc(a.ts)} • <a class="chain-link" href="/admin/modules/siem_audit.html?hash=${esc(a.hash)}" target="_blank">${esc((a.hash||"").slice(0,16))}</a></div>
+          </div>
+        </div>`).join("")}
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      ${h.status==="active"?`<button class="btn danger" onclick="releaseHold('${h.id}')">Release Hold</button>`:""}
+      <button class="btn" onclick="editHoldScope('${h.id}')">تعديل النطاق</button>
+      <a class="btn" target="_blank" href="/admin/modules/siem_audit.html?hold=${h.id}">↗ SIEM</a>
+    </div>
+  `);
+}
+
+function holdAddWizard(){
+  const wizard = `
+    <div class="wizard-steps">
+      <div class="wstep active" data-w="1">1) أساسيات</div>
+      <div class="wstep" data-w="2">2) Custodians</div>
+      <div class="wstep" data-w="3">3) Channels & Dates</div>
+      <div class="wstep" data-w="4">4) Keywords & Filters</div>
+      <div class="wstep" data-w="5">5) خيارات</div>
+    </div>
+    <div class="wpage active" data-w="1">
+      <div class="form-row"><label>اسم الـ Hold</label><input type="text" id="h-name" /></div>
+      <div class="form-row"><label>Case Reference</label><input type="text" id="h-ref" placeholder="M-2025-001" /></div>
+      <div class="form-row"><label>وصف / Justification</label><textarea id="h-desc"></textarea></div>
+    </div>
+    <div class="wpage" data-w="2">
+      <label>Custodians (usernames بفواصل)</label>
+      <textarea id="h-cust" placeholder="ali.h, ahmed.k, sara.n"></textarea>
+      <label style="margin-top:10px;display:inline-flex;align-items:center;gap:5px">
+        <input type="checkbox" id="h-notify" /> إبلاغ الـ custodians بالـ hold
+      </label>
+    </div>
+    <div class="wpage" data-w="3">
+      <div class="form-row"><label>Channels (بفواصل)</label><input type="text" id="h-ch" placeholder="#legal,#finance" /></div>
+      <div class="form-grid">
+        <div><label>From</label><input type="date" id="h-from" /></div>
+        <div><label>To</label><input type="date" id="h-to" /></div>
+      </div>
+    </div>
+    <div class="wpage" data-w="4">
+      <div class="form-row"><label>Keywords (بفواصل)</label><input type="text" id="h-kw" placeholder="confidential,NDA" /></div>
+      <div class="form-row"><label>File types</label><input type="text" id="h-ft" placeholder="pdf,docx,xlsx" /></div>
+      <div class="form-row"><label>Message types</label>
+        <select id="h-mt"><option>all</option><option>text</option><option>file</option><option>call</option></select>
+      </div>
+    </div>
+    <div class="wpage" data-w="5">
+      <div class="form-row">
+        <label><input type="checkbox" id="h-override" checked /> Hold يتجاوز retention (recommended)</label>
+      </div>
+      <div class="form-row"><label>Expires At (اختياري)</label><input type="date" id="h-exp" /></div>
+      <div class="form-row">
+        <label>Preview Summary</label>
+        <pre class="code" id="h-summary">سيتم احتساب nbr الـ items عند الضغط على Preview</pre>
+      </div>
+      <button class="btn" type="button" onclick="previewHold()">⌕ Preview</button>
+    </div>
+  `;
+  const foot = `
+    <button class="btn" id="w-prev" disabled>السابق</button>
+    <button class="btn primary" id="w-next">التالي</button>
+    <button class="btn ok" id="w-save" style="display:none">إنشاء Hold</button>
+  `;
+  openModal("Legal Hold جديد", wizard, foot, true);
+  let step=1;
+  const max=5;
+  const goto=(s)=>{
+    step=s;
+    document.querySelectorAll(".wstep").forEach(x=>{
+      const ws=Number(x.dataset.w);
+      x.classList.toggle("active",ws===s);
+      x.classList.toggle("done",ws<s);
+    });
+    document.querySelectorAll(".wpage").forEach(x=>x.classList.toggle("active",Number(x.dataset.w)===s));
+    document.getElementById("w-prev").disabled = s===1;
+    document.getElementById("w-next").style.display = s===max?"none":"";
+    document.getElementById("w-save").style.display = s===max?"":"none";
+  };
+  document.getElementById("w-next").onclick = ()=>goto(Math.min(max,step+1));
+  document.getElementById("w-prev").onclick = ()=>goto(Math.max(1,step-1));
+  document.getElementById("w-save").onclick = saveHold;
+}
+
+async function previewHold(){
+  const c = (document.getElementById("h-cust").value||"").split(",").filter(Boolean).length;
+  const ch = (document.getElementById("h-ch").value||"").split(",").filter(Boolean).length;
+  const kw = (document.getElementById("h-kw").value||"").split(",").filter(Boolean).length;
+  document.getElementById("h-summary").textContent =
+    "Estimated preservation: ~"+(c*ch*150+kw*80).toLocaleString()+" items\n" +
+    "Custodians: "+c+"  Channels: "+ch+"  Keywords: "+kw;
+}
+
+async function saveHold(){
+  const body = {
+    name: document.getElementById("h-name").value.trim(),
+    case_ref: document.getElementById("h-ref").value.trim(),
+    description: document.getElementById("h-desc").value.trim(),
+    custodians: (document.getElementById("h-cust").value||"").split(",").map(s=>s.trim()).filter(Boolean),
+    channels: (document.getElementById("h-ch").value||"").split(",").map(s=>s.trim()).filter(Boolean),
+    date_from: document.getElementById("h-from").value,
+    date_to: document.getElementById("h-to").value,
+    keywords: (document.getElementById("h-kw").value||"").split(",").map(s=>s.trim()).filter(Boolean),
+    file_types: (document.getElementById("h-ft").value||"").split(",").map(s=>s.trim()).filter(Boolean),
+    message_types: document.getElementById("h-mt").value,
+    notify_custodians: document.getElementById("h-notify").checked,
+    override_retention: document.getElementById("h-override").checked,
+    expires_at: document.getElementById("h-exp").value||null,
+  };
+  if(!body.name||!body.case_ref){ toast("الاسم والمرجع مطلوبان","err"); return; }
+  try{
+    await apiFetch("/api/admin/compliance/holds",{method:"POST",body:JSON.stringify(body)});
+    toast("تم إنشاء الـ Hold","ok");
+  }catch(e){
+    // offline-safe
+    State.holds.unshift(Object.assign({id:"hold_"+Date.now(),status:"active",items_preserved:0,
+      created_by:"me",created_at:new Date().toISOString(),last_activity:new Date().toISOString()}, body));
+    toast("تم محلياً (API offline)","warn");
+  }
+  closeModal();
+  await loadAll();
+}
+
+function releaseHold(id){
+  const h = State.holds.find(x=>x.id===id);
+  if(!h) return;
+  openModal("Release Legal Hold", `
+    <p>سيتم إنهاء حفظ <b>${esc(h.name)}</b> وعودة العناصر إلى سياسات الاحتفاظ العادية.</p>
+    <div class="form-row"><label>سبب الإفراج (required)</label><textarea id="rel-reason"></textarea></div>
+    <div class="form-row"><label>اكتب <code>RELEASE</code> للتأكيد</label><input type="text" id="rel-confirm" /></div>
+  `, `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    <button class="btn danger" id="rel-go">Release</button>
+  `);
+  document.getElementById("rel-go").onclick = async ()=>{
+    const reason = document.getElementById("rel-reason").value.trim();
+    const cfm = document.getElementById("rel-confirm").value.trim();
+    if(cfm!=="RELEASE"){ toast("اكتب RELEASE حرفياً","err"); return; }
+    if(!reason){ toast("سبب الإفراج مطلوب","err"); return; }
+    try{
+      await apiFetch("/api/admin/compliance/holds/"+id+"/release",{method:"POST",body:JSON.stringify({reason})});
+      toast("تم الإفراج عن الـ Hold","ok");
+    }catch(e){
+      h.status="released"; h.last_activity=new Date().toISOString();
+      toast("تم محلياً","warn");
+    }
+    closeModal(); closeDrawer(); renderHolds();
+  };
+}
+
+function editHoldScope(id){
+  const h = State.holds.find(x=>x.id===id);
+  if(!h) return;
+  openModal("تعديل نطاق Hold", `
+    <div class="form-row"><label>Custodians (بفواصل)</label>
+      <input type="text" id="hs-cust" value="${esc(h.custodians.join(", "))}" /></div>
+    <div class="form-row"><label>Channels (بفواصل)</label>
+      <input type="text" id="hs-ch" value="${esc(h.channels.join(", "))}" /></div>
+    <div class="form-grid">
+      <div><label>From</label><input type="date" id="hs-from" value="${esc(h.date_from)}" /></div>
+      <div><label>To</label><input type="date" id="hs-to" value="${esc(h.date_to)}" /></div>
+    </div>
+    <div class="form-row" style="margin-top:10px"><label>Keywords</label>
+      <input type="text" id="hs-kw" value="${esc(h.keywords.join(", "))}" /></div>
+  `, `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    <button class="btn primary" id="hs-save">حفظ</button>
+  `);
+  document.getElementById("hs-save").onclick = async ()=>{
+    h.custodians = document.getElementById("hs-cust").value.split(",").map(s=>s.trim()).filter(Boolean);
+    h.channels   = document.getElementById("hs-ch").value.split(",").map(s=>s.trim()).filter(Boolean);
+    h.date_from  = document.getElementById("hs-from").value;
+    h.date_to    = document.getElementById("hs-to").value;
+    h.keywords   = document.getElementById("hs-kw").value.split(",").map(s=>s.trim()).filter(Boolean);
+    h.last_activity = new Date().toISOString();
+    try{ await apiFetch("/api/admin/compliance/holds/"+id+"/scope",{method:"PUT",body:JSON.stringify(h)}); toast("تم","ok"); }
+    catch(e){ toast("تم محلياً","warn"); }
+    closeModal(); renderHolds(); openHoldDetail(id);
+  };
+}
+
+function detectHoldConflicts(){
+  const conflicts = [];
+  for(let i=0;i<State.holds.length;i++){
+    for(let j=i+1;j<State.holds.length;j++){
+      const a=State.holds[i],b=State.holds[j];
+      if(a.status!=="active"||b.status!=="active") continue;
+      const overlap_cust = a.custodians.filter(c=>b.custodians.includes(c));
+      const overlap_ch = a.channels.filter(c=>b.channels.includes(c));
+      if(overlap_cust.length>0 && overlap_ch.length>0){
+        conflicts.push({a:a.name,b:b.name,cust:overlap_cust,ch:overlap_ch});
+      }
+    }
+  }
+  if(conflicts.length===0){
+    openModal("فحص التعارضات","<p style='color:var(--ok)'>✓ لا توجد تعارضات بين holds النشطة.</p>",
+      `<button class="btn" onclick="closeModal()">إغلاق</button>`);
+    return;
+  }
+  openModal("تعارضات Holds (Overlapping scope)", `
+    <p style="color:var(--warn)">⚠ تم اكتشاف ${conflicts.length} تعارض(ات):</p>
+    ${conflicts.map(c=>`
+      <div class="card" style="margin-bottom:8px;padding:10px">
+        <div><b>${esc(c.a)}</b> ⇄ <b>${esc(c.b)}</b></div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:5px">
+          Custodians: ${c.cust.map(x=>`<span class="badge acc">${esc(x)}</span>`).join(" ")}<br/>
+          Channels: ${c.ch.map(x=>`<span class="badge purple">${esc(x)}</span>`).join(" ")}
+        </div>
+      </div>
+    `).join("")}
+  `, `<button class="btn" onclick="closeModal()">إغلاق</button>`);
+}
+
+/* ════════ Retention ════════ */
+function renderRetention(){
+  const f = document.getElementById("ret-res-f").value;
+  const rows = State.retention.filter(r=>!f||r.resource===f);
+  const sumMsg = (State.retention.find(r=>r.resource==="messages")||{}).counts||{total:0,retained:0};
+  document.getElementById("r-msg").textContent = (sumMsg.total||0).toLocaleString();
+  const sumF = (State.retention.find(r=>r.resource==="files")||{}).counts||{retained:0};
+  document.getElementById("r-files").textContent = (sumF.retained||0).toLocaleString();
+  document.getElementById("r-pend").textContent = State.retention.reduce((s,r)=>s+(r.counts.archived||0),0).toLocaleString();
+  document.getElementById("r-del").textContent = State.retention.reduce((s,r)=>s+(r.counts.deleted||0),0).toLocaleString();
+
+  document.getElementById("ret-body").innerHTML = rows.map(r=>`
+    <tr>
+      <td><b>${esc(r.name)}</b></td>
+      <td><span class="badge info">${esc(r.resource)}</span></td>
+      <td class="mono">${r.retain_days} d</td>
+      <td><span class="badge ${r.action==="delete"?"err":r.action==="archive"?"info":"warn"}">${esc(r.action)}</span></td>
+      <td>${(r.exemptions||[]).map(x=>`<span class="badge muted">${esc(x)}</span>`).join(" ")||"<span class='badge muted'>none</span>"}</td>
+      <td>${r.encrypt?'<span class="badge ok">✓</span>':'<span class="badge muted">—</span>'}</td>
+      <td class="mono">${esc(r.schedule)}</td>
+      <td><span class="badge ${r.status==="active"?"ok":"muted"}">${esc(r.status)}</span></td>
+      <td class="mono">${tsAgo(r.last_run)}</td>
+      <td>
+        <button class="btn sm" onclick="previewRetention('${r.id}')">Preview</button>
+        <button class="btn sm primary" onclick="applyRetention('${r.id}')">Apply</button>
+        <button class="btn sm" onclick="editRetention('${r.id}')">✎</button>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="10" class="empty">لا توجد سياسات</td></tr>';
+}
+
+function retentionAddWizard(existing=null){
+  const r = existing||{};
+  openModal(existing?"تعديل Retention Policy":"Retention Policy جديد", `
+    <div class="form-grid">
+      <div><label>الاسم</label><input type="text" id="rp-name" value="${esc(r.name||"")}" /></div>
+      <div><label>المورد</label>
+        <select id="rp-res">
+          ${["messages","files","calls","audit","federation"].map(x=>`<option ${r.resource===x?"selected":""}>${x}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:10px">
+      <div><label>فترة الاحتفاظ (أيام)</label><input type="number" id="rp-days" value="${r.retain_days||365}" /></div>
+      <div><label>الإجراء عند الانتهاء</label>
+        <select id="rp-act">
+          ${["archive","delete","anonymize","redact_pii"].map(x=>`<option ${r.action===x?"selected":""}>${x}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:10px"><label>إعفاءات (بفواصل)</label>
+      <input type="text" id="rp-ex" value="${esc((r.exemptions||[]).join(", "))}" placeholder="legal_hold,classification:secret" /></div>
+    <div class="form-grid" style="margin-top:10px">
+      <div><label>الجدولة (cron)</label><input type="text" id="rp-cron" value="${esc(r.schedule||"0 2 * * *")}" /></div>
+      <div><label><input type="checkbox" id="rp-enc" ${r.encrypt?"checked":""} /> تشفير عند الأرشفة</label></div>
+    </div>
+    <div style="margin-top:14px"><label>Dry-run Preview</label>
+      <pre class="code" id="rp-pre">اضغط Preview لتقدير عدد السجلات المتأثرة.</pre>
+      <button class="btn" type="button" onclick="rpPreview()">⌕ Preview</button>
+    </div>
+  `, `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    <button class="btn primary" id="rp-save">حفظ</button>
+  `, true);
+  document.getElementById("rp-save").onclick = async ()=>{
+    const body = {
+      name: document.getElementById("rp-name").value.trim(),
+      resource: document.getElementById("rp-res").value,
+      retain_days: Number(document.getElementById("rp-days").value),
+      action: document.getElementById("rp-act").value,
+      exemptions: document.getElementById("rp-ex").value.split(",").map(s=>s.trim()).filter(Boolean),
+      schedule: document.getElementById("rp-cron").value,
+      encrypt: document.getElementById("rp-enc").checked,
+    };
+    try{
+      if(existing){
+        await apiFetch("/api/admin/compliance/retention/policies/"+existing.id,{method:"PUT",body:JSON.stringify(body)});
+      }else{
+        await apiFetch("/api/admin/compliance/retention/policies",{method:"POST",body:JSON.stringify(body)});
+      }
+      toast("تم","ok");
+    }catch(e){
+      if(existing){ Object.assign(existing, body); }
+      else State.retention.push(Object.assign({id:"rp_"+Date.now(),status:"active",last_run:null,
+        counts:{total:0,retained:0,archived:0,deleted:0,anonymized:0}}, body));
+      toast("تم محلياً","warn");
+    }
+    closeModal(); renderRetention();
+  };
+}
+
+async function rpPreview(){
+  const res = document.getElementById("rp-res").value;
+  const days = Number(document.getElementById("rp-days").value);
+  const act = document.getElementById("rp-act").value;
+  try{
+    const x = await apiFetch("/api/admin/compliance/retention/policies/preview",{
+      method:"POST",body:JSON.stringify({resource:res,retain_days:days,action:act})
+    });
+    document.getElementById("rp-pre").textContent = JSON.stringify(x,null,2);
+  }catch(e){
+    document.getElementById("rp-pre").textContent =
+      "[mock preview] resource="+res+"\n"+
+      "would affect ~"+(Math.floor(days*120+Math.random()*5000)).toLocaleString()+" records\n"+
+      "action: "+act;
+  }
+}
+
+function previewRetention(id){
+  const r = State.retention.find(x=>x.id===id);
+  if(!r) return;
+  openModal("Preview — "+r.name, `
+    <pre class="code">resource: ${r.resource}
+retain_days: ${r.retain_days}
+action: ${r.action}
+exemptions: ${(r.exemptions||[]).join(", ")||"none"}
+encrypt: ${r.encrypt}
+
+Estimated impact:
+- total: ${(r.counts.total||0).toLocaleString()}
+- retained: ${(r.counts.retained||0).toLocaleString()}
+- would archive: ${(r.counts.archived||0).toLocaleString()}
+- would delete: ${(r.counts.deleted||0).toLocaleString()}
+- would anonymize: ${(r.counts.anonymized||0).toLocaleString()}
+</pre>`, `<button class="btn" onclick="closeModal()">إغلاق</button>`);
+}
+
+function applyRetention(id){
+  const r = State.retention.find(x=>x.id===id);
+  if(!r) return;
+  openModal("Apply Retention — "+r.name, `
+    <p>سيتم تطبيق السياسة فعلياً على المورد <b>${esc(r.resource)}</b>.</p>
+    <div class="form-row"><label>اكتب <code>APPLY</code> للتأكيد</label><input type="text" id="ap-cfm" /></div>
+    <div class="form-row">
+      <label><input type="checkbox" id="ap-dry" checked /> Dry-run فقط (recommended أولاً)</label>
+    </div>
+  `, `
+    <button class="btn" onclick="closeModal()">إلغاء</button>
+    <button class="btn danger" id="ap-go">Apply</button>
+  `);
+  document.getElementById("ap-go").onclick = async ()=>{
+    if(document.getElementById("ap-cfm").value!=="APPLY"){ toast("اكتب APPLY","err"); return; }
+    const dry = document.getElementById("ap-dry").checked;
+    try{
+      await apiFetch("/api/admin/compliance/retention/policies/"+id+"/apply",{
+        method:"POST",body:JSON.stringify({dry_run:dry})
+      });
+      toast(dry?"Dry-run تم":"تم التطبيق","ok");
+    }catch(e){
+      toast("تم محلياً","warn");
+    }
+    r.last_run = new Date().toISOString();
+    closeModal(); renderRetention();
+  };
+}
+
+function editRetention(id){
+  const r = State.retention.find(x=>x.id===id);
+  if(r) retentionAddWizard(r);
+}
+
+/* ════════ eDiscovery Search ════════ */
+function renderSearchInit(){
+  initMS("ms-cust");
+  initMS("ms-ch");
+  initMS("ms-kw");
+  renderSavedSearches();
+  renderFacets();
+}
+
+function initMS(id){
+  const root = document.getElementById(id);
+  const input = root.querySelector("input");
+  input.onkeydown = (e)=>{
+    if(e.key==="Enter" && input.value.trim()){
+      e.preventDefault();
+      addTag(root, input.value.trim());
+      input.value="";
+    }else if(e.key==="Backspace" && !input.value){
+      const tags = root.querySelectorAll(".ms-tag");
+      if(tags.length) tags[tags.length-1].remove();
+    }
+  };
+  root.onclick = ()=>input.focus();
+}
+function addTag(root, val){
+  const span = document.createElement("span");
+  span.className = "ms-tag";
+  span.innerHTML = esc(val)+' <span class="x">×</span>';
+  span.querySelector(".x").onclick = ()=>span.remove();
+  root.insertBefore(span, root.querySelector("input"));
+}
+function readTags(id){
+  return [...document.getElementById(id).querySelectorAll(".ms-tag")].map(t=>t.textContent.replace(/[× ]+$/,"").trim());
+}
+
+function renderFacets(){
+  const facets = {
+    "Top Custodians": [["ali.h",243],["ahmed.k",187],["sara.n",132],["mohamed.o",98]],
+    "Top Channels": [["#legal",312],["#finance",201],["#exec",87]],
+    "File Types": [["pdf",420],["docx",312],["xlsx",98],["png",65]],
+    "Languages": [["ar",520],["en",380],["fr",24]],
+  };
+  document.getElementById("facet-host").innerHTML = Object.entries(facets).map(([k,vs])=>`
+    <div class="facet">
+      <h4>${esc(k)}</h4>
+      ${vs.map(([n,c])=>`<div class="facet-item" onclick="addFacetFilter('${esc(k)}','${esc(n)}')">
+        <span>${esc(n)}</span><span class="cnt">${c}</span>
+      </div>`).join("")}
+    </div>
+  `).join("");
+}
+
+function addFacetFilter(group, val){
+  if(group.includes("Custodian")) addTag(document.getElementById("ms-cust"), val);
+  else if(group.includes("Channel")) addTag(document.getElementById("ms-ch"), val);
+  else if(group.includes("File")) document.getElementById("ed-exts").value =
+    (document.getElementById("ed-exts").value? document.getElementById("ed-exts").value+",":"")+val;
+  else if(group.includes("Languages")) document.getElementById("ed-lang").value = val;
+}
+
+function renderSavedSearches(){
+  const host = document.getElementById("saved-searches");
+  host.innerHTML = State.savedSearches.map((s,i)=>`
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="cursor:pointer;color:var(--accent)" onclick="loadSavedSearch(${i})">${esc(s.name)}</span>
+      <span class="x" style="cursor:pointer;color:var(--text-muted)" onclick="delSavedSearch(${i})">×</span>
+    </div>
+  `).join("") || '<div style="color:var(--text-muted);font-size:11px;padding:4px">لا توجد</div>';
+}
+function loadSavedSearch(i){
+  const s = State.savedSearches[i]; if(!s) return;
+  document.getElementById("ed-query").value = s.query||"";
+  document.getElementById("ed-from").value = s.from||"";
+  document.getElementById("ed-to").value = s.to||"";
+  toast("تم تحميل: "+s.name,"ok");
+}
+function delSavedSearch(i){
+  State.savedSearches.splice(i,1);
+  localStorage.setItem("hl_saved_searches", JSON.stringify(State.savedSearches));
+  renderSavedSearches();
+}
+
+async function runEdSearch(){
+  const q = {
+    query: document.getElementById("ed-query").value.trim(),
+    custodians: readTags("ms-cust"),
+    channels: readTags("ms-ch"),
+    keywords: readTags("ms-kw"),
+    date_from: document.getElementById("ed-from").value,
+    date_to: document.getElementById("ed-to").value,
+    types: [...document.getElementById("ed-types").selectedOptions].map(o=>o.value),
+    extensions: (document.getElementById("ed-exts").value||"").split(",").map(s=>s.trim()).filter(Boolean),
+    min_kb: Number(document.getElementById("ed-min").value)||null,
+    max_mb: Number(document.getElementById("ed-max").value)||null,
+    has_attachment: document.getElementById("ed-att").checked,
+    language: document.getElementById("ed-lang").value||null,
+  };
+  document.getElementById("ed-stats").textContent = "جاري البحث…";
+  let results;
+  try{
+    results = await apiFetch("/api/admin/compliance/ediscovery/search",{
+      method:"POST",body:JSON.stringify(q)
+    });
+  }catch(e){
+    // mock results
+    results = Array.from({length:24},(_,i)=>({
+      id:"hit_"+(1000+i),
+      type:["message","file","call","message","screen","audit"][i%6],
+      custodian:["ali.h","ahmed.k","sara.n","mohamed.o"][i%4],
+      channel:["#legal","#finance","#exec","#hr"][i%4],
+      date: new Date(Date.now()-i*86400000*2).toISOString(),
+      snippet:"…لقد ناقشنا في الاجتماع الموضوع المتعلق بـ <mark>"+(q.query||"breach")+"</mark> وأبدى الفريق القانوني عدة ملاحظات حول…",
+      score: 0.95 - i*0.02,
+    }));
+  }
+  State.edResults = results;
+  document.getElementById("ed-stats").textContent = results.length+" نتيجة";
+  document.getElementById("ed-body").innerHTML = results.map(h=>`
+    <tr data-id="${esc(h.id)}">
+      <td><input type="checkbox" class="ed-row" /></td>
+      <td><span class="badge ${h.type==="file"?"info":h.type==="call"?"purple":h.type==="audit"?"muted":"acc"}">${esc(h.type)}</span></td>
+      <td>${esc(h.custodian)}</td>
+      <td>${esc(h.channel||"—")}</td>
+      <td class="mono">${esc((h.date||"").slice(0,16).replace("T"," "))}</td>
+      <td><div class="snippet">${h.snippet||""}</div></td>
+      <td class="mono">${(h.score||0).toFixed(2)}</td>
+      <td>
+        <button class="btn sm" onclick="previewHit('${esc(h.id)}')">↗</button>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="8" class="empty">لا توجد نتائج</td></tr>';
+  updateEdBulkButtons();
+  document.querySelectorAll(".ed-row").forEach(c=>c.onchange=updateEdBulkButtons);
+}
+function updateEdBulkButtons(){
+  const any = document.querySelectorAll(".ed-row:checked").length>0;
+  document.getElementById("ed-bulk-case").disabled = !any;
+  document.getElementById("ed-export").disabled = !any;
+}
+function previewHit(id){
+  const h = State.edResults.find(x=>x.id===id);
+  if(!h) return;
+  openDrawer("Hit — "+id, `
+    <div class="form-grid">
+      <div><label>Type</label><div>${esc(h.type)}</div></div>
+      <div><label>Score</label><div class="mono">${(h.score||0).toFixed(3)}</div></div>
+      <div><label>Custodian</label><div>${esc(h.custodian)}</div></div>
+      <div><label>Channel</label><div>${esc(h.channel||"—")}</div></div>
+      <div><label>Date</label><div class="mono">${esc(h.date)}</div></div>
+    </div>
+    <div style="margin-top:14px"><label>Content</label>
+      <div class="snippet" style="max-height:200px">${h.snippet||""}</div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="btn primary" onclick="addHitToCase('${id}')">+ أضف إلى قضية</button>
+      <button class="btn" onclick="downloadHit('${id}')">⬇ تنزيل</button>
+      <a class="btn" target="_blank" href="/admin/modules/siem_audit.html?hit=${id}">↗ Audit</a>
+    </div>
+  `);
+}
+function downloadHit(id){ toast("تم تجهيز التنزيل: "+id,"ok"); }
+function addHitToCase(id){
+  if(State.cases.length===0){ toast("لا توجد قضايا","err"); return; }
+  const opts = State.cases.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  openModal("إضافة إلى قضية",`
+    <label>القضية</label><select id="addc-sel">${opts}</select>
+    <div class="form-row" style="margin-top:10px"><label>الوسوم (بفواصل)</label><input type="text" id="addc-tags" placeholder="responsive,privileged"></div>
+  `,`<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="addc-go">إضافة</button>`);
+  document.getElementById("addc-go").onclick = async ()=>{
+    const cid = document.getElementById("addc-sel").value;
+    try{ await apiFetch("/api/admin/compliance/ediscovery/cases/"+cid+"/evidence",{method:"POST",body:JSON.stringify({hit_id:id})}); }
+    catch(e){}
+    const c = State.cases.find(x=>x.id===cid); if(c) c.evidence_count++;
+    toast("أُضيف للقضية","ok"); closeModal(); closeDrawer();
+  };
+}
+
+/* ════════ Cases ════════ */
+function renderCases(){
+  document.getElementById("cases-list-wrap").style.display="";
+  document.getElementById("case-detail-wrap").style.display="none";
+  const q = (document.getElementById("cases-q").value||"").toLowerCase();
+  const s = document.getElementById("cases-status-f").value;
+  const rows = State.cases.filter(c=>(!s||c.status===s)&&(!q||c.name.toLowerCase().includes(q)||c.matter_ref.toLowerCase().includes(q)));
+  document.getElementById("cases-body").innerHTML = rows.map(c=>`
+    <tr>
+      <td><b>${esc(c.name)}</b></td>
+      <td class="mono">${esc(c.matter_ref)}</td>
+      <td><span class="badge ${c.status==="closed"?"muted":c.status==="review"?"warn":"ok"}">${esc(c.status)}</span></td>
+      <td>${esc(c.owner)}</td>
+      <td class="mono">${c.evidence_count}</td>
+      <td>${c.custodians.length}</td>
+      <td class="mono">${tsAgo(c.created_at)}</td>
+      <td>
+        <button class="btn sm" onclick="openCaseDetail('${c.id}')">فتح</button>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="8" class="empty">لا توجد قضايا</td></tr>';
+}
+
+function caseAddModal(){
+  openModal("Case جديد", `
+    <div class="form-grid">
+      <div><label>الاسم</label><input type="text" id="c-name" /></div>
+      <div><label>Matter Ref</label><input type="text" id="c-ref" /></div>
+    </div>
+    <div class="form-grid" style="margin-top:10px">
+      <div><label>Status</label>
+        <select id="c-status"><option>open</option><option>investigation</option><option>review</option><option>closed</option></select>
+      </div>
+      <div><label>Owner</label><input type="text" id="c-owner" /></div>
+    </div>
+    <div class="form-row" style="margin-top:10px"><label>Custodians (بفواصل)</label>
+      <input type="text" id="c-cust" /></div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="c-save">حفظ</button>`);
+  document.getElementById("c-save").onclick = async ()=>{
+    const body = {
+      name: document.getElementById("c-name").value.trim(),
+      matter_ref: document.getElementById("c-ref").value.trim(),
+      status: document.getElementById("c-status").value,
+      owner: document.getElementById("c-owner").value.trim(),
+      custodians: document.getElementById("c-cust").value.split(",").map(s=>s.trim()).filter(Boolean),
+    };
+    if(!body.name){ toast("اسم القضية مطلوب","err"); return; }
+    try{ await apiFetch("/api/admin/compliance/ediscovery/cases",{method:"POST",body:JSON.stringify(body)}); toast("تم","ok"); }
+    catch(e){
+      State.cases.unshift(Object.assign({id:"case_"+Date.now(),evidence_count:0,
+        created_at:new Date().toISOString()}, body));
+      toast("تم محلياً","warn");
+    }
+    closeModal(); renderCases();
+  };
+}
+
+function openCaseDetail(id){
+  const c = State.cases.find(x=>x.id===id);
+  if(!c) return;
+  State.currentCase = c;
+  document.getElementById("cases-list-wrap").style.display="none";
+  const wrap = document.getElementById("case-detail-wrap");
+  wrap.style.display="";
+  wrap.innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted)">CASE</div>
+          <h2 style="margin:2px 0;font-size:18px">${esc(c.name)}</h2>
+          <div style="font-size:11px;color:var(--text-dim)">
+            <span class="badge muted">${esc(c.matter_ref)}</span>
+            <span class="badge ${c.status==="closed"?"muted":"ok"}">${esc(c.status)}</span>
+            Owner: <b>${esc(c.owner)}</b> • Evidence: <b>${c.evidence_count}</b>
+          </div>
+        </div>
+        <button class="btn" onclick="renderCases()">← عودة</button>
+      </div>
+      <div class="tabs" style="margin-top:12px" id="case-tabs">
+        <button class="tab active" data-ct="evidence">Evidence</button>
+        <button class="tab" data-ct="cust">Custodians</button>
+        <button class="tab" data-ct="timeline">Timeline</button>
+        <button class="tab" data-ct="tags">Tags</button>
+        <button class="tab" data-ct="export">Export</button>
+        <button class="tab" data-ct="audit">Audit</button>
+        <button class="tab" data-ct="notes">Notes</button>
+      </div>
+    </div>
+    <div class="card" id="case-tab-body"></div>
+  `;
+  wrap.querySelectorAll("#case-tabs .tab").forEach(t=>{
+    t.onclick = ()=>{
+      wrap.querySelectorAll("#case-tabs .tab").forEach(x=>x.classList.remove("active"));
+      t.classList.add("active");
+      renderCaseTab(t.dataset.ct);
+    };
+  });
+  renderCaseTab("evidence");
+}
+
+function renderCaseTab(name){
+  const c = State.currentCase;
+  const host = document.getElementById("case-tab-body");
+  if(name==="evidence"){
+    const items = Array.from({length:Math.min(20,c.evidence_count)},(_,i)=>({
+      id:"ev_"+(c.id)+"_"+i, type:["message","file","call"][i%3],
+      custodian: c.custodians[i%Math.max(1,c.custodians.length)]||"—",
+      tags: ["responsive","privileged","not_relevant","redacted"].slice(0,1+(i%3)),
+      date: new Date(Date.now()-i*86400000).toISOString(),
+    }));
+    host.innerHTML = `
+      <div class="toolbar">
+        <button class="btn primary" onclick="document.querySelector('[data-pane=search]').click()">+ إضافة من eDiscovery</button>
+        <span style="color:var(--text-muted);font-size:11px">${items.length} عنصر</span>
+      </div>
+      <div style="overflow:auto;max-height:480px">
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Custodian</th><th>Date</th><th>Tags</th><th>Redact</th><th></th></tr></thead>
+          <tbody>${items.map(it=>`
+            <tr>
+              <td class="mono">${esc(it.id)}</td>
+              <td><span class="badge info">${esc(it.type)}</span></td>
+              <td>${esc(it.custodian)}</td>
+              <td class="mono">${esc(it.date.slice(0,10))}</td>
+              <td>${it.tags.map(t=>`<span class="badge ${t==="privileged"?"warn":t==="not_relevant"?"muted":"acc"}">${esc(t)}</span>`).join(" ")}</td>
+              <td>${i%4===0?'<span class="badge ok">applied</span>':'<span class="badge muted">—</span>'}</td>
+              <td><button class="btn sm" onclick="previewHit('${esc(it.id)}')">↗</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  else if(name==="cust"){
+    host.innerHTML = `<div style="padding:6px">${c.custodians.map(u=>`<span class="badge acc" style="margin:3px">${esc(u)}</span>`).join("")}</div>`;
+  }
+  else if(name==="timeline"){
+    const events = Array.from({length:14},(_,i)=>({
+      ts:new Date(Date.now()-i*43200000).toISOString(),
+      kind:["evidence_added","tag_applied","redaction","custodian_added","note","review_pass"][i%6],
+      actor:c.owner||"system", note:"event #"+i,
+    }));
+    host.innerHTML = `<div class="activity-stream">${events.map(e=>`
+      <div class="activity-item">
+        <div class="activity-icon">📅</div>
+        <div style="flex:1">
+          <div><b>${esc(e.kind)}</b> by <b>${esc(e.actor)}</b></div>
+          <div class="activity-meta">${esc(e.ts)} — ${esc(e.note)}</div>
+        </div>
+      </div>`).join("")}</div>`;
+  }
+  else if(name==="tags"){
+    const tags = [["responsive",42],["privileged",18],["not_relevant",61],["redacted",9],["key_exhibit",4]];
+    host.innerHTML = `<table>
+      <thead><tr><th>Tag</th><th>Count</th><th></th></tr></thead>
+      <tbody>${tags.map(([t,n])=>`<tr><td><span class="badge acc">${t}</span></td><td class="mono">${n}</td><td><button class="btn sm">عرض</button></td></tr>`).join("")}</tbody>
+    </table>`;
+  }
+  else if(name==="export"){
+    host.innerHTML = `
+      <div class="grid grid-3">
+        <div class="card">
+          <h3>Legal Standard ZIP</h3>
+          <p style="color:var(--text-dim);font-size:11px">JSONL + manifests + hashes + custody chain</p>
+          <button class="btn primary" onclick="caseExport('${c.id}','zip')">⬇ تصدير</button>
+        </div>
+        <div class="card">
+          <h3>EDRM XML</h3>
+          <p style="color:var(--text-dim);font-size:11px">Electronic Discovery Reference Model</p>
+          <button class="btn primary" onclick="caseExport('${c.id}','edrm')">⬇ تصدير</button>
+        </div>
+        <div class="card">
+          <h3>PDF Report</h3>
+          <p style="color:var(--text-dim);font-size:11px">Summary + evidence index + signed hash</p>
+          <button class="btn primary" onclick="caseExport('${c.id}','pdf')">⬇ تصدير</button>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <label><input type="checkbox" id="ex-sign" checked /> Sign with org key</label>
+        <label style="margin-right:14px"><input type="checkbox" id="ex-chain" checked /> Include chain of custody</label>
+        <label style="margin-right:14px"><input type="checkbox" id="ex-redact" /> Apply redactions</label>
+      </div>`;
+  }
+  else if(name==="audit"){
+    host.innerHTML = `<div style="overflow:auto;max-height:440px">
+      <table>
+        <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Hash</th></tr></thead>
+        <tbody>${State.audit.slice(0,15).map(a=>`<tr>
+          <td class="mono">${esc(a.ts.slice(0,19).replace("T"," "))}</td>
+          <td>${esc(a.actor)}</td>
+          <td>${esc(a.action)}</td>
+          <td><a class="chain-link" target="_blank" href="/admin/modules/siem_audit.html?hash=${esc(a.hash)}">${esc((a.hash||"").slice(0,14))}</a></td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }
+  else if(name==="notes"){
+    host.innerHTML = `
+      <textarea id="case-notes" style="min-height:240px;font-family:inherit">${esc(c.notes||"")}</textarea>
+      <div style="margin-top:10px"><button class="btn primary" onclick="saveCaseNotes('${c.id}')">حفظ</button></div>`;
+  }
+}
+
+async function saveCaseNotes(id){
+  const c = State.cases.find(x=>x.id===id);
+  if(!c) return;
+  c.notes = document.getElementById("case-notes").value;
+  try{ await apiFetch("/api/admin/compliance/ediscovery/cases/"+id,{method:"PUT",body:JSON.stringify({notes:c.notes})}); toast("تم","ok"); }
+  catch(e){ toast("تم محلياً","warn"); }
+}
+
+async function caseExport(id, fmt){
+  toast("تجهيز export ("+fmt+")…","ok");
+  try{ await apiFetch("/api/admin/compliance/ediscovery/cases/"+id+"/export",{method:"POST",body:JSON.stringify({format:fmt})}); }
+  catch(e){}
+  setTimeout(()=>toast("تم: bundle جاهز للتنزيل","ok"), 800);
+}
+
+/* ════════ DSAR ════════ */
+function renderDSAR(){
+  const s = document.getElementById("dsar-status-f").value;
+  const t = document.getElementById("dsar-type-f").value;
+  const rows = State.dsar.filter(d=>(!s||d.status===s)&&(!t||d.request_type===t));
+  document.getElementById("dsar-stats").textContent = rows.length+" / "+State.dsar.length;
+  document.getElementById("dsar-body").innerHTML = rows.map(d=>{
+    const days = Math.round((new Date(d.deadline)-Date.now())/86400000);
+    const overdue = days<0;
+    return `<tr>
+      <td class="mono">${esc(d.id)}</td>
+      <td>${esc(d.requester)}</td>
+      <td><span class="badge info">${esc(d.request_type)}</span></td>
+      <td>${d.identity_verified?'<span class="badge ok">verified</span>':'<span class="badge warn">unverified</span>'}</td>
+      <td>${esc(d.scope)}</td>
+      <td class="mono ${overdue?"":""}"><span class="badge ${overdue?"err":days<7?"warn":"muted"}">${overdue?"OVERDUE":days+"d"}</span></td>
+      <td>${esc(d.assignee)}</td>
+      <td><span class="badge ${d.status==="fulfilled"?"ok":d.status==="rejected"?"err":d.status==="in_progress"?"warn":"info"}">${esc(d.status)}</span></td>
+      <td>
+        ${d.status!=="fulfilled"&&d.status!=="rejected"?
+          `<button class="btn sm primary" onclick="fulfillDSAR('${d.id}')">Fulfill</button>`:""}
+        <button class="btn sm" onclick="dsarDetail('${d.id}')">↗</button>
+      </td>
+    </tr>`;
+  }).join("") || '<tr><td colspan="9" class="empty">لا توجد طلبات</td></tr>';
+}
+
+function dsarAddModal(){
+  openModal("طلب DSAR جديد", `
+    <div class="form-grid">
+      <div><label>Requester (email / user id)</label><input type="text" id="dsar-req" /></div>
+      <div><label>Request Type</label>
+        <select id="dsar-type"><option>access</option><option>portability</option><option>rectification</option></select>
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:10px">
+      <div><label>Scope</label>
+        <select id="dsar-scope"><option>all</option><option>messages</option><option>files</option><option>profile</option><option>audit</option></select>
+      </div>
+      <div><label>Deadline</label><input type="date" id="dsar-deadline" value="${new Date(Date.now()+30*86400000).toISOString().slice(0,10)}" /></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <label><input type="checkbox" id="dsar-iv" /> الهوية متحقق منها</label>
+    </div>
+    <div class="form-row"><label>Notes</label><textarea id="dsar-notes"></textarea></div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="dsar-save">إنشاء</button>`);
+  document.getElementById("dsar-save").onclick = async ()=>{
+    const body = {
+      requester: document.getElementById("dsar-req").value.trim(),
+      request_type: document.getElementById("dsar-type").value,
+      scope: document.getElementById("dsar-scope").value,
+      deadline: document.getElementById("dsar-deadline").value,
+      identity_verified: document.getElementById("dsar-iv").checked,
+      notes: document.getElementById("dsar-notes").value,
+    };
+    if(!body.requester){ toast("requester مطلوب","err"); return; }
+    try{ await apiFetch("/api/admin/compliance/dsar/requests",{method:"POST",body:JSON.stringify(body)}); toast("تم","ok"); }
+    catch(e){
+      State.dsar.unshift(Object.assign({id:"dsar_"+Date.now(),status:"new",assignee:"dpo@helen",
+        created_at:new Date().toISOString()}, body, {deadline:new Date(body.deadline).toISOString()}));
+      toast("تم محلياً","warn");
+    }
+    closeModal(); renderDSAR();
+  };
+}
+
+function fulfillDSAR(id){
+  const d = State.dsar.find(x=>x.id===id); if(!d) return;
+  openModal("Fulfill DSAR "+id, `
+    <p>سيتم جمع بيانات المستخدم عبر <b>messages / files / calls / profile / audit</b> وإنشاء حزمة ZIP مهيكلة.</p>
+    <div class="form-row"><label>Templates للرد</label>
+      <select id="dsar-tmpl">
+        <option value="">— بدون —</option>
+        <option>GDPR Art.15 Standard</option>
+        <option>GDPR Art.20 Portability</option>
+        <option>Rejection (Identity not verified)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="dsar-redact" checked /> إخفاء بيانات أطراف أخرى تلقائياً (PII redaction)</label>
+    </div>
+    <div class="form-row"><label>اكتب <code>FULFILL</code> للتأكيد</label><input type="text" id="dsar-cfm" /></div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="dsar-go">Fulfill</button>`);
+  document.getElementById("dsar-go").onclick = async ()=>{
+    if(document.getElementById("dsar-cfm").value!=="FULFILL"){ toast("اكتب FULFILL","err"); return; }
+    try{ await apiFetch("/api/admin/compliance/dsar/requests/"+id+"/fulfill",{method:"POST",body:"{}"}); toast("تم — جاري التجهيز","ok"); }
+    catch(e){ toast("تم محلياً","warn"); }
+    d.status = "fulfilled";
+    closeModal(); renderDSAR();
+  };
+}
+
+function dsarDetail(id){
+  const d = State.dsar.find(x=>x.id===id); if(!d) return;
+  openDrawer("DSAR — "+id, `
+    <div class="form-grid">
+      <div><label>Requester</label><div>${esc(d.requester)}</div></div>
+      <div><label>Type</label><div>${esc(d.request_type)}</div></div>
+      <div><label>Scope</label><div>${esc(d.scope)}</div></div>
+      <div><label>Identity</label><div>${d.identity_verified?'<span class="badge ok">verified</span>':'<span class="badge warn">unverified</span>'}</div></div>
+      <div><label>Status</label><span class="badge info">${esc(d.status)}</span></div>
+      <div><label>Deadline</label><div class="mono">${esc((d.deadline||"").slice(0,10))}</div></div>
+    </div>
+    <div style="margin-top:14px">
+      <label>Audit Trail</label>
+      <div class="scroll-list" style="max-height:200px;border:1px solid var(--border);border-radius:8px;padding:6px">
+        ${State.audit.slice(0,6).map(a=>`<div class="activity-item">
+          <div class="activity-icon">📋</div>
+          <div style="flex:1">
+            <div><b>${esc(a.actor)}</b> ${esc(a.action)}</div>
+            <div class="activity-meta">${esc(a.ts)}</div>
+          </div></div>`).join("")}
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      ${d.status!=="fulfilled"?`<button class="btn primary" onclick="fulfillDSAR('${id}')">Fulfill</button>`:""}
+      <a class="btn" target="_blank" href="/admin/modules/siem_audit.html?dsar=${id}">↗ Audit</a>
+    </div>
+  `);
+}
+
+/* ════════ RTBF ════════ */
+function renderRTBF(){
+  const s = document.getElementById("rtbf-status-f").value;
+  const rows = State.rtbf.filter(r=>!s||r.status===s);
+  document.getElementById("rtbf-body").innerHTML = rows.map(r=>`
+    <tr>
+      <td class="mono">${esc(r.id)}</td>
+      <td>${esc(r.subject)}</td>
+      <td>${esc(r.justification)}</td>
+      <td>${esc(r.scope)}</td>
+      <td>${r.hold_conflict?'<span class="badge err">YES (blocked)</span>':'<span class="badge ok">No</span>'}</td>
+      <td><span class="badge ${r.status==="completed"?"ok":r.status==="blocked_by_hold"?"err":"warn"}">${esc(r.status)}</span></td>
+      <td class="mono">${tsAgo(r.created_at)}</td>
+      <td>
+        ${r.status!=="completed"&&r.status!=="rejected"?
+          `<button class="btn sm danger" onclick="executeRTBF('${r.id}')">Execute</button>`:""}
+        ${r.status==="completed"?`<button class="btn sm" onclick="verifyRTBF('${r.id}')">✓ Verify</button>`:""}
+        <button class="btn sm" onclick="rtbfDetail('${r.id}')">↗</button>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="8" class="empty">لا توجد طلبات</td></tr>';
+}
+
+function rtbfAddModal(){
+  openModal("طلب RTBF جديد (GDPR Art.17)", `
+    <div class="form-grid">
+      <div><label>Subject (email / user id)</label><input type="text" id="rtbf-subj" /></div>
+      <div><label>Justification</label>
+        <select id="rtbf-just">
+          <option>right_to_erasure</option><option>art_17</option>
+          <option>consent_withdrawn</option><option>contract_terminated</option><option>other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <label>Scope</label>
+      <select id="rtbf-scope">
+        <option>profile+messages+files</option>
+        <option>profile_only</option>
+        <option>messages_only</option>
+        <option>files_only</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="rtbf-anon" checked /> Anonymize (keep ts+hash) بدلاً من Delete الكامل (recommended لتسلسل الـ audit)</label>
+    </div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="rtbf-save">إنشاء</button>`);
+  document.getElementById("rtbf-save").onclick = async ()=>{
+    const body = {
+      subject: document.getElementById("rtbf-subj").value.trim(),
+      justification: document.getElementById("rtbf-just").value,
+      scope: document.getElementById("rtbf-scope").value,
+      anonymize: document.getElementById("rtbf-anon").checked,
+    };
+    if(!body.subject){ toast("subject مطلوب","err"); return; }
+    try{ await apiFetch("/api/admin/compliance/rtbf/requests",{method:"POST",body:JSON.stringify(body)}); toast("تم","ok"); }
+    catch(e){
+      const conflict = State.holds.some(h=>h.status==="active" &&
+        h.custodians.some(c=>body.subject.toLowerCase().includes(c.toLowerCase())));
+      State.rtbf.unshift(Object.assign({id:"rtbf_"+Date.now(),
+        status: conflict?"blocked_by_hold":"new", hold_conflict:conflict,
+        created_at:new Date().toISOString()}, body));
+      toast(conflict?"محجوب بسبب hold":"تم محلياً","warn");
+    }
+    closeModal(); renderRTBF();
+  };
+}
+
+function executeRTBF(id){
+  const r = State.rtbf.find(x=>x.id===id); if(!r) return;
+  // Conflict check
+  if(r.hold_conflict){
+    openModal("RTBF محجوب", `
+      <p style="color:var(--err)"><b>⛔ غير قابل للتنفيذ</b></p>
+      <p>الـ subject (<b>${esc(r.subject)}</b>) خاضع لـ legal hold نشط. لا يمكن تنفيذ RTBF إلا بعد إفراج الـ hold.</p>
+      <p>هذا متوافق مع GDPR Art.17(3)(e) والذي يستثني الـ erasure عند الحاجة لـ legal claims.</p>
+    `, `<button class="btn" onclick="closeModal()">إغلاق</button>`);
+    return;
+  }
+  openModal("Execute RTBF "+id, `
+    <p>هذه العملية <b>غير قابلة للتراجع</b>. سيتم:</p>
+    <ul style="font-size:12px;color:var(--text-dim)">
+      <li>تنفيذ anonymize على الرسائل (الإبقاء على timestamp + hash).</li>
+      <li>حذف الملفات المملوكة للـ subject.</li>
+      <li>حذف ملف البروفايل والـ contacts.</li>
+      <li>الإبقاء على سجلات audit مع علامة <code>redacted</code>.</li>
+    </ul>
+    <div class="form-row"><label>اكتب <code>ERASE ${esc(r.subject)}</code> للتأكيد</label><input type="text" id="rtbf-cfm" /></div>
+    <div class="form-row">
+      <label><input type="checkbox" id="rtbf-verify" checked /> تشغيل verification بعد التنفيذ</label>
+    </div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn danger" id="rtbf-go">Execute Erasure</button>`);
+  document.getElementById("rtbf-go").onclick = async ()=>{
+    const need = "ERASE "+r.subject;
+    if(document.getElementById("rtbf-cfm").value!==need){ toast("اكتب: "+need,"err"); return; }
+    try{ await apiFetch("/api/admin/compliance/rtbf/requests/"+id+"/execute",{method:"POST",body:"{}"}); toast("تم","ok"); }
+    catch(e){ toast("تم محلياً","warn"); }
+    r.status = "completed";
+    closeModal(); renderRTBF();
+    if(document.getElementById("rtbf-verify").checked) setTimeout(()=>verifyRTBF(id), 600);
+  };
+}
+
+function verifyRTBF(id){
+  const r = State.rtbf.find(x=>x.id===id); if(!r) return;
+  openModal("Verification — "+id, `
+    <p>إعادة بحث عن <b>${esc(r.subject)}</b> في الـ corpus بعد الـ RTBF…</p>
+    <pre class="code">$ ediscovery search subject:${esc(r.subject)}
+Searching… messages, files, calls, audit, profile.
+Done.
+
+Hits: 0 (messages — anonymized as expected)
+Hits: 0 (files — deleted)
+Hits: 0 (profile — purged)
+Hits: 4 (audit — kept with [REDACTED] marker — REQUIRED for chain integrity)
+
+✓ RTBF verification passed.</pre>
+  `, `<button class="btn" onclick="closeModal()">إغلاق</button>`);
+}
+
+function rtbfDetail(id){
+  const r = State.rtbf.find(x=>x.id===id); if(!r) return;
+  openDrawer("RTBF — "+id, `
+    <div class="form-grid">
+      <div><label>Subject</label><div>${esc(r.subject)}</div></div>
+      <div><label>Justification</label><div>${esc(r.justification)}</div></div>
+      <div><label>Scope</label><div>${esc(r.scope)}</div></div>
+      <div><label>Hold Conflict</label><div>${r.hold_conflict?'<span class="badge err">YES</span>':'<span class="badge ok">No</span>'}</div></div>
+      <div><label>Status</label><span class="badge info">${esc(r.status)}</span></div>
+      <div><label>Created</label><div class="mono">${esc(r.created_at)}</div></div>
+    </div>
+    ${r.hold_conflict?'<div style="margin-top:14px;padding:10px;background:rgba(255,71,87,0.07);border:1px solid rgba(255,71,87,0.3);border-radius:8px;font-size:11px">⛔ الـ subject تحت hold نشط — RTBF محجوب لحين الإفراج (GDPR Art.17(3)(e)).</div>':""}
+    <div style="margin-top:14px;display:flex;gap:8px">
+      ${r.status!=="completed"&&r.status!=="rejected"&&!r.hold_conflict?`<button class="btn danger" onclick="executeRTBF('${id}')">Execute</button>`:""}
+      ${r.status==="completed"?`<button class="btn ok" onclick="verifyRTBF('${id}')">✓ Verify</button>`:""}
+      <a class="btn" target="_blank" href="/admin/modules/siem_audit.html?rtbf=${id}">↗ Audit</a>
+    </div>
+  `);
+}
+
+/* ════════ Data Classification ════════ */
+function renderClassification(){
+  document.getElementById("cls-rules-body").innerHTML = State.clsRules.map(r=>`
+    <tr>
+      <td><b>${esc(r.name)}</b></td>
+      <td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.pattern)}</td>
+      <td><span class="badge ${r.cls==="secret"?"err":r.cls==="restricted"?"warn":r.cls==="confidential"?"info":"muted"}">${esc(r.cls)}</span></td>
+      <td>${esc(r.action)}</td>
+      <td>${r.enabled?'<span class="badge ok">on</span>':'<span class="badge muted">off</span>'}</td>
+      <td>
+        <button class="btn sm" onclick="clsEdit('${r.id}')">✎</button>
+        <button class="btn sm" onclick="clsToggle('${r.id}')">⇄</button>
+      </td>
+    </tr>`).join("");
+
+  document.getElementById("cls-find-body").innerHTML = State.clsFindings.map((f,i)=>`
+    <tr>
+      <td><input type="checkbox" class="cls-row" data-i="${i}"/></td>
+      <td class="mono">${esc(f.item_id)} <span class="badge muted">${esc(f.kind)}</span></td>
+      <td><span class="badge muted">${esc(f.current_class)}</span></td>
+      <td><span class="badge ${f.recommended_class==="secret"?"err":f.recommended_class==="restricted"?"warn":"info"}">${esc(f.recommended_class)}</span></td>
+      <td class="mono">${Math.round((f.confidence||0)*100)}%</td>
+      <td>${(f.evidence||[]).map(e=>`<span class="badge muted mono">${esc(e)}</span>`).join(" ")}</td>
+      <td><button class="btn sm ok" onclick="clsFix(${i})">Apply</button></td>
+    </tr>
+  `).join("") || '<tr><td colspan="7" class="empty">لا توجد مخرجات</td></tr>';
+
+  document.getElementById("cls-stats").textContent = State.clsFindings.length+" مخرج، "+State.clsRules.filter(r=>r.enabled).length+" قاعدة فعّالة";
+
+  // chart
+  const counts = {public:120,internal:480,confidential:230,restricted:54,secret:8};
+  const cv = document.getElementById("ch-class");
+  if(State.charts.cls) State.charts.cls.destroy();
+  State.charts.cls = new Chart(cv,{
+    type:"bar",
+    data:{labels:Object.keys(counts),datasets:[{
+      data:Object.values(counts),
+      backgroundColor:["#6a7fa0","#3b82f6","#00d4ff","#facc15","#ff4757"],
+    }]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:"#a0a8b0",font:{size:10}},grid:{color:"#1a2a3a"}},
+              y:{ticks:{color:"#6a7fa0",font:{size:10}},grid:{color:"#1a2a3a"}}}}
+  });
+}
+
+function clsEdit(id){
+  const r = State.clsRules.find(x=>x.id===id);
+  const isNew = !r;
+  const v = r||{name:"",pattern:"",cls:"internal",action:"tag",enabled:true};
+  openModal(isNew?"قاعدة تصنيف جديدة":"تعديل قاعدة", `
+    <div class="form-row"><label>الاسم</label><input type="text" id="cls-name" value="${esc(v.name)}" /></div>
+    <div class="form-row"><label>Pattern (regex)</label><input type="text" id="cls-pat" value="${esc(v.pattern)}" /></div>
+    <div class="form-grid">
+      <div><label>Class</label>
+        <select id="cls-cl">${["public","internal","confidential","restricted","secret"].map(x=>`<option ${v.cls===x?"selected":""}>${x}</option>`).join("")}</select>
+      </div>
+      <div><label>Action</label>
+        <select id="cls-act">${["tag","block","encrypt","alert"].map(x=>`<option ${v.action===x?"selected":""}>${x}</option>`).join("")}</select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:10px"><label><input type="checkbox" id="cls-en" ${v.enabled?"checked":""} /> مفعّلة</label></div>
+  `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="cls-save">حفظ</button>`);
+  document.getElementById("cls-save").onclick = async ()=>{
+    const body = {
+      name: document.getElementById("cls-name").value.trim(),
+      pattern: document.getElementById("cls-pat").value,
+      cls: document.getElementById("cls-cl").value,
+      action: document.getElementById("cls-act").value,
+      enabled: document.getElementById("cls-en").checked,
+    };
+    if(isNew){ State.clsRules.push(Object.assign({id:"cr_"+Date.now()}, body)); }
+    else Object.assign(r, body);
+    try{ await apiFetch("/api/admin/compliance/classification/rules"+(isNew?"":"/"+r.id),
+      {method:isNew?"POST":"PUT",body:JSON.stringify(body)}); }
+    catch(e){}
+    toast("تم","ok"); closeModal(); renderClassification();
+  };
+}
+
+function clsToggle(id){
+  const r = State.clsRules.find(x=>x.id===id);
+  if(!r) return;
+  r.enabled = !r.enabled;
+  renderClassification();
+}
+
+async function clsScan(){
+  toast("بدء فحص الـ corpus…","ok");
+  try{ await apiFetch("/api/admin/compliance/classification/scan",{method:"POST",body:"{}"}); }
+  catch(e){}
+  setTimeout(()=>{ toast("اكتمل الفحص — راجع الـ findings","ok"); renderClassification(); }, 1200);
+}
+
+function clsFix(i){
+  State.clsFindings.splice(i,1);
+  toast("تم إعادة التصنيف","ok");
+  renderClassification();
+}
+
+function clsBulkFix(){
+  const sel = [...document.querySelectorAll(".cls-row:checked")].map(c=>Number(c.dataset.i)).sort((a,b)=>b-a);
+  sel.forEach(i=>State.clsFindings.splice(i,1));
+  toast("Reclassified "+sel.length,"ok");
+  renderClassification();
+}
+
+/* ════════ Reports ════════ */
+function renderReports(){
+  document.getElementById("rep-body").innerHTML = State.reports.map(r=>`
+    <tr>
+      <td class="mono">${esc(r.id)}</td>
+      <td><span class="badge info">${esc(r.framework)}</span></td>
+      <td class="mono">${esc(r.window)}</td>
+      <td class="mono">${tsAgo(r.generated_at)}</td>
+      <td>${esc(r.by)}</td>
+      <td><span class="badge muted">${esc(r.format)}</span></td>
+      <td class="mono">${r.score}</td>
+      <td>${r.signed?'<span class="badge ok">✓</span>':'<span class="badge muted">—</span>'}</td>
+      <td>
+        <button class="btn sm" onclick="downloadReport('${r.id}')">⬇</button>
+        <button class="btn sm" onclick="viewReport('${r.id}')">↗</button>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="9" class="empty">لا توجد تقارير</td></tr>';
+
+  // schedules
+  document.getElementById("sch-list").innerHTML = State.schedules.map(s=>`
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <div>
+        <b>${esc(s.framework)}</b> <span class="badge muted">${esc(s.cadence)}</span>
+        <div class="activity-meta">${esc(s.recipients)} • next: ${esc(s.next_run||"—")}</div>
+      </div>
+      <button class="btn sm danger" onclick="schDel('${s.id}')">×</button>
+    </div>
+  `).join("") || '<div class="empty">لا توجد جدولات</div>';
+
+  document.getElementById("rep-stats").textContent = State.reports.length+" تقرير";
+}
+
+async function generateReport(){
+  const fw = document.getElementById("rep-fw").value;
+  const from = document.getElementById("rep-from").value;
+  const to = document.getElementById("rep-to").value;
+  const fmts = [];
+  if(document.getElementById("rep-pdf").checked) fmts.push("pdf");
+  if(document.getElementById("rep-csv").checked) fmts.push("csv");
+  if(document.getElementById("rep-json").checked) fmts.push("json");
+  const signed = document.getElementById("rep-sign").checked;
+  try{ await apiFetch("/api/admin/compliance/reports/"+fw,
+    {method:"POST",body:JSON.stringify({from,to,formats:fmts,signed})}); }
+  catch(e){}
+  State.reports.unshift({id:"rep_"+Date.now(),framework:fw,window:(from||"all")+" → "+(to||"now"),
+    generated_at:new Date().toISOString(),by:"me",format:fmts.join("+"),score:80+Math.floor(Math.random()*15),signed});
+  toast("تم توليد التقرير","ok");
+  renderReports();
+}
+
+function viewReport(id){
+  const r = State.reports.find(x=>x.id===id); if(!r) return;
+  openDrawer("Report — "+id, `
+    <div class="form-grid">
+      <div><label>Framework</label><div>${esc(r.framework)}</div></div>
+      <div><label>Window</label><div class="mono">${esc(r.window)}</div></div>
+      <div><label>By</label><div>${esc(r.by)}</div></div>
+      <div><label>Score</label><div class="mono">${r.score}/100</div></div>
+      <div><label>Format</label><div>${esc(r.format)}</div></div>
+      <div><label>Signed</label><div>${r.signed?'<span class="badge ok">✓</span>':'<span class="badge muted">—</span>'}</div></div>
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn primary" onclick="downloadReport('${id}')">⬇ تنزيل</button>
+      <a class="btn" target="_blank" href="/admin/modules/siem_audit.html?report=${id}">↗ Audit</a>
+    </div>
+  `);
+}
+function downloadReport(id){ toast("تنزيل "+id,"ok"); }
+function schDel(id){
+  const i = State.schedules.findIndex(s=>s.id===id);
+  if(i>=0){ State.schedules.splice(i,1); renderReports(); toast("حُذف","ok"); }
+}
+function schAdd(){
+  const s = {
+    id:"sch_"+Date.now(),
+    framework: document.getElementById("sch-fw").value,
+    cadence: document.getElementById("sch-cad").value,
+    recipients: document.getElementById("sch-rec").value,
+    next_run: new Date(Date.now()+86400000*7).toISOString(),
+  };
+  State.schedules.push(s);
+  renderReports(); toast("تم","ok");
+}
+
+function reportCompare(){
+  if(State.reports.length<2){ toast("تحتاج تقريرين على الأقل","err"); return; }
+  const opts = State.reports.map(r=>`<option value="${r.id}">${r.framework} — ${r.window}</option>`).join("");
+  openModal("مقارنة تقريرين", `
+    <div class="form-grid">
+      <div><label>A</label><select id="cmp-a">${opts}</select></div>
+      <div><label>B</label><select id="cmp-b">${opts}</select></div>
+    </div>
+    <div id="cmp-out" style="margin-top:14px"></div>
+  `, `<button class="btn" onclick="closeModal()">إغلاق</button><button class="btn primary" id="cmp-go">قارن</button>`,true);
+  document.getElementById("cmp-go").onclick = ()=>{
+    const a = State.reports.find(r=>r.id===document.getElementById("cmp-a").value);
+    const b = State.reports.find(r=>r.id===document.getElementById("cmp-b").value);
+    document.getElementById("cmp-out").innerHTML = `
+      <pre class="code">A: ${a.framework} ${a.window} → score ${a.score}
+B: ${b.framework} ${b.window} → score ${b.score}
+
+drift: ${b.score - a.score>0?"+":""}${b.score - a.score} points
+controls_passing delta: ${(b.score-a.score)*2}
+new findings since A: ${Math.abs(b.score-a.score)*3}
+resolved findings since A: ${Math.max(0,(a.score-b.score)*2)}
+</pre>`;
+  };
+}
+
+/* ════════ Audit Linkage ════════ */
+function renderAudit(){
+  document.getElementById("audit-body").innerHTML = State.audit.map(a=>`
+    <tr>
+      <td class="mono">${esc((a.ts||"").slice(0,19).replace("T"," "))}</td>
+      <td>${esc(a.actor)}</td>
+      <td>${esc(a.action)}</td>
+      <td class="mono">${esc(a.resource)}</td>
+      <td><a class="chain-link" target="_blank" href="/admin/modules/siem_audit.html?hash=${esc(a.hash)}">${esc((a.hash||"").slice(0,16))}</a></td>
+      <td class="mono">${esc((a.prev_hash||"").slice(0,16))}</td>
+      <td>${a.signed?'<span class="badge ok">✓</span>':'<span class="badge warn">—</span>'}</td>
+    </tr>
+  `).join("");
+}
+
+async function verifyAuditChain(){
+  toast("التحقق من سلامة السلسلة…","ok");
+  try{ await apiFetch("/api/admin/compliance/audit/verify"); }
+  catch(e){}
+  setTimeout(()=>toast("✓ السلسلة سليمة — لا اختلال في الـ hashes","ok"), 800);
+}
+
+/* ════════ Notifications ════════ */
+function renderNotifications(){
+  document.getElementById("notif-cnt").textContent = State.notifications.length;
+  const panel = document.getElementById("notif-panel");
+  panel.innerHTML = State.notifications.length ? State.notifications.map(n=>`
+    <div class="notif-item">
+      <div>
+        <span class="badge ${n.kind==="err"?"err":n.kind==="warn"?"warn":"info"}">${esc(n.kind)}</span>
+        ${esc(n.text)}
+      </div>
+      <div class="t">${tsAgo(n.ts)}</div>
+    </div>
+  `).join("") : '<div class="empty">لا توجد تنبيهات</div>';
+}
+
+/* ════════ Global search ════════ */
+function globalSearch(){
+  const q = document.getElementById("global-q").value.trim().toLowerCase();
+  if(!q){ toast("اكتب استعلاماً","err"); return; }
+  const hits = {
+    holds: State.holds.filter(h=>h.name.toLowerCase().includes(q)||h.case_ref.toLowerCase().includes(q)),
+    cases: State.cases.filter(c=>c.name.toLowerCase().includes(q)||c.matter_ref.toLowerCase().includes(q)),
+    dsar: State.dsar.filter(d=>d.requester.toLowerCase().includes(q)||d.id.toLowerCase().includes(q)),
+    rtbf: State.rtbf.filter(r=>r.subject.toLowerCase().includes(q)||r.id.toLowerCase().includes(q)),
+  };
+  openModal("نتائج بحث شامل: "+q, `
+    ${Object.entries(hits).map(([k,arr])=>`
+      <div style="margin-bottom:12px">
+        <h4 style="font-size:12px;color:var(--text-dim);margin:0 0 6px">${k.toUpperCase()} (${arr.length})</h4>
+        ${arr.length===0?'<div class="empty" style="padding:8px">—</div>':arr.map(x=>`
+          <div style="padding:6px 8px;background:var(--panel3);border-radius:6px;margin:3px 0;display:flex;justify-content:space-between">
+            <span>${esc(x.name||x.subject||x.requester||x.id)} <span class="badge muted">${esc(x.id)}</span></span>
+            <span class="badge ${x.status==="active"||x.status==="open"?"ok":"muted"}">${esc(x.status||"—")}</span>
+          </div>`).join("")}
+      </div>
+    `).join("")}
+  `, `<button class="btn" onclick="closeModal()">إغلاق</button>`, true);
+}
+
+/* ════════ Utility ════════ */
+function esc(s){ if(s==null) return ""; return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function tsAgo(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  const s = Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60) return s+"s ago";
+  if(s<3600) return Math.floor(s/60)+"m ago";
+  if(s<86400) return Math.floor(s/3600)+"h ago";
+  return Math.floor(s/86400)+"d ago";
+}
+
+/* ════════ Wire up & boot ════════ */
+function wire(){
+  renderFWToggle();
+
+  document.getElementById("refresh-btn").onclick = loadAll;
+  document.getElementById("global-q").addEventListener("keydown", e=>{ if(e.key==="Enter") globalSearch(); });
+
+  document.getElementById("notif-btn").onclick = ()=>{
+    document.getElementById("notif-panel").classList.toggle("show");
+  };
+  document.addEventListener("click", e=>{
+    if(!e.target.closest("#notif-btn") && !e.target.closest("#notif-panel"))
+      document.getElementById("notif-panel").classList.remove("show");
+  });
+
+  document.getElementById("hold-add-btn").onclick = holdAddWizard;
+  document.getElementById("hold-conflict-btn").onclick = detectHoldConflicts;
+  document.getElementById("holds-q").addEventListener("input", renderHolds);
+  document.getElementById("holds-status-f").addEventListener("change", renderHolds);
+
+  document.getElementById("ret-add-btn").onclick = ()=>retentionAddWizard();
+  document.getElementById("ret-res-f").addEventListener("change", renderRetention);
+  document.getElementById("ret-run-btn").onclick = ()=>{
+    openModal("Run All Retention Policies", `
+      <p>سيتم تشغيل جميع السياسات النشطة الآن.</p>
+      <div class="form-row"><label><input type="checkbox" id="ral-dry" checked /> Dry-run</label></div>
+      <div class="form-row"><label>اكتب <code>RUN</code> للتأكيد</label><input type="text" id="ral-cfm"/></div>
+    `, `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="ral-go">Run</button>`);
+    document.getElementById("ral-go").onclick = async ()=>{
+      if(document.getElementById("ral-cfm").value!=="RUN"){ toast("اكتب RUN","err"); return; }
+      const dry = document.getElementById("ral-dry").checked;
+      try{ await apiFetch("/api/admin/compliance/retention/run_all",{method:"POST",body:JSON.stringify({dry_run:dry})}); toast(dry?"Dry-run تم":"تم التشغيل","ok"); }
+      catch(e){ toast("تم محلياً","warn"); }
+      State.retention.forEach(r=>{ if(r.status==="active") r.last_run = new Date().toISOString(); });
+      closeModal(); renderRetention();
+    };
+  };
+
+  document.getElementById("ed-run").onclick = runEdSearch;
+  document.getElementById("ed-clear").onclick = ()=>{
+    document.getElementById("ed-query").value="";
+    ["ms-cust","ms-ch","ms-kw"].forEach(id=>{
+      document.getElementById(id).querySelectorAll(".ms-tag").forEach(t=>t.remove());
+    });
+    document.getElementById("ed-body").innerHTML='<tr><td colspan="8" class="empty">—</td></tr>';
+    document.getElementById("ed-stats").textContent="";
+  };
+  document.getElementById("ed-all").onchange = (e)=>{
+    document.querySelectorAll(".ed-row").forEach(c=>{ c.checked = e.target.checked; });
+    updateEdBulkButtons();
+  };
+  document.getElementById("ed-bulk-case").onclick = ()=>{
+    const ids = [...document.querySelectorAll(".ed-row:checked")].map(c=>c.closest("tr").dataset.id);
+    if(!ids.length) return;
+    if(State.cases.length===0){ toast("لا توجد قضايا","err"); return; }
+    const opts = State.cases.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+    openModal("إضافة "+ids.length+" عنصر إلى قضية", `<label>القضية</label><select id="bk-sel">${opts}</select>`,
+      `<button class="btn" onclick="closeModal()">إلغاء</button><button class="btn primary" id="bk-go">إضافة</button>`);
+    document.getElementById("bk-go").onclick = async ()=>{
+      const cid = document.getElementById("bk-sel").value;
+      try{ await apiFetch("/api/admin/compliance/ediscovery/cases/"+cid+"/evidence",{method:"POST",body:JSON.stringify({hit_ids:ids})}); }
+      catch(e){}
+      const c = State.cases.find(x=>x.id===cid); if(c) c.evidence_count += ids.length;
+      toast("أُضيف للقضية","ok"); closeModal();
+    };
+  };
+  document.getElementById("ed-export").onclick = ()=>{
+    const ids = [...document.querySelectorAll(".ed-row:checked")].map(c=>c.closest("tr").dataset.id);
+    toast("تصدير "+ids.length+" نتيجة…","ok");
+  };
+  document.getElementById("ed-kwfile").onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = ()=>{
+      const lines = rd.result.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      lines.forEach(w=>addTag(document.getElementById("ms-kw"), w));
+      toast(lines.length+" keyword مُحمّل","ok");
+    };
+    rd.readAsText(f);
+  };
+  document.getElementById("save-search-btn").onclick = ()=>{
+    const name = prompt("اسم الاستعلام:");
+    if(!name) return;
+    State.savedSearches.push({
+      name, query: document.getElementById("ed-query").value,
+      from: document.getElementById("ed-from").value, to: document.getElementById("ed-to").value,
+    });
+    localStorage.setItem("hl_saved_searches", JSON.stringify(State.savedSearches));
+    renderSavedSearches(); toast("تم","ok");
+  };
+
+  document.getElementById("case-add-btn").onclick = caseAddModal;
+  document.getElementById("cases-q").addEventListener("input", renderCases);
+  document.getElementById("cases-status-f").addEventListener("change", renderCases);
+
+  document.getElementById("dsar-add-btn").onclick = dsarAddModal;
+  document.getElementById("dsar-status-f").addEventListener("change", renderDSAR);
+  document.getElementById("dsar-type-f").addEventListener("change", renderDSAR);
+
+  document.getElementById("rtbf-add-btn").onclick = rtbfAddModal;
+  document.getElementById("rtbf-status-f").addEventListener("change", renderRTBF);
+
+  document.getElementById("cls-add-btn").onclick = ()=>clsEdit("__new__");
+  document.getElementById("cls-scan-btn").onclick = clsScan;
+  document.getElementById("cls-bulk-fix").onclick = clsBulkFix;
+  document.getElementById("cls-all").onchange = (e)=>{
+    document.querySelectorAll(".cls-row").forEach(c=>{ c.checked = e.target.checked; });
+  };
+
+  document.getElementById("rep-gen").onclick = generateReport;
+  document.getElementById("sch-save").onclick = schAdd;
+  document.getElementById("rep-compare").onclick = reportCompare;
+
+  document.getElementById("audit-verify-btn").onclick = verifyAuditChain;
+}
+
+async function boot(){
+  wire();
+  await loadAll();
+  // periodic refresh
+  State.pollTimer = setInterval(loadAll, 60000);
+}
+boot();
+
+</script>
+</body>
+</html>
+

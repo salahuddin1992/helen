@@ -1,0 +1,129 @@
+# Helen-Rendezvous — example HA cluster topology.
+#
+# Three rendezvous instances behind an nginx L7 LB, sharing state via a single
+# Redis (you can swap for a Sentinel quorum in production). All three instances
+# heartbeat into Redis, register their tunnels under tunnel:* keys, and
+# exchange cross-instance frames over the rendezvous:events pub/sub channel.
+#
+# Usage:
+#   1. Edit `.env`:  HELEN_RENDEZVOUS_TOKEN=<openssl rand -hex 32>
+#                    REDIS_PASSWORD=<openssl rand -hex 16>
+#   2. docker compose -f docker-compose.cluster.yml up -d
+#   3. curl http://localhost:8080/admin/cluster/instances?token=<token>
+#
+# Tunnel WS:   :8080/tunnel/register     (LB → any instance)
+# Client HTTP: :8080/t/<public_id>/...   (LB → any instance — cross-routes if needed)
+# Hole-punch:  :8080/signal/{register,lookup,whoami}
+
+version: "3.9"
+
+services:
+
+  redis:
+    image: redis:7.2-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-helen-redis-changeme}
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-helen-redis-changeme}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks: [helen-rdv]
+
+  rendezvous-1: &rendezvous_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: helen-rendezvous:latest
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      HELEN_RENDEZVOUS_TOKEN: ${HELEN_RENDEZVOUS_TOKEN:?missing token}
+      HELEN_RENDEZVOUS_STORAGE: "redis"
+      HELEN_RENDEZVOUS_REDIS_URL: "redis://:${REDIS_PASSWORD:-helen-redis-changeme}@redis:6379/0"
+      HELEN_RENDEZVOUS_REDIS_KEY_PREFIX: "helen:"
+      HELEN_RENDEZVOUS_INSTANCE_ID: "rdv-1"
+      HELEN_RENDEZVOUS_PORT: "8080"
+      HELEN_RENDEZVOUS_HEARTBEAT_INTERVAL: "5"
+      HELEN_RENDEZVOUS_HEARTBEAT_TTL: "15"
+    expose: ["8080", "9101", "9102"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks: [helen-rdv]
+
+  rendezvous-2:
+    <<: *rendezvous_base
+    environment:
+      HELEN_RENDEZVOUS_TOKEN: ${HELEN_RENDEZVOUS_TOKEN:?missing token}
+      HELEN_RENDEZVOUS_STORAGE: "redis"
+      HELEN_RENDEZVOUS_REDIS_URL: "redis://:${REDIS_PASSWORD:-helen-redis-changeme}@redis:6379/0"
+      HELEN_RENDEZVOUS_REDIS_KEY_PREFIX: "helen:"
+      HELEN_RENDEZVOUS_INSTANCE_ID: "rdv-2"
+      HELEN_RENDEZVOUS_PORT: "8080"
+
+  rendezvous-3:
+    <<: *rendezvous_base
+    environment:
+      HELEN_RENDEZVOUS_TOKEN: ${HELEN_RENDEZVOUS_TOKEN:?missing token}
+      HELEN_RENDEZVOUS_STORAGE: "redis"
+      HELEN_RENDEZVOUS_REDIS_URL: "redis://:${REDIS_PASSWORD:-helen-redis-changeme}@redis:6379/0"
+      HELEN_RENDEZVOUS_REDIS_KEY_PREFIX: "helen:"
+      HELEN_RENDEZVOUS_INSTANCE_ID: "rdv-3"
+      HELEN_RENDEZVOUS_PORT: "8080"
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - rendezvous-1
+      - rendezvous-2
+      - rendezvous-3
+    ports:
+      - "8080:8080"     # LB front for HTTP + WS
+      - "9101:9101"     # relay backend port
+      - "9102:9102"     # relay frontend port
+    volumes:
+      - ./deploy/nginx-cluster.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks: [helen-rdv]
+
+# Optional Sentinel topology for true Redis HA. Uncomment to enable; flip
+# HELEN_RENDEZVOUS_STORAGE to "redis-sentinel" on every rendezvous service and
+# set HELEN_RENDEZVOUS_REDIS_SENTINELS=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379.
+#
+#  redis-replica:
+#    image: redis:7.2-alpine
+#    command: redis-server --replicaof redis 6379 --masterauth ${REDIS_PASSWORD}
+#    networks: [helen-rdv]
+#
+#  sentinel-1: &sentinel_base
+#    image: redis:7.2-alpine
+#    command: redis-sentinel /sentinel.conf
+#    volumes: ["./deploy/sentinel.conf:/sentinel.conf:ro"]
+#    networks: [helen-rdv]
+#  sentinel-2:
+#    <<: *sentinel_base
+#  sentinel-3:
+#    <<: *sentinel_base
+
+volumes:
+  redis-data: {}
+
+networks:
+  helen-rdv:
+    driver: bridge

@@ -1,0 +1,81 @@
+{{- if .Values.rendezvous.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "helen.rendezvous.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rendezvous
+spec:
+  serviceName: {{ include "helen.rendezvous.fullname" . }}
+  replicas: {{ .Values.rendezvous.replicas }}
+  selector:
+    matchLabels:
+      {{- include "helen.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rendezvous
+  template:
+    metadata:
+      labels:
+        {{- include "helen.labels" . | nindent 8 }}
+        app.kubernetes.io/component: rendezvous
+    spec:
+      serviceAccountName: {{ include "helen.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: rendezvous
+          image: {{ include "helen.image" (dict "registry" .Values.global.imageRegistry "repository" .Values.rendezvous.image.repository "tag" .Values.rendezvous.image.tag "Values" .Values) }}
+          imagePullPolicy: {{ .Values.rendezvous.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9100
+            {{- range .Values.rendezvous.service.tcpRelayPorts }}
+            - name: relay-{{ . }}
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: HELEN_RENDEZVOUS_STORAGE
+              value: {{ .Values.rendezvous.env.HELEN_RENDEZVOUS_STORAGE | quote }}
+            {{- if eq .Values.rendezvous.env.HELEN_RENDEZVOUS_STORAGE "redis" }}
+            - name: HELEN_RENDEZVOUS_REDIS_URL
+              value: {{ include "helen.redisUrl" . | quote }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.passwordSecretName }}
+                  key: {{ .Values.redis.passwordSecretKey }}
+            {{- end }}
+            - name: HELEN_RENDEZVOUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helen.rendezvous.fullname" . }}-token
+                  key: token
+          resources:
+            {{- toYaml .Values.rendezvous.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "helen.rendezvous.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rendezvous
+spec:
+  type: {{ .Values.rendezvous.service.type }}
+  ports:
+    - port: 9100
+      targetPort: http
+      name: http
+    {{- range .Values.rendezvous.service.tcpRelayPorts }}
+    - port: {{ . }}
+      targetPort: relay-{{ . }}
+      name: relay-{{ . }}
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "helen.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rendezvous
+{{- end }}

@@ -1,0 +1,43 @@
+# ============================================================
+# Group Call — Electron Builder Configuration
+# ============================================================
+# Self-contained NSIS installer. The Electron main process embeds
+# Express + Socket.IO via require('./server-core.js') so no Node
+# install is needed on the target machine.
+# ============================================================
+
+appId: com.helen.groupcall
+productName: Group Call
+copyright: "Copyright (C) 2024-2026 Helen Project"
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - electron-main.js
+  - server.js
+  - server-core.js
+  - package.json
+  - public/**/*
+  - "!verify-mesh.mjs"
+  - "!**/*.test.js"
+
+# Bundle node_modules production deps (express, socket.io). electron-builder
+# auto-prunes devDependencies but include explicit allowlist for clarity.
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: "Group-Call-${version}-${arch}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Group Call"
+  uninstallDisplayName: "Group Call ${version}"

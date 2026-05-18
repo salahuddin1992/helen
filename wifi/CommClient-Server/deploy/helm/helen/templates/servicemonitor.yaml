@@ -1,0 +1,63 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "helen.server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "helen.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  endpoints:
+    - port: http
+      path: /api/admin/observability/metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+      honorLabels: true
+{{- end }}
+---
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "helen.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: helen.rules
+      rules:
+        - alert: HelenServerDown
+          expr: up{job="helen-server"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Helen server pod is down"
+            description: "Pod {{`{{ $labels.pod }}`}} has been unreachable for >2m"
+        - alert: HelenHighErrorRate
+          expr: rate(helen_requests_failed_total[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Helen error rate above 5%"
+        - alert: HelenAuditChainTamper
+          expr: helen_audit_chain_verify_status != 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Audit chain verification FAILED — potential tamper"
+        - alert: HelenBackupOverdue
+          expr: time() - helen_dr_last_backup_timestamp_seconds > 86400
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Last successful backup is >24h old"
+{{- end }}

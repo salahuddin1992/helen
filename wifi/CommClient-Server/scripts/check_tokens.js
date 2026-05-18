@@ -1,0 +1,10 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const f = path.join(os.tmpdir(), 'seeded_users.json');
+const d = JSON.parse(fs.readFileSync(f));
+console.log('total:', d.length);
+const t = d[0].token.split('.')[1];
+const payload = JSON.parse(Buffer.from(t, 'base64url').toString());
+console.log('iat:', payload.iat, 'exp:', payload.exp, 'now:', Math.floor(Date.now()/1000));
+console.log('remaining min:', Math.floor((payload.exp - Date.now()/1000)/60));

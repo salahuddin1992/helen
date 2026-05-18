@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Helen Mobile network security config.
+
+    Allows cleartext (HTTP) traffic to LAN ranges so the app can reach
+    a Helen-Server running on a home/office router-served subnet without
+    requiring TLS. Public-internet endpoints are still TLS-only.
+
+    The defaults below cover:
+      - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
+      - Loopback (127.0.0.1)
+      - mDNS .local hosts
+      - Link-local (169.254/16) for direct-ethernet setups
+
+    Anything else (typed-in public hostname, federated server reached
+    via internet, etc.) requires HTTPS — Android will refuse the
+    connection if the operator forgot to enable TLS in front of an
+    internet-exposed Helen-Server.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="true">local</domain>
+    </domain-config>
+
+    <!-- 10.0.0.0/8 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.0.0</domain>
+        <domain includeSubdomains="true">10.</domain>
+    </domain-config>
+
+    <!-- 192.168.0.0/16 — written as wildcard prefixes Android accepts -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.0.0</domain>
+        <domain includeSubdomains="true">192.168.</domain>
+    </domain-config>
+
+    <!-- 172.16.0.0/12 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">172.16.0.0</domain>
+        <domain includeSubdomains="true">172.17.0.0</domain>
+        <domain includeSubdomains="true">172.18.0.0</domain>
+        <domain includeSubdomains="true">172.19.0.0</domain>
+        <domain includeSubdomains="true">172.20.0.0</domain>
+        <domain includeSubdomains="true">172.21.0.0</domain>
+        <domain includeSubdomains="true">172.22.0.0</domain>
+        <domain includeSubdomains="true">172.23.0.0</domain>
+        <domain includeSubdomains="true">172.24.0.0</domain>
+        <domain includeSubdomains="true">172.25.0.0</domain>
+        <domain includeSubdomains="true">172.26.0.0</domain>
+        <domain includeSubdomains="true">172.27.0.0</domain>
+        <domain includeSubdomains="true">172.28.0.0</domain>
+        <domain includeSubdomains="true">172.29.0.0</domain>
+        <domain includeSubdomains="true">172.30.0.0</domain>
+        <domain includeSubdomains="true">172.31.0.0</domain>
+    </domain-config>
+
+    <!-- 169.254.0.0/16 link-local -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">169.254.0.0</domain>
+    </domain-config>
+</network-security-config>

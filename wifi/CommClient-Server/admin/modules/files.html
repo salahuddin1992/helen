@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<!--
+  Phase 3 / Module P — File Vault admin module.
+  Tree browser + stats card + cleanup wizard + live upload monitor.
+  Self-contained. CDN-allowed: Chart.js for stats donut.
+-->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root { --fl-fg:#e4e7eb; --fl-bg:#0e141b; --fl-bg2:#171f27; --fl-border:#222e3a;
+          --fl-accent:#5aa9ff; --fl-ok:#46d39a; --fl-warn:#ffb347; --fl-danger:#ff5f6d; }
+  .fl-wrap { color:var(--fl-fg); font-family:system-ui,sans-serif; padding:18px;
+             display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; }
+  .fl-card { background:var(--fl-bg2); border:1px solid var(--fl-border);
+             border-radius:12px; padding:16px; }
+  .fl-card.full { grid-column:1 / -1; }
+  .fl-card.half { grid-column:span 2; }
+  .fl-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .fl-btn { background:var(--fl-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .fl-btn.secondary { background:#2a3340; color:var(--fl-fg); }
+  .fl-btn.danger { background:var(--fl-danger); color:#fff; }
+  .fl-stat { font-size:32px; font-weight:700; }
+  .fl-stat-sub { opacity:.7; font-size:13px; }
+  table.fl-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  table.fl-tbl th, table.fl-tbl td {
+    padding:6px 8px; border-bottom:1px solid var(--fl-border); text-align:left;
+  }
+  table.fl-tbl th { font-size:11px; text-transform:uppercase; opacity:.7; }
+  .fl-row.dir { color:var(--fl-accent); cursor:pointer; }
+  .fl-input, .fl-select {
+    background:#0a1018; color:var(--fl-fg); border:1px solid var(--fl-border);
+    border-radius:6px; padding:6px 8px; box-sizing:border-box;
+  }
+  .fl-path { font-family:Consolas, monospace; opacity:.8; }
+</style>
+
+<div class="fl-wrap">
+  <div class="fl-card">
+    <div class="fl-stat-sub">Total Files</div>
+    <div class="fl-stat" id="fl-st-count">—</div>
+  </div>
+  <div class="fl-card">
+    <div class="fl-stat-sub">Total Size</div>
+    <div class="fl-stat" id="fl-st-size">—</div>
+  </div>
+  <div class="fl-card">
+    <div class="fl-stat-sub">Largest File</div>
+    <div class="fl-stat" id="fl-st-largest">—</div>
+  </div>
+  <div class="fl-card">
+    <div class="fl-stat-sub">Oldest File</div>
+    <div class="fl-stat" id="fl-st-oldest">—</div>
+  </div>
+
+  <div class="fl-card half">
+    <div class="fl-h"><h3 style="margin:0;">By Type</h3></div>
+    <canvas id="fl-pie" height="180"></canvas>
+  </div>
+  <div class="fl-card half">
+    <div class="fl-h"><h3 style="margin:0;">Cleanup Wizard</h3></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <label>Older than (days)
+        <input class="fl-input" type="number" id="fl-cl-days" value="30" style="width:100%;" /></label>
+      <label>Min size (MB)
+        <input class="fl-input" type="number" id="fl-cl-size" value="0" style="width:100%;" /></label>
+      <label style="grid-column:span 2;">Types (comma)
+        <input class="fl-input" id="fl-cl-types"
+               placeholder="image,video,binary" style="width:100%;" /></label>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <button class="fl-btn secondary" onclick="FL.cleanup(true)">Preview</button>
+      <button class="fl-btn danger" onclick="FL.cleanup(false)">Delete Matching</button>
+      <span id="fl-cl-result" style="opacity:.8; padding-top:7px;"></span>
+    </div>
+  </div>
+
+  <div class="fl-card full">
+    <div class="fl-h">
+      <h3 style="margin:0;">Files</h3>
+      <span class="fl-path" id="fl-cur">/</span>
+    </div>
+    <div id="fl-browser"></div>
+  </div>
+
+  <div class="fl-card full">
+    <div class="fl-h"><h3 style="margin:0;">Live Upload Monitor</h3>
+      <button class="fl-btn secondary" onclick="FL.refreshMonitor()">Refresh</button>
+    </div>
+    <div id="fl-monitor"></div>
+  </div>
+
+  <div class="fl-card full">
+    <div class="fl-h"><h3 style="margin:0;">Encrypted Vault</h3></div>
+    <div id="fl-vault"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const api = (p, opts={}) => {
+    if (typeof apiFetch === 'function') return apiFetch(p, opts);
+    const t = localStorage.getItem('accessToken') || '';
+    return fetch(p, { ...opts, headers: {
+      ...(opts.headers||{}), 'Authorization': 'Bearer ' + t,
+      'Content-Type': opts.body ? 'application/json' : (opts.headers||{})['Content-Type']
+    }});
+  };
+
+  const fmtBytes = b => {
+    if (!b && b !== 0) return '—';
+    const u = ['B','KB','MB','GB','TB']; let i = 0;
+    while (b >= 1024 && i < u.length-1) { b/=1024; i++; }
+    return b.toFixed(b<10?1:0) + ' ' + u[i];
+  };
+  let CWD = '';
+  let pie = null;
+
+  async function loadStats() {
+    const r = await api('/api/admin/files/stats');
+    if (!r.ok) return;
+    const s = await r.json();
+    document.getElementById('fl-st-count').textContent = s.total_files;
+    document.getElementById('fl-st-size').textContent = fmtBytes(s.total_bytes);
+    document.getElementById('fl-st-largest').textContent =
+      s.largest[0] ? `${fmtBytes(s.largest[0].size)}` : '—';
+    document.getElementById('fl-st-oldest').textContent =
+      s.oldest[0] ? new Date(s.oldest[0].created_at).toLocaleDateString() : '—';
+    renderPie(s.by_type);
+  }
+
+  function renderPie(by) {
+    const labels = Object.keys(by); const data = labels.map(l => by[l]);
+    if (pie) pie.destroy();
+    pie = new Chart(document.getElementById('fl-pie'), {
+      type:'doughnut',
+      data:{ labels, datasets:[{
+        data, backgroundColor:['#5aa9ff','#46d39a','#ffb347','#ff5f6d','#9b6dff','#888']
+      }] },
+      options:{ plugins:{ legend:{ labels:{ color:'#e4e7eb' } } } }
+    });
+  }
+
+  async function loadBrowser(path = '') {
+    CWD = path;
+    document.getElementById('fl-cur').textContent = '/' + path;
+    const r = await api('/api/admin/files/browse?path=' + encodeURIComponent(path));
+    if (!r.ok) return;
+    const items = await r.json();
+    const rows = [];
+    if (path) {
+      const up = path.split('/').slice(0,-1).join('/');
+      rows.push(`<tr class="fl-row dir" onclick="FL.cd('${escapeAttr(up)}')">
+        <td>⬆ ..</td><td></td><td></td></tr>`);
+    }
+    for (const it of items) {
+      if (it.is_dir) {
+        rows.push(`<tr class="fl-row dir" onclick="FL.cd('${escapeAttr(it.rel_path)}')">
+          <td>📁 ${escapeHtml(it.name)}</td><td>—</td>
+          <td>${new Date(it.mtime*1000).toLocaleString()}</td></tr>`);
+      } else {
+        rows.push(`<tr class="fl-row">
+          <td>📄 ${escapeHtml(it.name)}</td>
+          <td>${fmtBytes(it.size)}</td>
+          <td>${new Date(it.mtime*1000).toLocaleString()}</td></tr>`);
+      }
+    }
+    document.getElementById('fl-browser').innerHTML = `<table class="fl-tbl">
+      <tr><th>Name</th><th>Size</th><th>Modified</th></tr>${rows.join('')}</table>`;
+  }
+
+  async function refreshMonitor() {
+    const r = await api('/api/admin/files/upload-monitor');
+    if (!r.ok) return;
+    const s = await r.json();
+    const rows = (s.items||[]).map(i => {
+      const pct = i.size_bytes && i.received_bytes
+        ? Math.round(100 * i.received_bytes / i.size_bytes) : 0;
+      return `<tr>
+        <td>${escapeHtml(i.original_name||'')}</td>
+        <td>${escapeHtml(i.user_id||'')}</td>
+        <td>${fmtBytes(i.received_bytes||0)} / ${fmtBytes(i.size_bytes||0)}</td>
+        <td>${pct}%</td>
+        <td>${escapeHtml(i.status||'')}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('fl-monitor').innerHTML =
+      `<table class="fl-tbl">
+        <tr><th>File</th><th>User</th><th>Progress</th><th>%</th><th>Status</th></tr>
+        ${rows || '<tr><td colspan=5 style="opacity:.6; padding:10px;">No active uploads.</td></tr>'}
+      </table>`;
+  }
+
+  async function loadVault() {
+    const r = await api('/api/admin/files/vault');
+    if (!r.ok) return;
+    const v = await r.json();
+    if (!v.available) {
+      document.getElementById('fl-vault').innerHTML =
+        `<div style="opacity:.7;">Vault subsystem unavailable. ${escapeHtml(v.detail||'')}</div>`;
+      return;
+    }
+    const rows = (v.items||[]).map(i => `
+      <tr><td>${escapeHtml(i.name||i.id||'')}</td>
+          <td>${fmtBytes(i.size||0)}</td>
+          <td>${escapeHtml(i.mime||'')}</td></tr>`).join('');
+    document.getElementById('fl-vault').innerHTML =
+      `<table class="fl-tbl">
+        <tr><th>Name</th><th>Size</th><th>MIME</th></tr>
+        ${rows || '<tr><td colspan=3 style="opacity:.6; padding:10px;">No encrypted files.</td></tr>'}
+      </table>`;
+  }
+
+  async function cleanup(dryRun) {
+    const days = parseInt(document.getElementById('fl-cl-days').value||'0',10);
+    const size = parseInt(document.getElementById('fl-cl-size').value||'0',10);
+    const typesRaw = (document.getElementById('fl-cl-types').value||'').trim();
+    const types = typesRaw ? typesRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+    if (!dryRun && !confirm(`This will delete files older than ${days}d. Continue?`))
+      return;
+    const r = await api('/api/admin/files/cleanup', {
+      method:'POST', body: JSON.stringify({
+        older_than_days: days, min_size_mb: size, types, dry_run: dryRun,
+      })
+    });
+    const s = await r.json();
+    document.getElementById('fl-cl-result').textContent =
+      `${s.deleted}/${s.matched} files, freed ${fmtBytes(s.freed_bytes)}` +
+      (s.dry_run ? ' (preview)' : '');
+    if (!dryRun) loadStats();
+  }
+
+  function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/'/g, '%27'); }
+
+  window.FL = {
+    cd: loadBrowser, cleanup, refreshMonitor,
+  };
+
+  loadStats(); loadBrowser(); refreshMonitor(); loadVault();
+})();
+</script>
+
+</script>
+</body>
+</html>

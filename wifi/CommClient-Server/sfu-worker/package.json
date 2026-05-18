@@ -1,0 +1,23 @@
+{
+  "name": "commclient-sfu-worker",
+  "version": "1.0.0",
+  "description": "Mediasoup-based SFU worker for CommClient — speaks HTTP control to the Python server.",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --enable-source-maps src/server.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18.19.0"
+  },
+  "dependencies": {
+    "fastify": "^4.26.0",
+    "mediasoup": "^3.14.0",
+    "pino": "^8.20.0"
+  },
+  "devDependencies": {
+    "pino-pretty": "^10.3.0"
+  }
+}

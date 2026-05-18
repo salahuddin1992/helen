@@ -1,0 +1,12 @@
+[build]
+# Default target = host. On Windows, prefer MSVC.
+# rustflags can be tuned per env if needed.
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[net]
+git-fetch-with-cli = true

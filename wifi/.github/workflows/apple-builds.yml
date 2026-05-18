@@ -1,0 +1,394 @@
+name: Apple Builds (iOS + macOS)
+
+# Builds the three Apple-only deliverables on a free GitHub macOS runner so
+# they don't need a developer Mac on hand:
+#   1. iOS Native Swift  → HelenApp.xcarchive (+ .ipa when signing creds set)
+#   2. iOS via Capacitor → Helen-Mobile.xcarchive (+ .ipa when creds set)
+#   3. macOS Desktop     → Helen Desktop.app (+ .dmg when creds set)
+#
+# Each job uploads its artifact. Trigger via:
+#   • Actions tab → Run workflow (workflow_dispatch), or
+#   • push of a tag matching `v*`.
+#
+# Code signing
+# ────────────
+# By default, builds are unsigned (free-tier dev / CI verification).
+# Optional secrets that flip the workflow to signed + notarised mode:
+#
+#   APPLE_DEVELOPER_TEAM_ID       — 10-char team ID (e.g. ABCDE12345)
+#   APPLE_CERTIFICATE_BASE64      — `base64 -i Certificates.p12`
+#   APPLE_CERTIFICATE_PASSWORD    — password used when exporting the .p12
+#   APPLE_NOTARY_APPLE_ID         — Apple ID for notarytool (macOS only)
+#   APPLE_NOTARY_PASSWORD         — app-specific password for that Apple ID
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: "macOS desktop build mode"
+        required: false
+        default: "dev"
+        type: choice
+        options: [dev, beta, prod]
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: "15.4"
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ── 1. iOS Native Swift (HelenApp) ────────────────────────────────
+  ios-native-swift:
+    name: iOS Native Swift (HelenApp)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: iOS/HelenApp
+        run: xcodegen generate
+
+      # ── Smoke build (always): proves the code compiles end-to-end ──
+      - name: Smoke build (Simulator, unsigned)
+        working-directory: iOS/HelenApp
+        run: |
+          xcodebuild build \
+            -project HelenApp.xcodeproj \
+            -scheme HelenApp \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/derived \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/smoke.log | xcpretty || true
+          # Persist build log for debugging
+          test -d build/derived/Build/Products/Release-iphonesimulator/HelenApp.app
+
+      - name: Bundle Simulator .app
+        working-directory: iOS/HelenApp
+        run: |
+          cd build/derived/Build/Products/Release-iphonesimulator
+          zip -r "$GITHUB_WORKSPACE/iOS/HelenApp/build/HelenApp-1.0.0-simulator.app.zip" HelenApp.app
+
+      # ── Signed archive + IPA (only when signing creds are set) ──
+      - name: Import signing certificate
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        env:
+          CERT_B64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERT_PWD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PWD=$(uuidgen)
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain  -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain  -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          echo "$CERT_B64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PWD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | tr -d '"')
+
+      - name: Archive (signed, device)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        working-directory: iOS/HelenApp
+        env:
+          DEV_TEAM: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+        run: |
+          xcodebuild archive \
+            -project HelenApp.xcodeproj \
+            -scheme HelenApp \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/HelenApp.xcarchive \
+            DEVELOPMENT_TEAM="$DEV_TEAM" \
+            CODE_SIGN_STYLE=Automatic
+
+      - name: Export IPA (development)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        working-directory: iOS/HelenApp
+        env:
+          DEV_TEAM: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+        run: |
+          cat > build/exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>development</string>
+            <key>teamID</key><string>${DEV_TEAM}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>compileBitcode</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath build/HelenApp.xcarchive \
+            -exportOptionsPlist build/exportOptions.plist \
+            -exportPath build/export
+          mv build/export/HelenApp.ipa build/HelenApp-1.0.0.ipa
+          (cd build && zip -r HelenApp-1.0.0.xcarchive.zip HelenApp.xcarchive)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-swift
+          path: |
+            iOS/HelenApp/build/HelenApp-1.0.0.ipa
+            iOS/HelenApp/build/HelenApp-1.0.0.xcarchive.zip
+            iOS/HelenApp/build/HelenApp-1.0.0-simulator.app.zip
+            iOS/HelenApp/build/smoke.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ── 2. iOS via Capacitor (Helen-Mobile) ───────────────────────────
+  ios-capacitor:
+    name: iOS via Capacitor (Helen-Mobile)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: CommClient-Mobile/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: CommClient-Mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Sync renderer + Capacitor iOS
+        working-directory: CommClient-Mobile
+        run: |
+          node scripts/sync-renderer.mjs
+          npx cap sync ios
+
+      - name: Install CocoaPods
+        working-directory: CommClient-Mobile/ios/App
+        run: |
+          sudo gem install cocoapods --no-document
+          pod install --repo-update
+
+      - name: Smoke build (Simulator, unsigned)
+        working-directory: CommClient-Mobile/ios/App
+        run: |
+          mkdir -p build
+          xcodebuild build \
+            -workspace App.xcworkspace -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/derived \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/smoke.log | xcpretty || true
+          test -d build/derived/Build/Products/Release-iphonesimulator/App.app
+          cd build/derived/Build/Products/Release-iphonesimulator
+          zip -r "$GITHUB_WORKSPACE/CommClient-Mobile/ios/App/build/Helen-Mobile-1.0.0-simulator.app.zip" App.app
+
+      - name: Import signing certificate
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        env:
+          CERT_B64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERT_PWD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PWD=$(uuidgen)
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain  -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain  -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          echo "$CERT_B64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PWD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | tr -d '"')
+
+      - name: Archive + Export IPA (signed, device)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        working-directory: CommClient-Mobile/ios/App
+        env:
+          DEV_TEAM: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+        run: |
+          xcodebuild archive \
+            -workspace App.xcworkspace -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/Helen-Mobile.xcarchive \
+            DEVELOPMENT_TEAM="$DEV_TEAM" \
+            CODE_SIGN_STYLE=Automatic
+          cat > build/exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>development</string>
+            <key>teamID</key><string>${DEV_TEAM}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>compileBitcode</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath build/Helen-Mobile.xcarchive \
+            -exportOptionsPlist build/exportOptions.plist \
+            -exportPath build/export
+          mv build/export/App.ipa build/Helen-Mobile-1.0.0.ipa
+          (cd build && zip -r Helen-Mobile-1.0.0.xcarchive.zip Helen-Mobile.xcarchive)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-capacitor
+          path: |
+            CommClient-Mobile/ios/App/build/Helen-Mobile-1.0.0.ipa
+            CommClient-Mobile/ios/App/build/Helen-Mobile-1.0.0.xcarchive.zip
+            CommClient-Mobile/ios/App/build/Helen-Mobile-1.0.0-simulator.app.zip
+            CommClient-Mobile/ios/App/build/smoke.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ── 3. macOS Desktop (Helen Desktop) ──────────────────────────────
+  macos-desktop:
+    name: macOS Desktop (Helen Desktop)
+    runs-on: macos-14
+    env:
+      BUILD_MODE: ${{ github.event.inputs.build_mode || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: CommClient-Desktop/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # The Electron installer bundles the FastAPI server at
+      # resources/server/. Build it first, then build the desktop app.
+      - name: Build server (PyInstaller, macOS binary)
+        working-directory: CommClient-Server
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+          pyinstaller --noconfirm CommClient-Server.spec
+          ls -la dist/
+
+      - name: Install desktop dependencies
+        working-directory: CommClient-Desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Pre-build (renderer + native bridges)
+        working-directory: CommClient-Desktop
+        run: |
+          npm run prebuild
+          npm run build:renderer
+
+      - name: Build .app + .dmg
+        working-directory: CommClient-Desktop
+        env:
+          APPLE_ID:           ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          APPLE_TEAM_ID:      ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+          CSC_LINK:           ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD:   ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          chmod +x build-mac-on-mac.sh
+          # build-mac-on-mac.sh refuses non-Mac hosts and validates creds
+          # in beta/prod. dev mode produces unsigned .app (no DMG).
+          ./build-mac-on-mac.sh "$BUILD_MODE"
+
+      - name: List release outputs
+        working-directory: CommClient-Desktop
+        run: |
+          ls -la release/ 2>/dev/null || true
+          ls -la release/mac*/ 2>/dev/null || true
+
+      - name: Bundle .app for upload
+        working-directory: CommClient-Desktop
+        run: |
+          if [ -d "release/mac" ]; then
+            (cd release/mac && zip -r "$GITHUB_WORKSPACE/CommClient-Desktop/release/Helen-Desktop-mac-${BUILD_MODE}.zip" "Helen Desktop.app")
+          fi
+          if [ -d "release/mac-arm64" ]; then
+            (cd release/mac-arm64 && zip -r "$GITHUB_WORKSPACE/CommClient-Desktop/release/Helen-Desktop-mac-arm64-${BUILD_MODE}.zip" "Helen Desktop.app")
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-desktop-${{ env.BUILD_MODE }}
+          path: |
+            CommClient-Desktop/release/*.dmg
+            CommClient-Desktop/release/*.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ── Aggregate gate ────────────────────────────────────────────────
+  apple-pass:
+    name: Apple builds pass
+    needs: [ios-native-swift, ios-capacitor, macos-desktop]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Verify all builds passed
+        run: |
+          NATIVE="${{ needs.ios-native-swift.result }}"
+          CAP="${{ needs.ios-capacitor.result }}"
+          MAC="${{ needs.macos-desktop.result }}"
+          echo "iOS Native: $NATIVE · iOS Capacitor: $CAP · macOS: $MAC"
+          if [ "$NATIVE" != "success" ] || [ "$CAP" != "success" ] || [ "$MAC" != "success" ]; then
+            echo "::error::One or more Apple builds failed."
+            exit 1
+          fi
+          echo "All Apple artifacts produced."
+
+  # ── Auto-create GitHub Release on tag push ────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: [ios-native-swift, ios-capacitor, macos-desktop]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create a release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifact tree
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \
+            \( -name "*.ipa" -o -name "*.dmg" -o -name "*.zip" \) \
+            -exec cp -v {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Helen ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: release-assets/*

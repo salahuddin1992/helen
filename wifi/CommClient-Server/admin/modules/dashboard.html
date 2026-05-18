@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Metrics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px;letter-spacing:.3px}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+  .card{grid-column:span 6;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px}
+  .card.small{grid-column:span 3}
+  .card.wide{grid-column:span 12}
+  @media (max-width:1100px){.card,.card.small{grid-column:span 12}}
+  h3{margin:0 0 8px 0;font-size:11px;color:var(--muted);letter-spacing:.6px;
+    text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+  .stat{font-family:var(--mono);font-size:22px;color:var(--accent)}
+  .sub{font-size:11px;color:var(--muted2);margin-top:2px}
+  canvas{display:block;width:100%!important;height:200px!important}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:5px 10px;border-radius:7px;cursor:pointer;font-size:11px;
+    font-family:inherit
+  }
+  .btn:hover{background:#233561;border-color:var(--line2)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:#1b2945;
+    color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);background:#102a1b;border-color:#1f4b33}
+  .toolbar{display:flex;gap:6px}
+  select.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 10px;font-family:var(--mono);font-size:12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Metrics Dashboard
+  <span class="pill"><span id="connDot">●</span> <span id="connText">…</span></span>
+  <span class="pill">Resolution: <span id="resVal">5s</span></span>
+  <select class="in" id="rangeSel" style="margin-inline-start:8px">
+    <option value="15m">last 15 m</option>
+    <option value="1h" selected>last 1 h</option>
+    <option value="6h">last 6 h</option>
+  </select>
+</h1>
+
+<div class="grid">
+  <div class="card small"><h3>Uptime</h3>
+    <div class="stat" id="kUptime">—</div>
+    <div class="sub" id="kUptimeSub"></div>
+  </div>
+  <div class="card small"><h3>CPU</h3>
+    <div class="stat" id="kCpu">—</div>
+    <div class="sub">latest sample</div>
+  </div>
+  <div class="card small"><h3>Memory</h3>
+    <div class="stat" id="kMem">—</div>
+    <div class="sub" id="kMemSub"></div>
+  </div>
+  <div class="card small"><h3>Active calls / Clients</h3>
+    <div class="stat" id="kClients">—</div>
+    <div class="sub" id="kClientsSub"></div>
+  </div>
+
+  <div class="card"><h3>CPU & Memory <button class="btn" data-export="cpu-mem">Export</button></h3>
+    <canvas id="chCpu"></canvas>
+  </div>
+  <div class="card"><h3>Network (bytes/s) <button class="btn" data-export="net">Export</button></h3>
+    <canvas id="chNet"></canvas>
+  </div>
+  <div class="card"><h3>Disk I/O (bytes/s) <button class="btn" data-export="disk">Export</button></h3>
+    <canvas id="chDisk"></canvas>
+  </div>
+  <div class="card"><h3>Calls vs Clients <button class="btn" data-export="calls">Export</button></h3>
+    <canvas id="chCalls"></canvas>
+  </div>
+  <div class="card"><h3>JWT issuance rate <button class="btn" data-export="jwt">Export</button></h3>
+    <canvas id="chJwt"></canvas>
+  </div>
+  <div class="card"><h3>DB connections & queue depth <button class="btn" data-export="db">Export</button></h3>
+    <canvas id="chDb"></canvas>
+  </div>
+</div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+const $ = (id) => document.getElementById(id);
+
+const COLORS = {
+  cpu:"#4cc2ff", mem:"#7c5cff",
+  net_in:"#39e6b4", net_out:"#f5a524",
+  disk_r:"#39e6b4", disk_w:"#ff5c7a",
+  calls:"#7c5cff", clients:"#4cc2ff",
+  jwt:"#f5a524",
+  db:"#4cc2ff", queue:"#ff5c7a",
+};
+
+function mkChart(id, datasets){
+  return new Chart(document.getElementById(id), {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      animation:false, parsing:false,
+      scales:{
+        x:{type:"time", time:{unit:"minute"}, ticks:{color:"#8ea2c5",font:{size:10}}, grid:{color:"#1a2540"}},
+        y:{beginAtZero:true, ticks:{color:"#8ea2c5",font:{size:10}}, grid:{color:"#1a2540"}},
+      },
+      plugins:{
+        legend:{labels:{color:"#cbd9f1",font:{size:11}}},
+        tooltip:{intersect:false, mode:"index"}
+      },
+      elements:{ point:{radius:0}, line:{borderWidth:1.5, tension:.25} }
+    }
+  });
+}
+
+// Chart.js v4 doesn't bundle the time adapter; emulate by passing x as Date.
+const charts = {};
+function init(){
+  charts.cpu  = mkChart("chCpu", [
+    { label:"CPU %",    data:[], borderColor: COLORS.cpu,  backgroundColor: COLORS.cpu+"22", fill:true, yAxisID:"y" },
+    { label:"Memory %", data:[], borderColor: COLORS.mem,  backgroundColor: COLORS.mem+"22", fill:false },
+  ]);
+  charts.net  = mkChart("chNet", [
+    { label:"recv", data:[], borderColor: COLORS.net_in,  backgroundColor: COLORS.net_in+"22", fill:true },
+    { label:"sent", data:[], borderColor: COLORS.net_out, backgroundColor: COLORS.net_out+"22", fill:false },
+  ]);
+  charts.disk = mkChart("chDisk", [
+    { label:"read",  data:[], borderColor: COLORS.disk_r, backgroundColor: COLORS.disk_r+"22", fill:true },
+    { label:"write", data:[], borderColor: COLORS.disk_w, backgroundColor: COLORS.disk_w+"22", fill:false },
+  ]);
+  charts.calls = mkChart("chCalls", [
+    { label:"active calls", data:[], borderColor: COLORS.calls,   fill:false },
+    { label:"clients",      data:[], borderColor: COLORS.clients, fill:false },
+  ]);
+  charts.jwt = mkChart("chJwt", [
+    { label:"JWT/min", data:[], borderColor: COLORS.jwt, backgroundColor: COLORS.jwt+"22", fill:true },
+  ]);
+  charts.db = mkChart("chDb", [
+    { label:"db connections", data:[], borderColor: COLORS.db,    fill:false },
+    { label:"queue depth",    data:[], borderColor: COLORS.queue, fill:false },
+  ]);
+}
+
+function pts(series){ return (series || []).map(p => ({ x: new Date(p.ts*1000), y: p.v })); }
+
+async function poll(){
+  const range = $("rangeSel").value;
+  let snap, all;
+  try {
+    [snap, all] = await Promise.all([
+      fetch(api("/api/admin/metrics/snapshot"), { headers: { Authorization: "Bearer " + getToken() }}).then(r=>r.json()),
+      fetch(api("/api/admin/metrics/all-series?since=" + range), { headers: { Authorization: "Bearer " + getToken() }}).then(r=>r.json()),
+    ]);
+    $("connDot").style.color = "var(--ok)";
+    $("connText").textContent = "live";
+  } catch(e){
+    $("connDot").style.color = "var(--err)";
+    $("connText").textContent = "offline";
+    return;
+  }
+
+  // Status cards
+  const up = Math.floor(snap.uptime_sec || 0);
+  const d = Math.floor(up/86400), h = Math.floor((up%86400)/3600), m = Math.floor((up%3600)/60);
+  $("kUptime").textContent = `${d}d ${h}h ${m}m`;
+  $("kUptimeSub").textContent = new Date((snap.ts - up)*1000).toLocaleString();
+
+  const M = snap.metrics || {};
+  $("kCpu").textContent = (M.cpu_percent ?? 0).toFixed(1) + "%";
+  $("kMem").textContent = (M.memory_percent ?? 0).toFixed(1) + "%";
+  $("kMemSub").textContent = (M.memory_mb ?? 0).toFixed(0) + " MB RSS";
+  $("kClients").textContent = (M.active_calls ?? 0) + " / " + (M.connected_clients ?? 0);
+  $("kClientsSub").textContent = "JWT/min " + (M.jwt_issued_per_min ?? 0).toFixed(0);
+
+  const S = all.metrics || {};
+  $("resVal").textContent = (all.resolution_sec || 5) + "s";
+
+  charts.cpu.data.datasets[0].data  = pts(S.cpu_percent);
+  charts.cpu.data.datasets[1].data  = pts(S.memory_percent);
+  charts.net.data.datasets[0].data  = pts(S.network_recv);
+  charts.net.data.datasets[1].data  = pts(S.network_sent);
+  charts.disk.data.datasets[0].data = pts(S.disk_io_read);
+  charts.disk.data.datasets[1].data = pts(S.disk_io_write);
+  charts.calls.data.datasets[0].data   = pts(S.active_calls);
+  charts.calls.data.datasets[1].data   = pts(S.connected_clients);
+  charts.jwt.data.datasets[0].data     = pts(S.jwt_issued_per_min);
+  charts.db.data.datasets[0].data      = pts(S.db_connections);
+  charts.db.data.datasets[1].data      = pts(S.queue_depth);
+
+  Object.values(charts).forEach(c => c.update("none"));
+}
+
+document.addEventListener("click", (ev) => {
+  const k = ev.target?.dataset?.export;
+  if (!k) return;
+  const map = { "cpu-mem":"cpu", "net":"net", "disk":"disk",
+                "calls":"calls", "jwt":"jwt", "db":"db" };
+  const c = charts[map[k]];
+  if (!c) return;
+  const url = c.toBase64Image("image/png", 1);
+  const a = document.createElement("a");
+  a.href = url; a.download = `helen-${k}-${Date.now()}.png`; a.click();
+});
+
+$("rangeSel").addEventListener("change", poll);
+
+init();
+poll();
+setInterval(poll, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+/* Tabs */
+"Contacts"           = "جهات الاتصال";
+"Recents"            = "الأخيرة";
+"Favorites"          = "المفضّلة";
+"Settings"           = "الإعدادات";
+
+/* Common */
+"Search"             = "بحث";
+"Today"              = "اليوم";
+"Yesterday"          = "أمس";
+"Cancel"             = "إلغاء";
+"Done"               = "تم";
+
+/* Recents */
+"All"                = "الكل";
+"Missed"             = "فائتة";
+"Incoming"           = "واردة";
+"Outgoing"           = "صادرة";
+"No Missed Calls"    = "لا توجد مكالمات فائتة";
+"No Recent Calls"    = "لا توجد مكالمات أخيرة";
+"Calls you make or receive will appear here."
+                     = "ستظهر هنا المكالمات التي تجريها أو تستقبلها.";
+"Call info"          = "تفاصيل المكالمة";
+"Call"               = "اتصال";
+"Delete"             = "حذف";
+"Incoming call"      = "مكالمة واردة";
+"Outgoing call"      = "مكالمة صادرة";
+"Missed call"        = "مكالمة فائتة";
+
+/* Contacts */
+"No Results"         = "لا توجد نتائج";
+"Check the spelling or try a different name."
+                     = "تأكّد من الإملاء أو جرّب اسماً آخر.";
+"Message"            = "رسالة";
+"Favorite"           = "إضافة للمفضّلة";
+"Unfavorite"         = "إزالة من المفضّلة";
+
+/* Favorites */
+"No Favorites"       = "لا توجد مفضّلة";
+"Add favorites for one-tap dialing."
+                     = "أضف للمفضّلة لاتصال بنقرة واحدة.";
+"mobile"             = "جوّال";
+"Contact info"       = "تفاصيل جهة الاتصال";
+
+/* Detail */
+"call"               = "اتصال";
+"message"            = "رسالة";
+"video"              = "فيديو";
+"mail"               = "بريد";
+"email"              = "بريد إلكتروني";
+"Notes"              = "ملاحظات";
+"Add to Favorites"   = "إضافة للمفضّلة";
+"Remove from Favorites" = "إزالة من المفضّلة";
+"Double-tap to copy" = "اضغط مرّتين للنسخ";
+
+/* Call screen */
+"Phone"              = "هاتف";
+"FaceTime"           = "فيس تايم";
+"mute"               = "كتم";
+"keypad"             = "لوحة";
+"speaker"            = "سمّاعة";
+"add"                = "إضافة";
+"contacts"           = "جهات";
+"On"                 = "تشغيل";
+"Off"                = "إيقاف";
+"End call"           = "إنهاء المكالمة";
+
+/* Settings */
+"Account"            = "الحساب";
+"Notifications"      = "الإشعارات";
+"Read Receipts"      = "إيصالات القراءة";
+"Appearance"         = "المظهر";
+"Theme"              = "النمط";
+"System"             = "النظام";
+"Light"              = "فاتح";
+"Dark"               = "داكن";
+"Privacy & Security" = "الخصوصية والأمان";
+"Storage"            = "التخزين";
+"Help"               = "المساعدة";
+"Version"            = "الإصدار";
+"Sign Out"           = "تسجيل الخروج";

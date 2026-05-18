@@ -1,0 +1,3896 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Helen Admin API — admin-router-control",
+    "description": "Helen / CommClient-Server admin control plane API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/admin/router/control/connection": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Get Connection Config",
+        "description": "Return the resolved (URL + token-set flag) the proxy is using.\n\nNote: never echoes back the actual token bytes — only the\n``token_set`` boolean and length.",
+        "operationId": "get_connection_config_admin_router_control_connection_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Connection Config Admin Router Control Connection Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Set Connection Config",
+        "description": "Override the router URL + token at runtime (DB-backed).",
+        "operationId": "set_connection_config_admin_router_control_connection_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouterControlConnectionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Set Connection Config Admin Router Control Connection Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/reachability": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Reachability Probe",
+        "description": "Quick yes/no — is Helen-Router responding? Powers the green\nlight in the admin dashboard. Never proxies — checks locally.",
+        "operationId": "reachability_probe_admin_router_reachability_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Reachability Probe Admin Router Reachability Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/health": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Router Health",
+        "operationId": "router_health_admin_router_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/upstreams": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Router Upstreams",
+        "operationId": "router_upstreams_admin_router_upstreams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/mesh/topology": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Mesh Topology",
+        "operationId": "mesh_topology_admin_mesh_topology_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/mesh/neighbours": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Mesh Neighbours List",
+        "description": "Helen-Router exposes neighbours through /mesh/topology, but a\ndedicated endpoint is convenient for paginated views. We forward\nto /mesh/topology and let the router return the slice — the\nupstream implementation is free to add a dedicated route later.",
+        "operationId": "mesh_neighbours_list_admin_mesh_neighbours_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/mesh/reroute": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Mesh Reroute",
+        "description": "Force a mesh recomputation. Body may include\n``{\"server_id\": \"...\", \"via\": \"router-id\"}``.",
+        "operationId": "mesh_reroute_admin_mesh_reroute_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/mesh/neighbours/{neighbour_id}": {
+      "delete": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Mesh Remove Neighbour",
+        "operationId": "mesh_remove_neighbour_admin_mesh_neighbours__neighbour_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "neighbour_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Neighbour Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/router/register": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Registry List",
+        "operationId": "registry_list_admin_router_register_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Registry Register",
+        "operationId": "registry_register_admin_router_register_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/register/{server_id}": {
+      "put": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Registry Update",
+        "operationId": "registry_update_admin_router_register__server_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Registry Delete",
+        "operationId": "registry_delete_admin_router_register__server_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/router/proxy/log": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Proxy Log",
+        "description": "Live access log. Streamed because the router may produce\na very large response on a busy LAN.",
+        "operationId": "proxy_log_admin_router_proxy_log_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/proxy/rate-limits": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Proxy Rate Limits Get",
+        "operationId": "proxy_rate_limits_get_admin_router_proxy_rate_limits_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Proxy Rate Limits Set",
+        "operationId": "proxy_rate_limits_set_admin_router_proxy_rate_limits_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/proxy/ip-lists/{list_name}": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Proxy Ip List Get",
+        "operationId": "proxy_ip_list_get_admin_router_proxy_ip_lists__list_name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "list_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "List Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Proxy Ip List Set",
+        "operationId": "proxy_ip_list_set_admin_router_proxy_ip_lists__list_name__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "list_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "List Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/router/dns/records": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Records List",
+        "operationId": "dns_records_list_admin_router_dns_records_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Records Create",
+        "operationId": "dns_records_create_admin_router_dns_records_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Records Delete",
+        "description": "Delete by query params (?name=&type=) or body.",
+        "operationId": "dns_records_delete_admin_router_dns_records_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/dns/blocklist": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Blocklist Get",
+        "operationId": "dns_blocklist_get_admin_router_dns_blocklist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Blocklist Set",
+        "operationId": "dns_blocklist_set_admin_router_dns_blocklist_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/dns/stats": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Stats",
+        "operationId": "dns_stats_admin_router_dns_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/dns/log": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Log",
+        "operationId": "dns_log_admin_router_dns_log_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/dns/upstreams": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Upstreams Get",
+        "operationId": "dns_upstreams_get_admin_router_dns_upstreams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Dns Upstreams Set",
+        "operationId": "dns_upstreams_set_admin_router_dns_upstreams_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/ntp/status": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Ntp Status",
+        "operationId": "ntp_status_admin_router_ntp_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/ntp/sync": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Ntp Sync",
+        "operationId": "ntp_sync_admin_router_ntp_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/upnp/portmaps": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Upnp Portmaps",
+        "operationId": "upnp_portmaps_admin_router_upnp_portmaps_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/upnp/portmap": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Upnp Portmap Create",
+        "operationId": "upnp_portmap_create_admin_router_upnp_portmap_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/upnp/portmap/{mapping_id}": {
+      "delete": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Upnp Portmap Delete",
+        "operationId": "upnp_portmap_delete_admin_router_upnp_portmap__mapping_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mapping_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mapping Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/router/upnp/discover": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Upnp Discover",
+        "operationId": "upnp_discover_admin_router_upnp_discover_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/vendor/test": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Vendor Test",
+        "operationId": "vendor_test_admin_router_vendor_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/vendor/push": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Vendor Push",
+        "operationId": "vendor_push_admin_router_vendor_push_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/vendor/jobs": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Vendor Jobs",
+        "operationId": "vendor_jobs_admin_router_vendor_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/external": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "External Routers List",
+        "operationId": "external_routers_list_admin_router_external_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/external/scan": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "External Routers Scan",
+        "operationId": "external_routers_scan_admin_router_external_scan_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/broker/status": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Broker Status",
+        "operationId": "broker_status_admin_router_broker_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/security": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Security Overview",
+        "operationId": "security_overview_admin_router_security_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/security/rotate-token": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Security Rotate Token",
+        "description": "Token rotation is high-value — emits a critical-severity audit\nentry on both the attempt and outcome.",
+        "operationId": "security_rotate_token_admin_router_security_rotate_token_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/security/subnets": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Security Subnets Get",
+        "operationId": "security_subnets_get_admin_router_security_subnets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Security Subnets Set",
+        "operationId": "security_subnets_set_admin_router_security_subnets_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/security/enforcement": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Security Enforcement",
+        "operationId": "security_enforcement_admin_router_security_enforcement_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/diag/ping": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Diag Ping",
+        "operationId": "diag_ping_admin_router_diag_ping_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/diag/traceroute": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Diag Traceroute",
+        "operationId": "diag_traceroute_admin_router_diag_traceroute_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/diag/dns": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Diag Dns",
+        "operationId": "diag_dns_admin_router_diag_dns_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/diag/portscan": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Diag Portscan",
+        "operationId": "diag_portscan_admin_router_diag_portscan_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/diag/bandwidth": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Diag Bandwidth",
+        "operationId": "diag_bandwidth_admin_router_diag_bandwidth_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/config": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Config Get",
+        "operationId": "config_get_admin_router_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Config Put",
+        "operationId": "config_put_admin_router_config_put",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/config/validate": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Config Validate",
+        "operationId": "config_validate_admin_router_config_validate_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/admin/reload": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Admin Reload",
+        "operationId": "admin_reload_admin_router_admin_reload_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/admin/restart": {
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Admin Restart",
+        "operationId": "admin_restart_admin_router_admin_restart_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/router/routing/rules": {
+      "get": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Routing Rules List",
+        "operationId": "routing_rules_list_admin_router_routing_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Routing Rules Add",
+        "operationId": "routing_rules_add_admin_router_routing_rules_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin-router-control"
+        ],
+        "summary": "Routing Rules Delete",
+        "description": "Body or query (?rule_id=...) selects which rule to remove.",
+        "operationId": "routing_rules_delete_admin_router_routing_rules_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionRequest": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Node Id"
+          },
+          "action": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Action"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "action"
+        ],
+        "title": "ActionRequest"
+      },
+      "ActionResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status",
+          "node_id",
+          "action"
+        ],
+        "title": "ActionResponse"
+      },
+      "AdminBootstrapRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "Password"
+          },
+          "totp_secret_b32": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 16,
+            "title": "Totp Secret B32"
+          },
+          "totp_code": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Totp Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password",
+          "totp_secret_b32",
+          "totp_code"
+        ],
+        "title": "AdminBootstrapRequest"
+      },
+      "AlertRuleCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "condition_dsl": {
+            "type": "string",
+            "title": "Condition Dsl"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "default": "medium"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "condition_dsl"
+        ],
+        "title": "AlertRuleCreate"
+      },
+      "AlertRuleTest": {
+        "properties": {
+          "sample_limit": {
+            "type": "integer",
+            "title": "Sample Limit",
+            "default": 500
+          }
+        },
+        "type": "object",
+        "title": "AlertRuleTest"
+      },
+      "AlertRuleUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "condition_dsl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition Dsl"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra"
+          }
+        },
+        "type": "object",
+        "title": "AlertRuleUpdate"
+      },
+      "ArchiveIn": {
+        "properties": {
+          "backup_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Backup Ids"
+          }
+        },
+        "type": "object",
+        "title": "ArchiveIn"
+      },
+      "BackupStartIn": {
+        "properties": {
+          "policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Id"
+          },
+          "destination_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Id"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence",
+            "default": "full"
+          }
+        },
+        "type": "object",
+        "title": "BackupStartIn"
+      },
+      "CertChainIn": {
+        "properties": {
+          "peer_id": {
+            "type": "string",
+            "title": "Peer Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "peer_id"
+        ],
+        "title": "CertChainIn"
+      },
+      "CertGenerateRequest": {
+        "properties": {
+          "cn": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Cn"
+          },
+          "san": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "San"
+          },
+          "duration_days": {
+            "type": "integer",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Duration Days",
+            "default": 825
+          },
+          "key_type": {
+            "type": "string",
+            "enum": [
+              "rsa",
+              "ed25519",
+              "ecdsa"
+            ],
+            "title": "Key Type",
+            "default": "rsa"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cn"
+        ],
+        "title": "CertGenerateRequest"
+      },
+      "CertImportRequest": {
+        "properties": {
+          "cert_pem": {
+            "type": "string",
+            "minLength": 20,
+            "title": "Cert Pem"
+          },
+          "key_pem": {
+            "type": "string",
+            "minLength": 20,
+            "title": "Key Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cert_pem",
+          "key_pem"
+        ],
+        "title": "CertImportRequest"
+      },
+      "ChaosBody": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          },
+          "loss_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Pct"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id"
+        ],
+        "title": "ChaosBody"
+      },
+      "CloneIn": {
+        "properties": {
+          "new_name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "New Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_name"
+        ],
+        "title": "CloneIn"
+      },
+      "DRDestinationIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 100
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "DRDestinationIn"
+      },
+      "DRDestinationPatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "DRDestinationPatch"
+      },
+      "DeleteConfirmIn": {
+        "properties": {
+          "confirmation": {
+            "type": "string",
+            "title": "Confirmation",
+            "description": "must equal 'DELETE'"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 3,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation",
+          "reason"
+        ],
+        "title": "DeleteConfirmIn"
+      },
+      "DiagnoseIn": {
+        "properties": {
+          "timeout_sec": {
+            "type": "number",
+            "title": "Timeout Sec",
+            "default": 5.0
+          }
+        },
+        "type": "object",
+        "title": "DiagnoseIn"
+      },
+      "DraftSubmitRequest": {
+        "properties": {
+          "step_num": {
+            "type": "integer",
+            "maximum": 14.0,
+            "minimum": 1.0,
+            "title": "Step Num"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_num"
+        ],
+        "title": "DraftSubmitRequest"
+      },
+      "DrillScheduleIn": {
+        "properties": {
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": "sandbox"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheduled_at"
+        ],
+        "title": "DrillScheduleIn"
+      },
+      "EndCallBody": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Reason",
+            "default": "admin_terminated"
+          }
+        },
+        "type": "object",
+        "title": "EndCallBody"
+      },
+      "ExportRequest": {
+        "properties": {
+          "scope": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Scope"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "ExportRequest"
+      },
+      "FederationInviteRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "master",
+              "follower",
+              "observer"
+            ],
+            "title": "Mode"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "FederationInviteRequest"
+      },
+      "FirewallRulesRequest": {
+        "properties": {
+          "rules": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rules"
+        ],
+        "title": "FirewallRulesRequest"
+      },
+      "ForceCodecBody": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          },
+          "codec_audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codec Audio"
+          },
+          "codec_video": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codec Video"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id"
+        ],
+        "title": "ForceCodecBody"
+      },
+      "ForcePresetBody": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          },
+          "preset": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Preset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "preset"
+        ],
+        "title": "ForcePresetBody"
+      },
+      "ForceTurnBody": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id"
+        ],
+        "title": "ForceTurnBody"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InvoiceEmailIn": {
+        "properties": {
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "type": "object",
+        "title": "InvoiceEmailIn"
+      },
+      "InvoiceGenIn": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "title": "InvoiceGenIn"
+      },
+      "KeyIn": {
+        "properties": {
+          "alias": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Alias"
+          },
+          "algorithm": {
+            "type": "string",
+            "title": "Algorithm",
+            "default": "aes-256-gcm"
+          },
+          "backend": {
+            "type": "string",
+            "title": "Backend",
+            "default": "local"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alias"
+        ],
+        "title": "KeyIn"
+      },
+      "LegalHoldCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "case_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Ref"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Scope"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "LegalHoldCreate"
+      },
+      "LegalHoldReleaseBody": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "LegalHoldReleaseBody"
+      },
+      "LegalHoldUpdate": {
+        "properties": {
+          "case_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Ref"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          }
+        },
+        "type": "object",
+        "title": "LegalHoldUpdate"
+      },
+      "LicenseActivateRequest": {
+        "properties": {
+          "license_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 10,
+            "title": "License Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "license_key"
+        ],
+        "title": "LicenseActivateRequest"
+      },
+      "LicenseIssueIn": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan"
+          },
+          "seats": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Seats",
+            "default": 1
+          },
+          "duration_days": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Duration Days",
+            "default": 365
+          },
+          "features": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Features"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "plan"
+        ],
+        "title": "LicenseIssueIn"
+      },
+      "LicenseRenewIn": {
+        "properties": {
+          "duration_days": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Duration Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "duration_days"
+        ],
+        "title": "LicenseRenewIn"
+      },
+      "LicenseSignBody": {
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payload"
+        ],
+        "title": "LicenseSignBody"
+      },
+      "LicenseValidateIn": {
+        "properties": {
+          "license": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "License"
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "license"
+        ],
+        "title": "LicenseValidateIn"
+      },
+      "ManifestUploadIn": {
+        "properties": {
+          "manifest": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Manifest"
+          },
+          "code_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "manifest"
+        ],
+        "title": "ManifestUploadIn"
+      },
+      "NetworkCheckRequest": {
+        "properties": {
+          "interfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Interfaces"
+          },
+          "subnets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Subnets"
+          }
+        },
+        "type": "object",
+        "title": "NetworkCheckRequest"
+      },
+      "ObservabilityBootstrapRequest": {
+        "properties": {
+          "metrics_enabled": {
+            "type": "boolean",
+            "title": "Metrics Enabled",
+            "default": true
+          },
+          "crash_reporter": {
+            "type": "boolean",
+            "title": "Crash Reporter",
+            "default": true
+          },
+          "audit_chain_init": {
+            "type": "boolean",
+            "title": "Audit Chain Init",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "ObservabilityBootstrapRequest"
+      },
+      "PIIPatchIn": {
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification"
+          },
+          "encryption_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encryption Status"
+          },
+          "masking_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Masking Rule"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "PIIPatchIn"
+      },
+      "PermsIn": {
+        "properties": {
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "permissions"
+        ],
+        "title": "PermsIn"
+      },
+      "PlanExtIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "price_monthly_cents": {
+            "type": "integer",
+            "title": "Price Monthly Cents",
+            "default": 0
+          },
+          "price_yearly_cents": {
+            "type": "integer",
+            "title": "Price Yearly Cents",
+            "default": 0
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "USD"
+          },
+          "trial_days": {
+            "type": "integer",
+            "title": "Trial Days",
+            "default": 0
+          },
+          "is_public": {
+            "type": "boolean",
+            "title": "Is Public",
+            "default": true
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "default": 0
+          },
+          "included_quotas": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Included Quotas"
+          },
+          "feature_flags": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Feature Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "PlanExtIn"
+      },
+      "PolicySimulateIn": {
+        "properties": {
+          "envelope": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Envelope"
+          },
+          "rules_override": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules Override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "envelope"
+        ],
+        "title": "PolicySimulateIn"
+      },
+      "QuarantineIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "QuarantineIn"
+      },
+      "QuotaIn": {
+        "properties": {
+          "quotas": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Quotas",
+            "description": "metric → limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quotas"
+        ],
+        "title": "QuotaIn"
+      },
+      "RecoveryCodesRequest": {
+        "properties": {
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "title": "RecoveryCodesRequest"
+      },
+      "ResetRequest": {
+        "properties": {
+          "confirmation": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 5,
+            "title": "Confirmation"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 4,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation",
+          "reason"
+        ],
+        "title": "ResetRequest"
+      },
+      "RestoreIn": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": "sandbox"
+          },
+          "confirmation": {
+            "type": "string",
+            "title": "Confirmation",
+            "description": "must equal 'RESTORE'"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 3,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "confirmation",
+          "reason"
+        ],
+        "title": "RestoreIn"
+      },
+      "RetentionCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "resource_type": {
+            "type": "string",
+            "title": "Resource Type"
+          },
+          "period_days": {
+            "type": "integer",
+            "title": "Period Days"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "archive"
+          },
+          "exemptions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Exemptions"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "resource_type",
+          "period_days"
+        ],
+        "title": "RetentionCreate"
+      },
+      "RetentionPolicyIn": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "retention_days": {
+            "type": "integer",
+            "maximum": 36500.0,
+            "minimum": 1.0,
+            "title": "Retention Days"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "delete"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "retention_days"
+        ],
+        "title": "RetentionPolicyIn"
+      },
+      "RetentionUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "resource_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Type"
+          },
+          "period_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Days"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "exemptions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exemptions"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "title": "RetentionUpdate"
+      },
+      "ReviewIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "ReviewIn"
+      },
+      "RolePatch": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "RolePatch"
+      },
+      "RouterControlConnectionUpdate": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Base Url"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token",
+            "description": "If null, keep existing token; if empty string, clear it; otherwise set the new token."
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url"
+        ],
+        "title": "RouterControlConnectionUpdate",
+        "description": "Body for PUT /api/admin/router/control/connection."
+      },
+      "RouterPairConfirmRequest": {
+        "properties": {
+          "router_url": {
+            "type": "string",
+            "title": "Router Url"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "router_url",
+          "fingerprint"
+        ],
+        "title": "RouterPairConfirmRequest"
+      },
+      "RouterPairRequest": {
+        "properties": {
+          "router_url": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 8,
+            "title": "Router Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "router_url"
+        ],
+        "title": "RouterPairRequest"
+      },
+      "ShaperBulkIn": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "title": "Preset"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preset"
+        ],
+        "title": "ShaperBulkIn"
+      },
+      "ShaperIn": {
+        "properties": {
+          "in_kbps": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "In Kbps"
+          },
+          "out_kbps": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Out Kbps"
+          },
+          "burst_kbps": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Burst Kbps",
+            "default": 0
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 7.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "default": 4
+          },
+          "preset": {
+            "type": "string",
+            "title": "Preset",
+            "default": "custom"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "in_kbps",
+          "out_kbps"
+        ],
+        "title": "ShaperIn"
+      },
+      "StateResponse": {
+        "properties": {
+          "completed_steps": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Completed Steps"
+          },
+          "current_step": {
+            "type": "integer",
+            "title": "Current Step"
+          },
+          "total_steps": {
+            "type": "integer",
+            "title": "Total Steps"
+          },
+          "draft_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Draft Data"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completed_steps",
+          "current_step",
+          "total_steps",
+          "draft_data",
+          "locked",
+          "steps"
+        ],
+        "title": "StateResponse"
+      },
+      "StepSubmitRequest": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "title": "StepSubmitRequest"
+      },
+      "TenantIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan",
+            "default": "free"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "owner_id"
+        ],
+        "title": "TenantIn"
+      },
+      "TenantPatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(active|suspended|archived)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "title": "TenantPatch"
+      },
+      "ToggleSimulcastBody": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Participant Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "enabled"
+        ],
+        "title": "ToggleSimulcastBody"
+      },
+      "TrustedKeyIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "pubkey_b64": {
+            "type": "string",
+            "title": "Pubkey B64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "pubkey_b64"
+        ],
+        "title": "TrustedKeyIn"
+      },
+      "UserPatch": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "title": "UserPatch"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerifyRequest": {
+        "properties": {
+          "from_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Seq"
+          },
+          "to_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Seq"
+          },
+          "async_run": {
+            "type": "boolean",
+            "title": "Async Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "VerifyRequest"
+      },
+      "VerifyScheduleIn": {
+        "properties": {
+          "backup_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Backup Ids"
+          }
+        },
+        "type": "object",
+        "title": "VerifyScheduleIn"
+      },
+      "WorkspaceIn": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "plan": {
+            "type": "string",
+            "title": "Plan",
+            "default": "free"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "name",
+          "owner_id"
+        ],
+        "title": "WorkspaceIn"
+      },
+      "WorkspacePatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "WorkspacePatch"
+      },
+      "app__api__routes__admin_dr_v2__PolicyIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "cron_schedule": {
+            "type": "string",
+            "title": "Cron Schedule",
+            "default": "0 2 * * *"
+          },
+          "scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence",
+            "default": "full"
+          },
+          "retention": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Retention"
+          },
+          "encryption_key_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encryption Key Ref"
+          },
+          "pre_hook": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pre Hook"
+          },
+          "post_hook": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Hook"
+          },
+          "destinations": {
+            "items": {},
+            "type": "array",
+            "title": "Destinations"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PolicyIn"
+      },
+      "app__api__routes__admin_federation__PolicyIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "default": 100
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "match": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Match"
+          },
+          "action": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PolicyIn"
+      },
+      "app__api__routes__admin_federation__RoleIn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "RoleIn"
+      },
+      "app__api__routes__admin_tenancy_portal__RoleIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RoleIn"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

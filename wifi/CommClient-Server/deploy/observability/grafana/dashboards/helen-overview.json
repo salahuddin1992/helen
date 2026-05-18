@@ -1,0 +1,93 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "title": "Helen — Overview",
+  "uid": "helen-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["helen"],
+  "templating": {"list":[]},
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active nodes",
+      "gridPos": {"h":4,"w":4,"x":0,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum(helen_cluster_nodes{status=\"active\"})"}]
+    },
+    {
+      "type": "stat",
+      "title": "Leader",
+      "gridPos": {"h":4,"w":4,"x":4,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum(helen_cluster_is_leader)"}]
+    },
+    {
+      "type": "stat",
+      "title": "DLQ size",
+      "gridPos": {"h":4,"w":4,"x":8,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"helen_dlq_size"}]
+    },
+    {
+      "type": "stat",
+      "title": "Active conns",
+      "gridPos": {"h":4,"w":4,"x":12,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum(helen_active_connections)"}]
+    },
+    {
+      "type": "stat",
+      "title": "WAF blocks (5m)",
+      "gridPos": {"h":4,"w":4,"x":16,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum(increase(helen_waf_blocks_total[5m]))"}]
+    },
+    {
+      "type": "stat",
+      "title": "Rate-limit rej (5m)",
+      "gridPos": {"h":4,"w":4,"x":20,"y":0},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum(increase(helen_ratelimit_rejected_total[5m]))"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests/s by route",
+      "gridPos": {"h":8,"w":12,"x":0,"y":4},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{"expr":"sum by (route) (rate(helen_http_requests_total[1m]))"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 request latency",
+      "gridPos": {"h":8,"w":12,"x":12,"y":4},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{
+        "expr":"histogram_quantile(0.95, sum by (le, route) (rate(helen_http_request_duration_seconds_bucket[5m])))"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate (5xx)",
+      "gridPos": {"h":8,"w":12,"x":0,"y":12},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{
+        "expr":"sum(rate(helen_http_requests_total{status_class=\"5xx\"}[5m])) / sum(rate(helen_http_requests_total[5m]))"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 SQL query duration",
+      "gridPos": {"h":8,"w":12,"x":12,"y":12},
+      "datasource": {"type":"prometheus","uid":"prometheus"},
+      "targets": [{
+        "expr":"histogram_quantile(0.95, sum by (le, operation) (rate(helen_db_query_duration_seconds_bucket[5m])))"
+      }]
+    }
+  ]
+}

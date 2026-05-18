@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen — Cluster</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+.badge { display:inline-block; padding:3px 8px; border-radius:6px;
+         font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.badge.leader { background:rgba(167,139,250,.18); color:var(--pri); }
+.badge.active { background:rgba(74,222,128,.15); color:var(--good); }
+.badge.draining { background:rgba(250,204,21,.18); color:var(--warn); }
+.badge.down { background:rgba(248,113,113,.18); color:var(--bad); }
+.badge.joining { background:rgba(90,200,250,.18); color:var(--accent); }
+.container { padding:20px; display:grid; grid-template-columns: 1fr 1fr;
+             gap:16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+        padding:16px; }
+.card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+           color:var(--muted); margin:0 0 12px 0; }
+.kv { display:grid; grid-template-columns: 140px 1fr; gap:8px 12px; font-size:13px; }
+.kv .k { color:var(--muted); }
+.node { display:grid; grid-template-columns: 1fr 90px 100px;
+        padding:10px 12px; border-bottom:1px solid var(--line);
+        align-items:center; }
+.node:last-child { border-bottom:none; }
+.node-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+.btns { display:flex; gap:6px; justify-content:flex-end; }
+button { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+         padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; }
+button:hover { background:var(--line); }
+button.danger { color:var(--bad); border-color:rgba(248,113,113,.4); }
+button.warn { color:var(--warn); border-color:rgba(250,204,21,.4); }
+#topology { width:100%; height:340px; background:var(--panel2);
+            border-radius:8px; }
+.timeline { font-family: ui-monospace, SFMono-Regular, monospace; font-size:11px;
+            color:var(--muted); white-space:pre; max-height:200px;
+            overflow-y:auto; line-height:1.55; }
+.full { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cluster &mdash; Helen</h1>
+  <div>
+    <span id="leader_badge" class="badge"></span>
+    <button id="refresh">Refresh</button>
+    <button id="rebalance" class="warn">Rebalance</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2>Cluster Health</h2>
+    <div class="kv" id="health"></div>
+  </div>
+
+  <div class="card">
+    <h2>Leader</h2>
+    <div class="kv" id="leader"></div>
+  </div>
+
+  <div class="card full">
+    <h2>Nodes</h2>
+    <div id="nodes"></div>
+  </div>
+
+  <div class="card">
+    <h2>Topology</h2>
+    <canvas id="topology" width="600" height="340"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Routing Table</h2>
+    <div class="kv" id="routing"></div>
+  </div>
+
+  <div class="card full">
+    <h2>Health Timeline</h2>
+    <div class="timeline" id="timeline">(no events yet)</div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API = '/api/admin/cluster';
+
+async function fetchJSON(p, opts) {
+  const r = await fetch(p, {
+    headers: { 'Authorization': 'Bearer ' + TOKEN,
+               'Content-Type': 'application/json' },
+    ...opts
+  });
+  if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+  return r.json();
+}
+
+function setKV(id, obj) {
+  const el = document.getElementById(id);
+  el.innerHTML = Object.entries(obj).map(([k,v]) => {
+    const val = (v === null || v === undefined) ? '<span style="color:#8b96a3">—</span>'
+                : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+    return `<div class="k">${k}</div><div>${val}</div>`;
+  }).join('');
+}
+
+function renderNodes(nodes, leaderId) {
+  const el = document.getElementById('nodes');
+  if (!nodes.length) { el.innerHTML = '<div style="color:#8b96a3">No nodes registered.</div>'; return; }
+  el.innerHTML = nodes.map(n => `
+    <div class="node">
+      <div>
+        <div class="node-id">${n.node_id}</div>
+        <div style="font-size:12px;color:#8b96a3">${n.hostname} &middot; ${n.advertise_url}</div>
+      </div>
+      <div>
+        <span class="badge ${n.status}">${n.status}</span>
+        ${n.node_id === leaderId ? '<span class="badge leader">leader</span>' : ''}
+      </div>
+      <div class="btns">
+        <button class="warn" onclick="drainNode('${n.node_id}')">Drain</button>
+        <button class="danger" onclick="removeNode('${n.node_id}')">Remove</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function drawTopology(nodes, leaderId) {
+  const c = document.getElementById('topology');
+  const ctx = c.getContext('2d');
+  const w = c.width = c.clientWidth;
+  const h = c.height = 340;
+  ctx.fillStyle = '#1b2129';
+  ctx.fillRect(0,0,w,h);
+  if (!nodes.length) return;
+  const cx = w/2, cy = h/2, r = Math.min(w,h)*0.32;
+  const N = nodes.length;
+  // ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#242b34';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // nodes
+  nodes.forEach((n, i) => {
+    const t = (i / N) * Math.PI * 2 - Math.PI/2;
+    const x = cx + Math.cos(t) * r;
+    const y = cy + Math.sin(t) * r;
+    let color = '#4ade80';
+    if (n.status === 'draining') color = '#facc15';
+    else if (n.status === 'down') color = '#f87171';
+    else if (n.status === 'joining') color = '#5ac8fa';
+    ctx.beginPath();
+    ctx.arc(x, y, n.node_id === leaderId ? 14 : 10, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    if (n.node_id === leaderId) {
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI*2);
+      ctx.strokeStyle = '#a78bfa';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.node_id.slice(0,8), x, y + 28);
+    ctx.fillStyle = '#8b96a3';
+    ctx.fillText(n.hostname, x, y + 42);
+  });
+}
+
+async function loadAll() {
+  try {
+    const [health, leader, nodes, routing] = await Promise.all([
+      fetchJSON(API + '/health'),
+      fetchJSON(API + '/leader'),
+      fetchJSON(API + '/nodes'),
+      fetchJSON(API + '/routing-table'),
+    ]);
+    setKV('health', health);
+    setKV('leader', leader);
+    setKV('routing', routing);
+    renderNodes(nodes, leader.leader_node_id);
+    drawTopology(nodes, leader.leader_node_id);
+    const lb = document.getElementById('leader_badge');
+    lb.textContent = leader.is_self ? 'this node is leader' : ('leader: ' + (leader.leader_node_id||'unknown').slice(0,8));
+    lb.className = 'badge ' + (leader.is_self ? 'leader' : 'active');
+    pushTimeline(`health: active=${health.active} draining=${health.draining} down=${health.down}`);
+  } catch (e) {
+    pushTimeline('ERROR: ' + e.message);
+  }
+}
+
+function pushTimeline(line) {
+  const el = document.getElementById('timeline');
+  const ts = new Date().toISOString().replace('T',' ').slice(0,19);
+  const txt = `[${ts}] ${line}`;
+  if (el.textContent === '(no events yet)') el.textContent = '';
+  el.textContent = txt + '\n' + el.textContent;
+}
+
+async function drainNode(nid) {
+  if (!confirm('Drain node ' + nid.slice(0,12) + '?')) return;
+  try { await fetchJSON(`${API}/nodes/${nid}/drain`, { method: 'POST' });
+        pushTimeline('drained: ' + nid.slice(0,12)); loadAll(); }
+  catch (e) { alert(e.message); }
+}
+async function removeNode(nid) {
+  if (!confirm('Force-remove node ' + nid.slice(0,12) + '? It must already be down.')) return;
+  try { await fetchJSON(`${API}/nodes/${nid}`, { method: 'DELETE' });
+        pushTimeline('removed: ' + nid.slice(0,12)); loadAll(); }
+  catch (e) { alert(e.message); }
+}
+async function rebalance() {
+  try { const r = await fetchJSON(`${API}/rebalance`, { method: 'POST' });
+        pushTimeline('rebalanced — ring_size=' + r.ring_size); loadAll(); }
+  catch (e) { alert(e.message); }
+}
+
+document.getElementById('refresh').addEventListener('click', loadAll);
+document.getElementById('rebalance').addEventListener('click', rebalance);
+loadAll();
+setInterval(loadAll, 5000);
+</script>
+</body>
+</html>

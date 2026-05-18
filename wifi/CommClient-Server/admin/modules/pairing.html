@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<!--
+  Phase 3 / Module O — Pairing v2 admin module.
+  "Pair new device" button → modal with QR + 6-digit code, auto-polls
+  status, closes on success. Also shows list of paired devices.
+-->
+<style>
+  :root { --pr-fg:#e4e7eb; --pr-bg:#0e141b; --pr-bg2:#171f27; --pr-border:#222e3a;
+          --pr-accent:#5aa9ff; --pr-ok:#46d39a; --pr-danger:#ff5f6d; }
+  .pr-wrap { color:var(--pr-fg); font-family:system-ui,sans-serif; padding:18px;
+             display:flex; flex-direction:column; gap:16px; }
+  .pr-card { background:var(--pr-bg2); border:1px solid var(--pr-border);
+             border-radius:12px; padding:18px; }
+  .pr-btn { background:var(--pr-accent); color:#0a1018; border:none;
+            padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .pr-btn.secondary { background:#2a3340; color:var(--pr-fg); }
+  .pr-btn:disabled { opacity:.4; cursor:not-allowed; }
+  table.pr-tbl { width:100%; border-collapse:collapse; }
+  table.pr-tbl th, table.pr-tbl td {
+    padding:8px 10px; border-bottom:1px solid var(--pr-border); text-align:left;
+  }
+  table.pr-tbl th { font-size:12px; text-transform:uppercase; opacity:.7; }
+  .pr-code { font-family:'SF Mono', Consolas, monospace; font-size:42px;
+             letter-spacing:6px; font-weight:700; color:var(--pr-accent); }
+  .pr-modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+              align-items:center; justify-content:center; z-index:9000; }
+  .pr-modal.open { display:flex; }
+  .pr-modal-inner { background:var(--pr-bg2); border:1px solid var(--pr-border);
+                    border-radius:14px; padding:28px; width:480px; max-width:90vw; }
+  .pr-status { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12px; }
+  .pr-status.pending { background:#3b3a23; color:#e8d094; }
+  .pr-status.completed { background:#23402d; color:#94e3b3; }
+  .pr-status.expired, .pr-status.revoked { background:#402323; color:#e89494; }
+</style>
+
+<div class="pr-wrap">
+  <div class="pr-card">
+    <h2 style="margin:0 0 12px 0;">Device Pairing</h2>
+    <p style="opacity:.7; margin:0 0 14px 0;">
+      Pair a phone, tablet, or secondary device. The QR code carries the
+      server URL + a one-shot code that expires in 5 minutes.
+    </p>
+    <button class="pr-btn" id="pr-start">+ Pair New Device</button>
+  </div>
+
+  <div class="pr-card">
+    <h3 style="margin:0 0 12px 0;">Recent Pairings</h3>
+    <div id="pr-list"></div>
+  </div>
+</div>
+
+<div class="pr-modal" id="pr-modal">
+  <div class="pr-modal-inner">
+    <h3 style="margin:0 0 14px 0;">Scan to pair</h3>
+    <div style="display:flex; gap:18px; align-items:center; justify-content:space-between;">
+      <div>
+        <div style="opacity:.7; font-size:13px;">Or enter this code:</div>
+        <div class="pr-code" id="pr-code">000 000</div>
+        <div style="opacity:.7; font-size:13px; margin-top:6px;">
+          Expires in <span id="pr-countdown">300</span>s
+        </div>
+        <div style="margin-top:14px;">
+          Status: <span class="pr-status pending" id="pr-status">pending</span>
+        </div>
+      </div>
+      <div>
+        <img id="pr-qr" alt="QR" style="width:200px; height:200px; background:#fff;
+              border-radius:8px; padding:6px;" />
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+      <button class="pr-btn secondary" onclick="PrAdmin.cancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const api = (path, opts={}) => {
+    if (typeof apiFetch === 'function') return apiFetch(path, opts);
+    const t = localStorage.getItem('accessToken') || '';
+    return fetch(path, {
+      ...opts,
+      headers: {
+        ...(opts.headers||{}),
+        'Authorization': 'Bearer ' + t,
+        'Content-Type': opts.body ? 'application/json' : (opts.headers||{})['Content-Type']
+      }
+    });
+  };
+
+  let currentCode = null;
+  let pollTimer = null;
+  let countdownTimer = null;
+  let remaining = 0;
+  const RECENT = [];
+
+  async function startPairing() {
+    const r = await api('/api/pairing/v2/start',
+      { method:'POST', body: JSON.stringify({ ttl_seconds: 300 }) });
+    if (!r.ok) { alert('Failed to start pairing: ' + await r.text()); return; }
+    const p = await r.json();
+    currentCode = p.code;
+    remaining = p.expires_in;
+    document.getElementById('pr-code').textContent =
+      p.code.slice(0,3) + ' ' + p.code.slice(3);
+    document.getElementById('pr-qr').src =
+      `/api/pairing/v2/qr/${encodeURIComponent(p.code)}?_=${Date.now()}`;
+    document.getElementById('pr-status').textContent = 'pending';
+    document.getElementById('pr-status').className = 'pr-status pending';
+    document.getElementById('pr-modal').classList.add('open');
+
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 1500);
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(tick, 1000);
+  }
+
+  async function poll() {
+    if (!currentCode) return;
+    const r = await api('/api/pairing/v2/status/' + currentCode);
+    if (!r.ok) return;
+    const s = await r.json();
+    const el = document.getElementById('pr-status');
+    el.textContent = s.status;
+    el.className = 'pr-status ' + s.status;
+    if (s.status === 'completed') {
+      RECENT.unshift({
+        code: s.code, device_id: s.device_id,
+        device_info: s.device_info, completed_at: new Date().toISOString()
+      });
+      renderList();
+      setTimeout(close, 1500);
+    } else if (s.status === 'expired' || s.status === 'revoked') {
+      setTimeout(close, 1500);
+    }
+  }
+
+  function tick() {
+    remaining = Math.max(0, remaining - 1);
+    document.getElementById('pr-countdown').textContent = remaining;
+    if (remaining <= 0) close();
+  }
+
+  function close() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    document.getElementById('pr-modal').classList.remove('open');
+    currentCode = null;
+  }
+
+  async function cancel() {
+    if (currentCode) {
+      try { await api('/api/pairing/v2/revoke/' + currentCode, { method:'POST' }); }
+      catch(e){}
+    }
+    close();
+  }
+
+  function renderList() {
+    document.getElementById('pr-list').innerHTML = `
+      <table class="pr-tbl">
+        <tr><th>Device ID</th><th>Platform</th><th>Code</th><th>Completed</th></tr>
+        ${RECENT.length ? RECENT.map(r => `
+          <tr>
+            <td><code>${escapeHtml(r.device_id||'?')}</code></td>
+            <td>${escapeHtml((r.device_info||{}).platform || '—')}</td>
+            <td><code>${escapeHtml(r.code)}</code></td>
+            <td>${escapeHtml(r.completed_at)}</td>
+          </tr>`).join('') : '<tr><td colspan=4 style="opacity:.6; padding:14px;">No paired devices yet.</td></tr>'}
+      </table>`;
+  }
+
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,
+      c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  window.PrAdmin = { startPairing, cancel };
+  document.getElementById('pr-start').addEventListener('click', startPairing);
+  renderList();
+})();
+</script>
+
+</script>
+</body>
+</html>

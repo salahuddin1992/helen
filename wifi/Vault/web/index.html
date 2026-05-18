@@ -1,0 +1,765 @@
+<!doctype html>
+<!--
+  Helen-Vault — dedicated secrets management panel.
+
+  Accessible only from LAN addresses (RFC1918 + loopback + link-local).
+  Gated by its own master code, printed once to the server console
+  on first boot. Stored at data/vault_master_code.txt.
+
+  Shows everything secret in one place:
+    - server admin master code fingerprint + active sessions
+    - every user's share_code + avatar + role
+    - every user-minted access code with redemption stats
+
+  Visual identity: deep red — so operators never confuse it with
+  the regular admin (blue) or the secret admin (orange).
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen · Vault</title>
+<style>
+  :root {
+    --bg: #0a0306;
+    --panel: #1a0a0f;
+    --panel2: #241015;
+    --line: #3a1820;
+    --line2: #4a1e28;
+    --ink: #f0e8ea;
+    --muted: #a08080;
+    --muted2: #604040;
+    --accent: #ff3355;   /* crimson — vault color */
+    --accent2: #ff6688;
+    --ok: #30d158;
+    --warn: #ffd60a;
+    --err: #ff453a;
+    --mono: "SF Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
+    font-size: 14px; min-height: 100vh;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px; }
+  header.hero {
+    background: linear-gradient(135deg, #4a0a18 0%, #3a0612 55%, #1a0306 100%);
+    border: 1px solid #6a1828;
+    border-radius: 18px; padding: 20px 24px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 8px 30px rgba(255,51,85,0.12);
+  }
+  header.hero .badge {
+    width: 60px; height: 60px; border-radius: 16px;
+    background: linear-gradient(145deg, #6a0a1a, #2a0610);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; box-shadow: inset 0 0 0 1px rgba(255,51,85,0.3);
+  }
+  header.hero h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+  header.hero .sub { color: #ff8ba3; font-size: 12px; margin-top: 4px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; margin-bottom: 14px;
+  }
+  .card h3 {
+    margin: 0 0 14px; font-size: 15px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .muted { color: var(--muted); font-size: 12px; }
+
+  input, button, select {
+    font-family: inherit; font-size: 14px;
+  }
+  input {
+    background: #0f0507; border: 1px solid var(--line);
+    color: var(--ink); border-radius: 8px; padding: 10px 14px;
+    width: 100%;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #fff; border: 0;
+    border-radius: 8px; padding: 9px 18px; font-weight: 600;
+    cursor: pointer; transition: filter 0.15s;
+  }
+  button:hover { filter: brightness(1.15); }
+  button.secondary {
+    background: var(--panel2); color: var(--ink);
+    border: 1px solid var(--line2);
+  }
+  button.danger { background: var(--err); }
+  button.tiny { padding: 4px 10px; font-size: 12px; }
+
+  .chip {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  }
+  .chip.ok   { background: rgba(48,209,88,0.15); color: var(--ok); }
+  .chip.err  { background: rgba(255,69,58,0.15); color: var(--err); }
+  .chip.warn { background: rgba(255,214,10,0.15); color: var(--warn); }
+  .chip.admin { background: rgba(255,51,85,0.15); color: var(--accent); }
+  .chip.user  { background: rgba(160,128,128,0.15); color: var(--muted); }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+
+  table { width: 100%; border-collapse: collapse;
+          font-family: var(--mono); font-size: 12px; }
+  th, td { text-align: right; padding: 8px 10px;
+           border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px;
+       text-transform: uppercase; letter-spacing: 0.04em;
+       background: rgba(0,0,0,0.2); position: sticky; top: 0; }
+  tr:hover td { background: rgba(255,51,85,0.04); }
+
+  .avatar-circle {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 13px;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+
+  .code-box {
+    font-family: var(--mono); font-size: 14px; font-weight: 600;
+    background: #0f0507; border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px;
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--accent2);
+    cursor: pointer; user-select: all;
+  }
+  .code-box:hover { background: #1a0a0f; }
+  .copy-hint { font-size: 10px; color: var(--muted2); }
+
+  .user-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px; border-bottom: 1px solid var(--line);
+  }
+  .user-row:hover { background: rgba(255,51,85,0.03); }
+  .user-body { flex: 1; min-width: 0; }
+  .user-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .user-handle { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  .search-input {
+    background: rgba(0,0,0,0.4); padding: 8px 14px; border-radius: 20px;
+    width: 100%;
+  }
+
+  .tab-strip {
+    display: flex; gap: 4px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab-btn {
+    background: transparent; color: var(--muted);
+    border: 0; padding: 10px 20px; border-radius: 0;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+  }
+  .tab-btn.active {
+    color: var(--accent); border-bottom-color: var(--accent);
+  }
+  .tab-body { display: none; }
+  .tab-body.active { display: block; }
+
+  [hidden] { display: none !important; }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .stat-tile {
+    background: linear-gradient(135deg, #2a0810, #1a0508);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; text-align: center;
+  }
+  .stat-tile .n { font-size: 28px; font-weight: 700;
+                  color: var(--accent2); letter-spacing: -0.03em; }
+  .stat-tile .l { font-size: 11px; color: var(--muted);
+                  text-transform: uppercase; letter-spacing: 0.05em;
+                  margin-top: 4px; }
+
+  .countdown {
+    font-family: var(--mono); color: var(--accent);
+    font-size: 13px; padding: 4px 12px;
+    background: rgba(255,51,85,0.1); border-radius: 10px;
+  }
+
+  pre { background: #0f0507; padding: 10px; border-radius: 8px;
+        font-family: var(--mono); font-size: 11px; overflow: auto;
+        max-height: 300px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="badge">🗝</div>
+  <div style="flex:1;">
+    <h1>Helen · Vault</h1>
+    <div class="sub">خزنة سرية موحّدة — كل الرموز والهويات في مكان واحد · LAN-only</div>
+  </div>
+  <div id="sessionStatus"></div>
+</header>
+
+<!-- AUTH PANEL -->
+<div class="card" id="authPanel">
+  <h3>🔐 تسجيل الدخول</h3>
+  <p class="muted" style="margin:0 0 14px; line-height:1.7;">
+    أدخل <strong>vault master code</strong> الذي طُبع على console السيرفر.
+    يُحفَظ في <code>data/vault_master_code.txt</code>. مختلف عن admin master code.
+    الجلسة ٣٠ دقيقة. الوصول مسموح فقط من عناوين LAN محلية (192.168.x.x / 10.x.x.x / 172.16-31.x.x / 127.x.x.x).
+  </p>
+  <div style="display:flex; gap:10px;">
+    <input id="masterCode" type="password" placeholder="vault master code" />
+    <button id="authBtn">دخول</button>
+  </div>
+  <div id="authStatus" style="margin-top:12px;font-size:13px;"></div>
+</div>
+
+<!-- MAIN PANEL -->
+<div id="mainPanel" hidden>
+
+  <!-- Tabs -->
+  <div class="tab-strip">
+    <button class="tab-btn active" data-tab="overview">📊 لمحة</button>
+    <button class="tab-btn" data-tab="masters">🔑 Master Codes</button>
+    <button class="tab-btn" data-tab="users">👥 المستخدمون</button>
+    <button class="tab-btn" data-tab="codes">🎟 أرقام الوصول</button>
+    <button class="tab-btn" data-tab="admin">🛡 الأدمن</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tab-body active" id="tab-overview">
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="n" id="kUsers">—</div><div class="l">مستخدم</div></div>
+      <div class="stat-tile"><div class="n" id="kAdmins">—</div><div class="l">admin</div></div>
+      <div class="stat-tile"><div class="n" id="kCodes">—</div><div class="l">رمز وصول</div></div>
+      <div class="stat-tile"><div class="n" id="kActive">—</div><div class="l">رموز نشطة</div></div>
+      <div class="stat-tile"><div class="n" id="kRevoked">—</div><div class="l">ملغاة</div></div>
+    </div>
+
+    <div class="card">
+      <h3>🌐 معلومات الـVault</h3>
+      <table>
+        <tr><td style="color:var(--muted)">ملف master code</td><td id="ovMasterPath">—</td></tr>
+        <tr><td style="color:var(--muted)">بصمة admin master</td><td id="ovAdminFp">—</td></tr>
+        <tr><td style="color:var(--muted)">طول admin master</td><td id="ovAdminLen">—</td></tr>
+        <tr><td style="color:var(--muted)">جلسات secret-admin نشطة</td><td id="ovAdminSess">—</td></tr>
+        <tr><td style="color:var(--muted)">عنوان IP الخاص بك</td><td id="ovMyIp">—</td></tr>
+      </table>
+      <div style="margin-top:10px;">
+        <button class="danger" id="btnRotate">🔄 تدوير vault master code</button>
+        <span class="muted">يُبطل جلستك الحالية — ستحتاج للرمز الجديد من console</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MASTER CODES — full control -->
+  <div class="tab-body" id="tab-masters">
+    <div class="card" style="border-color:#6a1a28;">
+      <h3>🔑 Admin Master Code <span class="chip admin">/admin-secret/</span></h3>
+      <p class="muted" style="margin:0 0 12px;">
+        رمز الدخول للوحة الـAdmin السرية. تغييره يُبطل كل جلساتها فوراً.
+      </p>
+      <table style="margin-bottom:12px;">
+        <tr><td style="width:30%;color:var(--muted)">الحالة</td><td id="amState">—</td></tr>
+        <tr><td style="color:var(--muted)">Plaintext</td>
+            <td>
+              <span id="amPlain" style="font-family:var(--mono);font-size:14px;color:var(--accent2);">— محفي —</span>
+              <button class="secondary tiny" id="amRevealBtn" style="margin-inline-start:8px;">👁 كشف</button>
+              <span class="copy-hint" id="amHint"></span>
+            </td>
+        </tr>
+        <tr><td style="color:var(--muted)">بصمة (sha256[:12])</td>
+            <td><code id="amFp">—</code></td></tr>
+        <tr><td style="color:var(--muted)">طول</td><td id="amLen">—</td></tr>
+        <tr><td style="color:var(--muted)">ملف</td><td><code id="amFile">—</code></td></tr>
+      </table>
+      <div style="display:flex;flex-wrap:wrap; gap:8px;">
+        <input id="amNew" placeholder="رمز جديد (4-256 char)" style="flex:1; min-width:200px;" />
+        <button id="amSet">تعيين</button>
+        <button class="danger" id="amRotate">🎲 توليد عشوائي</button>
+      </div>
+      <div id="amStatus" style="margin-top:10px;font-size:13px;"></div>
+    </div>
+
+    <div class="card" style="border-color:#6a1a28;">
+      <h3>🔑 Vault Master Code <span class="chip" style="background:rgba(255,51,85,0.15);color:var(--accent);">/vault/ — أنت هنا</span></h3>
+      <p class="muted" style="margin:0 0 12px;">
+        رمز دخول هذه اللوحة. تغييره يُبطل جلستك الحالية — ستحتاج للدخول مجدداً.
+      </p>
+      <table style="margin-bottom:12px;">
+        <tr><td style="width:30%;color:var(--muted)">Plaintext</td>
+            <td>
+              <span id="vmPlain" style="font-family:var(--mono);font-size:14px;color:var(--accent2);">— محفي —</span>
+              <button class="secondary tiny" id="vmRevealBtn" style="margin-inline-start:8px;">👁 كشف</button>
+            </td>
+        </tr>
+        <tr><td style="color:var(--muted)">بصمة</td><td><code id="vmFp">—</code></td></tr>
+        <tr><td style="color:var(--muted)">طول</td><td id="vmLen">—</td></tr>
+        <tr><td style="color:var(--muted)">ملف</td><td><code id="vmFile">—</code></td></tr>
+      </table>
+      <div style="display:flex;flex-wrap:wrap; gap:8px;">
+        <input id="vmNew" placeholder="رمز جديد (4-256 char)" style="flex:1;min-width:200px;" />
+        <button id="vmSet">تعيين</button>
+        <button class="danger" id="vmRotate">🎲 توليد عشوائي</button>
+      </div>
+      <div id="vmStatus" style="margin-top:10px;font-size:13px;"></div>
+    </div>
+
+    <div class="card" style="background:#1a0508; border-color:#3a0e16;">
+      <h3>⚠ تحذير أمني</h3>
+      <ul style="line-height:1.8; margin:0; color:var(--muted);">
+        <li>Plaintext لا يُكشف إلا حين الضغط على "كشف" — وكل عملية كشف تُسجَّل في server log</li>
+        <li>التغيير الفوري — الرمز الجديد ساري قبل ما تنتهي هذه الـrequest</li>
+        <li>الرموز الضعيفة (مثل <code>123456789</code>) مقبولة تقنياً لكن ليست توصية</li>
+        <li>كل جلسات الطبقة المتعلقة تُبطَل عند التغيير (admin أو vault)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div class="tab-body" id="tab-users">
+    <div class="card">
+      <h3>👥 كل المستخدمين مع share codes</h3>
+      <input class="search-input" id="userSearch" placeholder="ابحث باسم، يوزرنيم، أو رقم..." />
+      <div id="usersList" style="max-height:560px; overflow:auto; margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- ACCESS CODES -->
+  <div class="tab-body" id="tab-codes">
+    <div class="card">
+      <h3>🎟 أرقام الوصول المُنشَأة</h3>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <button class="secondary" id="reloadCodes">🔄 تحديث</button>
+        <button class="danger" id="bulkRevokeExpired">⏰ إلغاء كل المنتهية</button>
+        <button class="danger" id="bulkPurgeRevoked">🗑 حذف الملغاة نهائياً</button>
+        <span class="muted" style="align-self:center;">اضغط أي رمز لنسخه</span>
+      </div>
+      <div style="max-height:500px; overflow:auto;">
+        <table id="codesTbl">
+          <thead><tr>
+            <th>الرمز</th>
+            <th>النوع</th>
+            <th>المالك</th>
+            <th>استخدامات</th>
+            <th>انتهاء</th>
+            <th>حالة</th>
+            <th>ملاحظة</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="tab-body" id="tab-admin">
+    <div class="card">
+      <h3>🛡 حسابات admin في النظام</h3>
+      <div id="adminsList"></div>
+    </div>
+    <div class="card">
+      <h3>🔑 Master codes (3 طبقات منفصلة)</h3>
+      <table>
+        <tr>
+          <td style="width:30%;color:var(--muted)">Admin Master<br><span class="muted">/admin-secret/</span></td>
+          <td id="adminMasterInfo">—</td>
+        </tr>
+        <tr>
+          <td style="color:var(--muted)">Vault Master<br><span class="muted">أنت هنا</span></td>
+          <td id="vaultMasterInfo">فعّال — <span id="vaultSessionLeft">—</span></td>
+        </tr>
+      </table>
+      <p class="muted" style="margin-top:10px;">
+        كل طبقة معزولة عن الأخرى. لا يوجد طريقة لاستخراج قيمة master code من الـAPI — يُعرض فقط fingerprint sha256 قصير.
+        للحصول على القيمة: راجع ملف data/xxx_master_code.txt على السيرفر.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--err);">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h3 style="margin:0; color:var(--err);">🚪 خروج</h3>
+        <div class="muted">يبطل جلسة Vault الحالية فقط.</div>
+      </div>
+      <button class="secondary" id="btnLogout">خروج</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN_KEY = 'helen.vault.token';
+const API = '';
+let _token = sessionStorage.getItem(TOKEN_KEY) || '';
+let _expiresAt = 0;
+let _tickHandle = null;
+let _allUsers = [];
+let _allCodes = [];
+
+function $(id){return document.getElementById(id);}
+
+async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (_token) headers['X-Vault-Token'] = _token;
+  const r = await fetch(API + '/api/vault' + path, {
+    method, headers, body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(()=>({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+function setMsg(el, msg, kind) {
+  el.textContent = msg;
+  el.style.color = kind === 'err' ? 'var(--err)'
+                 : kind === 'ok'  ? 'var(--ok)'
+                 : 'var(--muted)';
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>(
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function initials(s) {
+  const p = (s||'').trim().split(/\s+/).slice(0,2);
+  return p.map(w=>(w[0]||'').toUpperCase()).join('') || '?';
+}
+
+async function authenticate() {
+  const code = $('masterCode').value.trim();
+  if (!code) return;
+  setMsg($('authStatus'), 'جارٍ التحقق…');
+  const r = await api('POST', '/auth', { code });
+  if (!r.ok) {
+    if (r.status === 403) {
+      setMsg($('authStatus'),
+        'مرفوض: VAULT يسمح فقط من عناوين LAN. أنت على: ' +
+        (r.data.detail?.your_ip || '?'), 'err');
+    } else {
+      setMsg($('authStatus'), r.data?.detail || 'فشل الدخول', 'err');
+    }
+    return;
+  }
+  _token = r.data.token;
+  _expiresAt = Date.now() + r.data.expires_in*1000;
+  sessionStorage.setItem(TOKEN_KEY, _token);
+  showMain();
+}
+
+async function showMain() {
+  $('authPanel').hidden = true;
+  $('mainPanel').hidden = false;
+  await refreshSession();
+  await loadAll();
+  if (_tickHandle) clearInterval(_tickHandle);
+  _tickHandle = setInterval(refreshSession, 5000);
+}
+
+async function refreshSession() {
+  const r = await api('GET', '/session');
+  if (!r.ok) { logout(); return; }
+  const s = r.data.time_left_s;
+  const mm = Math.floor(s/60), ss = String(s%60).padStart(2,'0');
+  $('sessionStatus').innerHTML =
+    '<span class="countdown">⏱ ' + mm + ':' + ss + '</span>';
+  $('vaultSessionLeft').textContent = mm + ':' + ss;
+  $('ovMyIp').textContent = r.data.remote_ip || '?';
+}
+
+function logout() {
+  sessionStorage.removeItem(TOKEN_KEY);
+  _token = '';
+  if (_tickHandle) { clearInterval(_tickHandle); _tickHandle = null; }
+  $('authPanel').hidden = false;
+  $('mainPanel').hidden = true;
+  $('sessionStatus').innerHTML = '';
+  setMsg($('authStatus'), 'خرجتَ.');
+}
+
+async function loadAll() {
+  const r = await api('GET', '/all');
+  if (!r.ok) return;
+  const d = r.data;
+
+  // Overview stats
+  const users = d.users || [];
+  _allUsers = users;
+  const admins = users.filter(u=>u.role==='admin');
+  const codes = d.access_codes || [];
+  _allCodes = codes;
+  const active = codes.filter(c=>!c.revoked).length;
+  const revoked = codes.filter(c=>c.revoked).length;
+  $('kUsers').textContent = users.length;
+  $('kAdmins').textContent = admins.length;
+  $('kCodes').textContent = codes.length;
+  $('kActive').textContent = active;
+  $('kRevoked').textContent = revoked;
+
+  // Admin master
+  const am = d.admin_master || {};
+  $('ovMasterPath').innerHTML = '<code>' + esc(am.location || '?') + '</code>';
+  $('ovAdminFp').innerHTML = '<code>' + esc(am.fingerprint || '—') + '</code>';
+  $('ovAdminLen').textContent = am.length || '—';
+  $('ovAdminSess').textContent = am.sessions_active ?? '—';
+  $('adminMasterInfo').innerHTML =
+    'طول: ' + (am.length||'?') + ' · بصمة: <code>' + esc(am.fingerprint||'—') +
+    '</code> · جلسات نشطة: ' + (am.sessions_active||0);
+
+  renderUsers(users);
+  renderCodes(codes);
+  renderAdmins(admins);
+}
+
+function renderUsers(list) {
+  const box = $('usersList');
+  box.innerHTML = '';
+  if (!list.length) { box.innerHTML = '<p class="muted">لا يوجد مستخدمون.</p>'; return; }
+  for (const u of list) {
+    const row = document.createElement('div');
+    row.className = 'user-row';
+    row.innerHTML =
+      '<div class="avatar-circle">' +
+        (u.avatar_url ? '<img src="'+esc(u.avatar_url)+'">' : esc(initials(u.display_name||u.username))) +
+      '</div>' +
+      '<div class="user-body">' +
+        '<div class="user-name">' + esc(u.display_name||u.username) +
+          ' <span class="chip ' + (u.role==='admin'?'admin':'user') + '">' + esc(u.role||'user') + '</span>' +
+        '</div>' +
+        '<div class="user-handle">@' + esc(u.username) + ' · id=' + esc((u.id||'').slice(0,8)) + '…</div>' +
+      '</div>' +
+      '<div>' +
+        (u.share_code ? '<span class="code-box" data-copy="'+esc(u.share_code)+'" title="اضغط للنسخ">🎫 ' + esc(u.share_code.slice(0,12)) + '…</span>' : '<span class="muted">بلا رمز</span>') +
+      '</div>';
+    box.appendChild(row);
+  }
+}
+
+function renderCodes(list) {
+  const tb = $('codesTbl').querySelector('tbody');
+  tb.innerHTML = '';
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="muted">لا توجد رموز.</td></tr>'; return; }
+  for (const c of list) {
+    const tr = document.createElement('tr');
+    const exp = c.expires_at ? new Date(c.expires_at*1000).toISOString().slice(0,16) : '—';
+    const owner = (_allUsers.find(u=>u.id===c.owner_user_id) || {}).username || (c.owner_user_id||'').slice(0,10);
+    const rem = c.uses_remaining==null ? '∞' : c.uses_remaining;
+    const state = c.revoked ? '<span class="chip err">ملغي</span>'
+                : (c.expires_at && c.expires_at*1000<Date.now()) ? '<span class="chip warn">منتهٍ</span>'
+                : '<span class="chip ok">نشط</span>';
+    tr.innerHTML =
+      '<td><span class="code-box" data-copy="'+esc(c.code)+'">' + esc(c.code) + '</span></td>' +
+      '<td>' + esc(c.kind) + '</td>' +
+      '<td>' + esc(owner) + '</td>' +
+      '<td>' + (c.used_count||0) + ' / ' + rem + '</td>' +
+      '<td>' + exp + '</td>' +
+      '<td>' + state + '</td>' +
+      '<td>' + esc(c.note||'') + '</td>' +
+      '<td>' +
+        '<button class="secondary tiny" data-extend="'+esc(c.code)+'" title="تمديد +1 يوم">⏱+1ي</button> ' +
+        '<button class="secondary tiny" data-edit-note="'+esc(c.code)+'" title="تعديل ملاحظة">✎</button> ' +
+        (!c.revoked ? '<button class="danger tiny" data-revoke="'+esc(c.code)+'">إلغاء</button>' : '') +
+      '</td>';
+    tb.appendChild(tr);
+  }
+}
+
+function renderAdmins(list) {
+  const box = $('adminsList');
+  box.innerHTML = '';
+  if (!list.length) { box.innerHTML = '<p class="muted">لا يوجد admins.</p>'; return; }
+  for (const u of list) {
+    const row = document.createElement('div');
+    row.className = 'user-row';
+    row.innerHTML =
+      '<div class="avatar-circle" style="background:linear-gradient(135deg,var(--accent),#aa1128);">' +
+        esc(initials(u.display_name||u.username)) +
+      '</div>' +
+      '<div class="user-body">' +
+        '<div class="user-name">' + esc(u.display_name||u.username) + '</div>' +
+        '<div class="user-handle">@' + esc(u.username) + ' · last seen: ' + (u.last_seen_at||'never') + '</div>' +
+      '</div>' +
+      (u.share_code ? '<div><span class="code-box" data-copy="'+esc(u.share_code)+'">' + esc(u.share_code.slice(0,16))+'…</span></div>' : '');
+    box.appendChild(row);
+  }
+}
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    document.querySelectorAll('.tab-body').forEach(b=>b.classList.toggle('active', b.id==='tab-'+btn.dataset.tab));
+  });
+});
+
+// Search
+$('userSearch').addEventListener('input', e=>{
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) { renderUsers(_allUsers); return; }
+  renderUsers(_allUsers.filter(u=>
+    (u.username||'').toLowerCase().includes(q) ||
+    (u.display_name||'').toLowerCase().includes(q) ||
+    (u.share_code||'').toLowerCase().includes(q) ||
+    (u.id||'').toLowerCase().includes(q)
+  ));
+});
+
+// Copy-to-clipboard
+document.addEventListener('click', async ev=>{
+  const c = ev.target.closest('[data-copy]');
+  if (c) {
+    const v = c.getAttribute('data-copy');
+    try {
+      await navigator.clipboard.writeText(v);
+      c.style.background = 'rgba(48,209,88,0.2)';
+      setTimeout(()=>c.style.background='', 600);
+    } catch {}
+  }
+  const r = ev.target.closest('[data-revoke]');
+  if (r) {
+    const code = r.getAttribute('data-revoke');
+    if (!confirm('إلغاء الرمز ' + code + '؟')) return;
+    const res = await api('POST', '/codes/revoke', { code });
+    if (res.ok) loadAll();
+  }
+});
+
+$('btnRotate').addEventListener('click', async ()=>{
+  if (!confirm('تدوير vault master code إلى قيمة عشوائية؟ ستحتاج للرمز الجديد للدخول.')) return;
+  const r = await api('POST', '/rotate-vault');
+  if (r.ok) {
+    alert('تمّ التدوير. الرمز الجديد:\n\n' + r.data.plaintext_once + '\n\nاحفظه الآن — لن يُعرض مرة أخرى.');
+    logout();
+  }
+});
+
+// ── Master Codes tab ──────────────────────────────────────
+async function loadMasters() {
+  // Admin master
+  const a = await api('GET', '/admin-master');
+  if (a.ok && a.data.present) {
+    $('amState').innerHTML = '<span class="chip ok">موجود</span>';
+    $('amFp').textContent = a.data.fingerprint;
+    $('amLen').textContent = a.data.length;
+    $('amFile').textContent = a.data.file;
+  } else {
+    $('amState').innerHTML = '<span class="chip warn">غير مهيّأ</span>';
+  }
+  // Vault master
+  const v = await api('GET', '/vault-master');
+  if (v.ok && v.data.present) {
+    $('vmFp').textContent = v.data.fingerprint;
+    $('vmLen').textContent = v.data.length;
+    $('vmFile').textContent = v.data.file;
+  }
+}
+
+async function revealMaster(which) {
+  const path = which === 'admin' ? '/admin-master?reveal=true' : '/vault-master?reveal=true';
+  const r = await api('GET', path);
+  if (!r.ok) { alert('فشل'); return; }
+  const target = which === 'admin' ? $('amPlain') : $('vmPlain');
+  const btn = which === 'admin' ? $('amRevealBtn') : $('vmRevealBtn');
+  if (target.dataset.shown === '1') {
+    target.textContent = '— محفي —';
+    target.dataset.shown = '0';
+    btn.textContent = '👁 كشف';
+  } else {
+    target.textContent = r.data.plaintext;
+    target.dataset.shown = '1';
+    btn.textContent = '🙈 إخفاء';
+  }
+}
+
+async function setMaster(which) {
+  const inputId = which === 'admin' ? 'amNew' : 'vmNew';
+  const stEl = which === 'admin' ? $('amStatus') : $('vmStatus');
+  const newCode = $(inputId).value.trim();
+  if (!newCode) { stEl.textContent = 'أدخل رمزاً'; stEl.style.color='var(--err)'; return; }
+  if (newCode.length < 4) { stEl.textContent='قصير جداً (4+)'; stEl.style.color='var(--err)'; return; }
+  if (!confirm('تأكيد تعيين الرمز إلى:\n' + newCode + '\n\n' +
+              (which==='admin' ? 'سيُبطل كل جلسات /admin-secret/' : 'ستُبطَل جلستك الحالية وستحتاج للدخول مجدداً'))) return;
+  const path = which === 'admin' ? '/admin-master' : '/vault-master';
+  const r = await api('POST', path, { new_code: newCode });
+  if (!r.ok) { stEl.textContent = r.data?.detail || 'فشل'; stEl.style.color='var(--err)'; return; }
+  stEl.textContent = '✓ تم — بصمة جديدة: ' + r.data.fingerprint;
+  stEl.style.color = 'var(--ok)';
+  $(inputId).value = '';
+  if (which === 'vault') {
+    setTimeout(()=>{ alert('تم تغيير vault master. سجّل دخولاً جديداً.'); logout(); }, 800);
+  } else {
+    loadMasters();
+  }
+}
+
+async function rotateMaster(which) {
+  if (!confirm('توليد رمز عشوائي جديد لـ' + which + ' master code؟')) return;
+  const path = which === 'admin' ? '/admin-master/rotate' : '/rotate-vault';
+  const r = await api('POST', path);
+  if (!r.ok) { alert('فشل'); return; }
+  alert('الرمز الجديد:\n\n' + r.data.plaintext_once + '\n\nاحفظه الآن — لن يُعرض مرة أخرى.');
+  if (which === 'vault') logout();
+  else loadMasters();
+}
+
+$('amSet').addEventListener('click',    () => setMaster('admin'));
+$('amRotate').addEventListener('click', () => rotateMaster('admin'));
+$('amRevealBtn').addEventListener('click', () => revealMaster('admin'));
+$('vmSet').addEventListener('click',    () => setMaster('vault'));
+$('vmRotate').addEventListener('click', () => rotateMaster('vault'));
+$('vmRevealBtn').addEventListener('click', () => revealMaster('vault'));
+
+// Bulk operations + per-row edit
+$('bulkRevokeExpired').addEventListener('click', async ()=>{
+  if (!confirm('إلغاء كل الرموز المنتهية الصلاحية؟')) return;
+  const r = await api('POST', '/codes/bulk-revoke-expired');
+  if (r.ok) { alert('تم إلغاء ' + r.data.revoked + ' رمز.'); loadAll(); }
+});
+$('bulkPurgeRevoked').addEventListener('click', async ()=>{
+  if (!confirm('حذف كل الرموز الملغاة نهائياً من قاعدة البيانات؟ غير قابل للتراجع.')) return;
+  const r = await api('POST', '/codes/purge-revoked');
+  if (r.ok) { alert('تم حذف ' + r.data.purged + ' رمز.'); loadAll(); }
+});
+
+// Delegated handlers for per-row edit/extend
+document.addEventListener('click', async ev=>{
+  const ext = ev.target.closest('[data-extend]');
+  if (ext) {
+    const code = ext.getAttribute('data-extend');
+    const r = await api('POST', '/codes/edit', { code, add_seconds: 86400 });
+    if (r.ok) { ext.style.background='var(--ok)'; setTimeout(()=>ext.style.background='',600); loadAll(); }
+    return;
+  }
+  const en = ev.target.closest('[data-edit-note]');
+  if (en) {
+    const code = en.getAttribute('data-edit-note');
+    const note = prompt('ملاحظة جديدة للرمز ' + code + ':');
+    if (note === null) return;
+    const r = await api('POST', '/codes/edit', { code, note });
+    if (r.ok) loadAll();
+  }
+});
+
+// Switch to masters tab → load it
+document.querySelector('[data-tab="masters"]').addEventListener('click', loadMasters);
+$('authBtn').addEventListener('click', authenticate);
+$('masterCode').addEventListener('keypress', e=>{ if (e.key==='Enter') authenticate(); });
+$('btnLogout').addEventListener('click', logout);
+$('reloadCodes').addEventListener('click', loadAll);
+
+// Boot: if token still valid, skip auth.
+(async function boot(){
+  if (_token) {
+    const r = await api('GET', '/session');
+    if (r.ok) { showMain(); return; }
+    sessionStorage.removeItem(TOKEN_KEY);
+    _token = '';
+  }
+  $('masterCode').focus();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+================================================================================
+Helen / CommClient {{ .Chart.AppVersion }} deployed in namespace `{{ .Release.Namespace }}`
+================================================================================
+
+Status:
+  Release name : {{ .Release.Name }}
+  Server replicas : {{ .Values.server.replicas }}
+  Router replicas : {{ .Values.router.replicas }}
+  Rendezvous : {{ if .Values.rendezvous.enabled }}enabled{{ else }}disabled{{ end }}
+  Postgres : {{ if .Values.postgres.enabled }}bundled{{ else }}external{{ end }}
+  Redis : {{ if .Values.redis.enabled }}bundled{{ else }}external{{ end }}
+  Airgap mode : {{ .Values.global.airgap }}
+
+To get the application URL:
+{{- if .Values.server.ingress.enabled }}
+  https://{{ .Values.server.ingress.hostname }}/
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "helen.server.fullname" . }} 3000:3000
+  Then open  http://127.0.0.1:3000/
+{{- end }}
+
+To run the operator onboarding wizard:
+  Visit /admin/modules/onboarding_wizard.html
+
+To run the seed-data utility (demo data):
+  kubectl --namespace {{ .Release.Namespace }} exec -it deploy/{{ include "helen.server.fullname" . }} -- python -m app.cli.seed_admin_panels --reset
+
+To watch live pods:
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+To view server logs:
+  kubectl --namespace {{ .Release.Namespace }} logs -f deploy/{{ include "helen.server.fullname" . }}
+
+================================================================================
+NEXT STEPS for production hardening:
+================================================================================
+  1. Override `auth.jwtSecretName` with an externally-managed Secret
+     (sealed-secrets / external-secrets / vault).
+  2. Set `global.imageRegistry` to your private LAN registry.
+  3. Configure `server.ingress.tls.secretName` with a real cert.
+  4. Enable `monitoring.serviceMonitor.enabled=true` if running Prometheus.
+  5. For HA, set `server.autoscaling.enabled=true` and tune CPU/mem targets.
+  6. Review `networkPolicy.allowedEgressCIDRs` against your LAN topology.
+  7. Run `python -m app.cli.seed_admin_panels --dry-run` to verify seed plan.
+
+For full operator runbook: see `deploy/helm/helen/RUNBOOK.md`.
+================================================================================

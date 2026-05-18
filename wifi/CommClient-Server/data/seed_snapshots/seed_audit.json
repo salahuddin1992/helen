@@ -1,0 +1,65 @@
+[
+  {
+    "alert_rule": {
+      "name": "5+ failed logins from same IP in 60s",
+      "condition_dsl": "action='auth.login_failed' WITHIN 60s",
+      "severity": "warn",
+      "channels": [
+        "local",
+        "webhook"
+      ]
+    }
+  },
+  {
+    "alert_rule": {
+      "name": "Role grant outside business hours",
+      "condition_dsl": "action='rbac.role_granted' AND severity>='warn'",
+      "severity": "warn",
+      "channels": [
+        "local"
+      ]
+    }
+  },
+  {
+    "alert_rule": {
+      "name": "Delete by non-admin",
+      "condition_dsl": "action IN ['message.delete_any', 'file.delete_any'] AND actor_role != 'admin'",
+      "severity": "critical",
+      "channels": [
+        "local",
+        "email"
+      ]
+    }
+  },
+  {
+    "alert_rule": {
+      "name": "Federation handshake failure",
+      "condition_dsl": "action='federation.handshake_failed'",
+      "severity": "warn",
+      "channels": [
+        "local"
+      ]
+    }
+  },
+  {
+    "alert_rule": {
+      "name": "Plugin install with critical permissions",
+      "condition_dsl": "action='plugin.install' AND severity='critical'",
+      "severity": "warn",
+      "channels": [
+        "local",
+        "webhook"
+      ]
+    }
+  },
+  {
+    "alert_rule": {
+      "name": "RTBF executed",
+      "condition_dsl": "action='compliance.rtbf_executed'",
+      "severity": "info",
+      "channels": [
+        "local"
+      ]
+    }
+  }
+]

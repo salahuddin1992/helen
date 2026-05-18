@@ -1,0 +1,38 @@
+[Unit]
+Description=Helen Admin — headless dashboard (HTTP only, no GUI)
+Documentation=https://github.com/your-org/helen
+After=network-online.target helen-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=helen-admin
+Group=helen-admin
+
+EnvironmentFile=-/etc/helen/admin.env
+
+# --remote: never auto-spawn a Helen-Server from within the admin process.
+# --expose-on-lan: bind 0.0.0.0:5173 so any browser on the LAN can open it.
+# --no-autostart-server: belt-and-suspenders with --remote.
+# --hidden: skip pywebview window creation in headless mode. If the
+#   bundled pywebview requires a display, set DISPLAY= or use Xvfb.
+ExecStart=/opt/helen/admin/Helen-Admin --remote --expose-on-lan --no-autostart-server --hidden
+
+WorkingDirectory=/var/lib/helen-admin
+StateDirectory=helen-admin
+LogsDirectory=helen-admin
+ReadWritePaths=/var/lib/helen-admin /var/log/helen-admin
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

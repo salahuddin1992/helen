@@ -1,0 +1,53 @@
+# Caddy — minimal Helen update server.
+# Caddy auto-HTTPS works with internal CAs if you set:
+#   ca.lan.local as your trusted root.
+
+updates.lan.local {
+    root * /var/lib/helen-updates
+    file_server browse off
+
+    # Restrict to RFC1918
+    @lan {
+        remote_ip 127.0.0.1/32 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16
+    }
+    @notlan {
+        not remote_ip 127.0.0.1/32 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16
+    }
+
+    handle @notlan {
+        respond "Forbidden — LAN only" 403
+    }
+
+    handle /manifest.json {
+        header Cache-Control "no-cache, must-revalidate"
+    }
+
+    handle /server/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        header Content-Disposition attachment
+    }
+
+    handle /rendezvous/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        header Content-Disposition attachment
+    }
+
+    handle /desktop/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        header Content-Disposition attachment
+    }
+
+    handle /mobile/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        header Content-Disposition attachment
+    }
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    log {
+        output file /var/log/caddy/helen-updates.log
+        format json
+    }
+}

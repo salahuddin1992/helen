@@ -1,0 +1,70 @@
+#
+# Helen Edge Node — lightweight deployment.
+#
+# Runs ONLY:
+#   - edge-worker container (Python ASGI app with edge_worker + edge_sync)
+#   - Optional Redis sidecar for cache
+#
+# Origin server hostname (and shared edge token) must be supplied via the
+# environment file ``.env.edge`` at the same directory.
+#
+# Usage:
+#   docker compose -f deploy/edge/docker-compose.edge.yml --env-file .env.edge up -d
+#
+
+version: "3.9"
+
+services:
+
+  edge-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/edge/edge-worker.dockerfile
+    image: helen/edge-worker:7.0.0
+    restart: unless-stopped
+    environment:
+      HELEN_EDGE_NODE_ID:            ${HELEN_EDGE_NODE_ID:?required}
+      HELEN_EDGE_REGION:             ${HELEN_EDGE_REGION:?required}
+      HELEN_EDGE_PUBLIC_URL:         ${HELEN_EDGE_PUBLIC_URL:?required}
+      HELEN_EDGE_ORIGIN_URL:         ${HELEN_EDGE_ORIGIN_URL:?required}
+      HELEN_EDGE_NODE_TOKEN:         ${HELEN_EDGE_NODE_TOKEN:?required}
+      HELEN_EDGE_GEO_LAT:            ${HELEN_EDGE_GEO_LAT:-0}
+      HELEN_EDGE_GEO_LNG:            ${HELEN_EDGE_GEO_LNG:-0}
+      HELEN_EDGE_CITY:               ${HELEN_EDGE_CITY:-}
+      HELEN_EDGE_COUNTRY:            ${HELEN_EDGE_COUNTRY:-}
+      REDIS_URL:                     redis://edge-redis:6379/0
+      MAXMIND_GEOIP_DB:              /var/lib/helen/GeoLite2-City.mmdb
+      PYTHONUNBUFFERED:              "1"
+    ports:
+      - "${HELEN_EDGE_PORT:-8089}:8089"
+    volumes:
+      - edge-data:/var/lib/helen
+    depends_on:
+      - edge-redis
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8089/api/edge/health"]
+      interval: 15s
+      timeout:  3s
+      retries:  6
+    deploy:
+      resources:
+        limits:
+          cpus:   "1.0"
+          memory: 512M
+
+  edge-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb",
+              "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - edge-redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus:   "0.5"
+          memory: 320M
+
+volumes:
+  edge-data: {}
+  edge-redis-data: {}

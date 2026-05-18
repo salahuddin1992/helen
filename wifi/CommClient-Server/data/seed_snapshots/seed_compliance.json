@@ -1,0 +1,164 @@
+[
+  {
+    "hold": {
+      "name": "Q1-2026-investigation",
+      "case_ref": "INV-2026-001",
+      "scope": {
+        "custodians": [
+          "ali.admin",
+          "sara.ops"
+        ],
+        "date_range": [
+          "2026-01-01",
+          "2026-04-01"
+        ]
+      },
+      "expires_at": "2027-05-13T02:08:25.323337+00:00"
+    }
+  },
+  {
+    "hold": {
+      "name": "compliance-review-2026",
+      "case_ref": "LEG-2026-014",
+      "scope": {
+        "channels": [
+          "acme-eng"
+        ],
+        "keywords": [
+          "GDPR",
+          "PII"
+        ]
+      },
+      "expires_at": "2026-11-09T02:08:25.323358+00:00"
+    }
+  },
+  {
+    "dsar": {
+      "subject": "user@external.local",
+      "type": "access",
+      "identity_verified": true,
+      "deadline_days": 30
+    }
+  },
+  {
+    "dsar": {
+      "subject": "ex.employee@acme.local",
+      "type": "portability",
+      "identity_verified": true,
+      "deadline_days": 30
+    }
+  },
+  {
+    "dsar": {
+      "subject": "former.user@umbrella.local",
+      "type": "rectification",
+      "identity_verified": false,
+      "deadline_days": 30
+    }
+  },
+  {
+    "rtbf": {
+      "subject": "leaving.user@wayne.local",
+      "justification": "Employee left organization, requested erasure",
+      "scope": {
+        "profile": true,
+        "messages": true,
+        "files": true
+      }
+    }
+  },
+  {
+    "rtbf": {
+      "subject": "test.account@wayne.local",
+      "justification": "Test account cleanup",
+      "scope": {
+        "profile": true,
+        "messages": false,
+        "files": false
+      }
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "credit-card-pan",
+      "regex": "\\b\\d{4}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4}\\b",
+      "action": "alert",
+      "severity": "critical"
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "ssn-us",
+      "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+      "action": "block",
+      "severity": "critical"
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "iban",
+      "regex": "\\b[A-Z]{2}\\d{2}[A-Z0-9]{1,30}\\b",
+      "action": "tag",
+      "severity": "high"
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "email-address",
+      "regex": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
+      "action": "tag",
+      "severity": "low"
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "saudi-national-id",
+      "regex": "\\b[12]\\d{9}\\b",
+      "action": "alert",
+      "severity": "critical"
+    }
+  },
+  {
+    "classification_rule": {
+      "name": "passport-number",
+      "regex": "\\b[A-Z]\\d{8}\\b",
+      "action": "tag",
+      "severity": "high"
+    }
+  },
+  {
+    "retention": {
+      "resource_type": "messages",
+      "period_days": 365,
+      "action": "archive"
+    }
+  },
+  {
+    "retention": {
+      "resource_type": "files",
+      "period_days": 730,
+      "action": "archive"
+    }
+  },
+  {
+    "retention": {
+      "resource_type": "calls_recordings",
+      "period_days": 90,
+      "action": "delete"
+    }
+  },
+  {
+    "retention": {
+      "resource_type": "audit_chain",
+      "period_days": 2555,
+      "action": "archive"
+    }
+  },
+  {
+    "retention": {
+      "resource_type": "presence_events",
+      "period_days": 30,
+      "action": "delete"
+    }
+  }
+]

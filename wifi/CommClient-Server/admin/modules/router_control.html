@@ -1,0 +1,2281 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Helen-Router — لوحة التحكم المخصصة</title>
+
+<!--
+  Helen-Router Dedicated Control Panel
+  ====================================
+  Single self-contained admin module for the Helen-Router service.
+  Talks DIRECTLY to the router (not through CommClient-Server), so the
+  router base URL is configurable below.
+
+  Backend reference (Helen-Router/app/):
+    main.py              : reverse proxy, registry, /router/* and /mesh/*
+    mesh.py              : LSA + Dijkstra overlay
+    recursive_dns.py     : internal authoritative + recursive resolver
+    internal_dns.py      : LAN A/AAAA/CNAME/MX/SRV/TXT/PTR records
+    internal_ntp.py      : LAN NTP server + sync state
+    upnp_portmap.py      : IGD port forwarding
+    vendor_adapters.py   : Mikrotik / Ubiquiti / OpenWrt / pfSense / Cisco
+    external_routers.py  : external uplink router descriptors
+    connection_broker.py : NAT traversal / hole-punch sessions
+-->
+
+<!--
+  Operator placement note: chart.min.js must be present at
+  /admin/vendor/chart.min.js. We never pull from a CDN at runtime — this
+  panel is intended for air-gapped LAN deployments.
+-->
+<script src="/admin/vendor/chart.min.js"></script>
+
+<style>
+:root {
+  --bg:        #0a1020;
+  --panel:     #111a2e;
+  --panel-2:   #0d1626;
+  --border:    #1a2a3a;
+  --text:      #e0e6ed;
+  --text-dim:  #a0a8b0;
+  --accent:    #00d4ff;
+  --accent-2:  #0099cc;
+  --ok:        #4ade80;
+  --warn:      #facc15;
+  --err:       #ff4757;
+  --link:      #3b82f6;
+  --shadow:    0 4px 18px rgba(0,0,0,0.45);
+  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+  --ui:   "Segoe UI", "Tahoma", "Cairo", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+button:hover { background: var(--panel-2); border-color: var(--accent); }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button.primary { background: var(--accent); color: #001824; border-color: var(--accent); font-weight: 600; }
+button.primary:hover { background: var(--accent-2); }
+button.danger  { background: var(--err); color: #1a0507; border-color: var(--err); }
+button.danger:hover  { background: #c53030; }
+button.warn    { background: var(--warn); color: #2a2000; border-color: var(--warn); }
+button.ok      { background: var(--ok); color: #002a10; border-color: var(--ok); }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+textarea { width: 100%; min-height: 120px; font-family: var(--mono); resize: vertical; }
+
+/* ── Global top bar ───────────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 200;
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 18px;
+  box-shadow: var(--shadow);
+}
+.topbar .logo {
+  font-size: 16px; font-weight: 700; letter-spacing: 0.3px;
+  color: var(--accent);
+}
+.topbar .logo .sub { color: var(--text-dim); font-weight: 400; margin-inline-start: 6px; }
+.topbar .spacer { flex: 1; }
+.topbar .url-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--panel-2);
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 12px;
+}
+.topbar .url-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim); }
+.topbar .url-pill .dot.ok  { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
+.topbar .url-pill .dot.err { background: var(--err);  box-shadow: 0 0 8px var(--err); }
+.topbar .rtt { color: var(--text-dim); font-size: 11px; }
+.topbar .quick { display: flex; gap: 6px; }
+
+/* ── Tab strip ────────────────────────────────────────────────── */
+.tabs {
+  display: flex; flex-wrap: wrap; gap: 2px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  position: sticky; top: 51px; z-index: 150;
+}
+.tab {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(0,212,255,0.05);
+}
+
+/* ── Panels ───────────────────────────────────────────────────── */
+.view { display: none; padding: 18px; }
+.view.active { display: block; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+.card h2 { margin: 0 0 10px 0; font-size: 15px; color: var(--accent); }
+.card h3 { margin: 14px 0 6px 0; font-size: 13px; color: var(--text); }
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row.gap { gap: 16px; }
+.right { margin-inline-start: auto; }
+
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1024px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px)  { .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+
+/* KPI cards */
+.kpi {
+  background: linear-gradient(160deg, var(--panel) 0%, var(--panel-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.kpi .label { color: var(--text-dim); font-size: 12px; }
+.kpi .value { font-size: 22px; font-weight: 700; color: var(--text); font-family: var(--mono); }
+.kpi .trend { font-size: 11px; color: var(--text-dim); }
+.kpi .trend.up { color: var(--ok); }
+.kpi .trend.down { color: var(--err); }
+
+/* Tables */
+table.tbl {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+table.tbl th, table.tbl td {
+  text-align: start;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+table.tbl th {
+  color: var(--text-dim); font-weight: 600;
+  background: var(--panel-2);
+  position: sticky; top: 0;
+}
+table.tbl tr:hover td { background: rgba(0,212,255,0.04); }
+table.tbl td.mono { font-family: var(--mono); font-size: 12px; }
+.scroll-x { overflow-x: auto; }
+.scroll-y { overflow-y: auto; max-height: 480px; }
+
+/* Pills */
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.pill.ok   { background: rgba(74,222,128,0.12); color: var(--ok);   border-color: var(--ok); }
+.pill.warn { background: rgba(250,204,21,0.12); color: var(--warn); border-color: var(--warn); }
+.pill.err  { background: rgba(255,71,87,0.12);  color: var(--err);  border-color: var(--err); }
+.pill.info { background: rgba(0,212,255,0.12);  color: var(--accent); border-color: var(--accent); }
+
+/* Banner */
+.banner {
+  display: none;
+  background: rgba(255,71,87,0.12);
+  border: 1px solid var(--err);
+  color: var(--err);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 12px 18px;
+  align-items: center;
+  gap: 14px;
+}
+.banner.show { display: flex; }
+.banner .msg { flex: 1; }
+
+/* Form blocks */
+.field {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 10px;
+}
+.field label { color: var(--text-dim); font-size: 12px; }
+.field.row { flex-direction: row; align-items: center; gap: 10px; }
+
+/* Modal */
+.modal-bg {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 500;
+  align-items: center; justify-content: center;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  width: min(620px, 92vw);
+  box-shadow: var(--shadow);
+}
+.modal h3 { margin-top: 0; color: var(--accent); }
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+/* Topology canvas */
+.topo-wrap {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 380px;
+  position: relative;
+}
+svg.topo { width: 100%; height: 420px; display: block; }
+svg.topo .edge      { stroke: var(--border); stroke-width: 1.5; }
+svg.topo .edge.hot  { stroke: var(--accent); stroke-width: 2; }
+svg.topo .node      { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+svg.topo .node.self { fill: var(--accent); stroke: var(--accent); }
+svg.topo .node-lbl  { fill: var(--text); font: 11px var(--mono); text-anchor: middle; }
+svg.topo .edge-lbl  { fill: var(--text-dim); font: 10px var(--mono); text-anchor: middle; }
+
+/* Logs */
+.log-feed {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 340px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-feed .ln { padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,0.04); }
+.log-feed .ln.err  { color: var(--err); }
+.log-feed .ln.warn { color: var(--warn); }
+.log-feed .ln.ok   { color: var(--ok); }
+
+/* Toast */
+.toast-host {
+  position: fixed; bottom: 20px; inset-inline-end: 20px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 220px;
+  box-shadow: var(--shadow);
+  animation: slidein 0.25s ease-out;
+}
+.toast.ok  { border-color: var(--ok); }
+.toast.err { border-color: var(--err); }
+@keyframes slidein { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Diagnostics output */
+pre.term {
+  background: #000913;
+  color: #b6f0ff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 320px; overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.muted { color: var(--text-dim); }
+.center { text-align: center; }
+.nowrap { white-space: nowrap; }
+
+.legend {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  font-size: 11px; color: var(--text-dim);
+  padding: 6px 0;
+}
+.legend .item { display: inline-flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--border); display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- ═════════════════════ TOP BAR ═════════════════════ -->
+<div class="topbar">
+  <div class="logo">Helen-Router <span class="sub">لوحة التحكم المخصصة</span></div>
+  <div class="spacer"></div>
+  <div class="url-pill" id="urlPill">
+    <span class="dot" id="connDot"></span>
+    <span id="urlText">http://router.helen.lan:8080</span>
+    <span class="rtt" id="rttText">— ms</span>
+  </div>
+  <button id="btnChangeUrl">تغيير العنوان</button>
+  <div class="quick">
+    <button id="btnReloadCfg" title="إعادة تحميل التهيئة">إعادة تحميل التهيئة</button>
+    <button id="btnViewLogs" title="السجلات الحية">السجلات</button>
+    <button class="danger" id="btnRestart" title="إعادة تشغيل الراوتر">إعادة تشغيل</button>
+  </div>
+</div>
+
+<!-- Offline banner -->
+<div class="banner" id="offlineBanner">
+  <div class="msg">
+    <strong>الراوتر غير متاح.</strong>
+    لا يمكن الوصول إلى <span id="banUrl"></span>. تأكد من أن الخدمة قيد التشغيل والوصول إلى الـ LAN صحيح.
+  </div>
+  <button class="primary" id="banRetry">إعادة المحاولة</button>
+</div>
+
+<!-- ═════════════════════ TAB STRIP ═════════════════════ -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="overview">نظرة عامة</div>
+  <div class="tab" data-tab="mesh">طوبولوجيا الشبكة</div>
+  <div class="tab" data-tab="registry">سجل الخدمات</div>
+  <div class="tab" data-tab="proxy">البروكسي العكسي</div>
+  <div class="tab" data-tab="dns">DNS الداخلي</div>
+  <div class="tab" data-tab="ntp">NTP الداخلي</div>
+  <div class="tab" data-tab="upnp">UPnP / منافذ</div>
+  <div class="tab" data-tab="vendor">محولات الموردين</div>
+  <div class="tab" data-tab="external">الراوترات الخارجية</div>
+  <div class="tab" data-tab="broker">وسيط الاتصال</div>
+  <div class="tab" data-tab="security">رمز LAN والأمان</div>
+  <div class="tab" data-tab="diag">التشخيص</div>
+  <div class="tab" data-tab="config">التهيئة</div>
+</div>
+
+<!-- ═════════════════════ VIEW: OVERVIEW ═════════════════════ -->
+<div class="view active" id="view-overview">
+
+  <div class="grid grid-4">
+    <div class="kpi"><div class="label">مدة التشغيل</div><div class="value" id="kpi-uptime">—</div><div class="trend" id="kpi-uptime-sub">—</div></div>
+    <div class="kpi"><div class="label">الإصدار</div><div class="value" id="kpi-version">—</div><div class="trend" id="kpi-build">—</div></div>
+    <div class="kpi"><div class="label">عقد الشبكة (Mesh)</div><div class="value" id="kpi-mesh">—</div><div class="trend" id="kpi-mesh-sub">—</div></div>
+    <div class="kpi"><div class="label">جلسات LSA النشطة</div><div class="value" id="kpi-lsa">—</div><div class="trend" id="kpi-lsa-sub">—</div></div>
+  </div>
+
+  <div class="grid grid-4" style="margin-top:12px">
+    <div class="kpi"><div class="label">طلبات/ثانية (Proxy)</div><div class="value" id="kpi-rps">—</div><div class="trend" id="kpi-rps-sub">—</div></div>
+    <div class="kpi"><div class="label">استعلامات DNS/ثانية</div><div class="value" id="kpi-dnsps">—</div><div class="trend" id="kpi-dnsps-sub">—</div></div>
+    <div class="kpi"><div class="label">عملاء NTP</div><div class="value" id="kpi-ntp">—</div><div class="trend" id="kpi-ntp-sub">—</div></div>
+    <div class="kpi"><div class="label">منافذ UPnP المُحوَّلة</div><div class="value" id="kpi-upnp">—</div><div class="trend" id="kpi-upnp-sub">—</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>الطلبات خلال 24 ساعة</h2>
+    <div style="height:280px"><canvas id="chRps24"></canvas></div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>أعلى المسارات (Top Paths)</h2>
+      <div class="scroll-y">
+        <table class="tbl" id="tblTopPaths">
+          <thead><tr><th>المسار</th><th>الطلبات</th><th>متوسط زمن الاستجابة</th><th>الأخطاء</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>تنبيهات حديثة</h2>
+      <div class="log-feed" id="overviewAlerts">لا توجد تنبيهات.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: MESH ═════════════════════ -->
+<div class="view" id="view-mesh">
+  <div class="card">
+    <h2>طوبولوجيا الشبكة (LSA + Dijkstra)</h2>
+    <div class="row">
+      <span class="muted">العقدة المحلية:</span> <strong id="meshSelfId">—</strong>
+      <span class="muted">عدد الجيران:</span> <strong id="meshNeighCount">0</strong>
+      <span class="muted">آخر تحديث:</span> <span id="meshLastUpdate" class="muted">—</span>
+      <div class="right row">
+        <button id="btnReroute" class="primary">فرض إعادة التوجيه (Re-route)</button>
+        <button id="btnAddNeighbour">إضافة جار يدوياً</button>
+        <label class="muted" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="meshAutoRefresh" checked /> تحديث تلقائي
+        </label>
+      </div>
+    </div>
+    <div class="topo-wrap" style="margin-top:10px">
+      <svg class="topo" id="topoSvg" viewBox="0 0 1000 420" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="legend">
+      <span class="item"><span class="swatch" style="background:var(--accent)"></span> العقدة المحلية</span>
+      <span class="item"><span class="swatch" style="background:var(--panel);border:2px solid var(--accent)"></span> عقدة جار</span>
+      <span class="item"><span class="swatch" style="background:var(--accent);height:2px"></span> مسار نشط</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>روابط الـ Mesh</h2>
+    <div class="scroll-y">
+      <table class="tbl" id="tblMeshLinks">
+        <thead>
+          <tr>
+            <th>مُعرّف الند</th><th>العنوان</th><th>RTT</th><th>التكلفة</th>
+            <th>آخر LSA</th><th>الحالة</th><th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: REGISTRY ═════════════════════ -->
+<div class="view" id="view-registry">
+  <div class="card">
+    <h2>سجل الخدمات الخلفية (Helen-Server)</h2>
+    <div class="row">
+      <input type="text" id="regFilter" placeholder="بحث (hostname / id)..." style="flex:1; max-width:320px" />
+      <button id="btnAddService" class="primary">تسجيل خدمة جديدة</button>
+      <button id="btnRefreshRegistry">تحديث</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblRegistry">
+        <thead>
+          <tr>
+            <th>المُعرّف</th><th>المضيف</th><th>IP:Port</th>
+            <th>الصحة</th><th>الوزن</th><th>آخر heartbeat</th><th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>قواعد التوجيه (Routing Rules)</h2>
+    <div class="muted" style="margin-bottom:8px">قواعد توجيه المسارات نحو خدمات معينة بحسب path / header / weight.</div>
+    <div class="scroll-y">
+      <table class="tbl" id="tblRoutingRules">
+        <thead><tr><th>#</th><th>المسار (regex)</th><th>الطريقة</th><th>الخدمة الهدف</th><th>الوزن</th><th>إجراءات</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button id="btnAddRule" style="margin-top:8px">إضافة قاعدة</button>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: PROXY ═════════════════════ -->
+<div class="view" id="view-proxy">
+  <div class="card">
+    <h2>سجل الطلبات (آخر 1000)</h2>
+    <div class="row">
+      <input id="logFltPath"     placeholder="فلتر المسار" />
+      <select id="logFltMethod"><option value="">جميع الطرق</option><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option></select>
+      <input id="logFltStatus"   placeholder="الحالة (مثل 5xx)" style="width:120px" />
+      <input id="logFltUpstream" placeholder="upstream" />
+      <button id="btnApplyFilter" class="primary">تطبيق</button>
+      <button id="btnClearFilter">مسح</button>
+      <label class="muted right" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="proxyAutoRefresh" checked /> تحديث تلقائي
+      </label>
+    </div>
+    <div class="scroll-y" style="margin-top:10px;max-height:420px">
+      <table class="tbl" id="tblProxyLog">
+        <thead>
+          <tr>
+            <th>الوقت</th><th>IP</th><th>الطريقة</th><th>المسار</th>
+            <th>الحالة</th><th>upstream</th><th>الزمن (ms)</th><th>الحجم</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>قواعد تقييد المعدل (Rate-Limit)</h2>
+      <div class="scroll-y">
+        <table class="tbl" id="tblRateLimits">
+          <thead><tr><th>المسار</th><th>الحد/دقيقة</th><th>burst</th><th>المفتاح</th><th>إجراءات</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <button id="btnAddRateLimit" style="margin-top:8px">إضافة قاعدة</button>
+    </div>
+    <div class="card">
+      <h2>قوائم IP (سماح/حظر)</h2>
+      <div class="row">
+        <select id="ipListSelect">
+          <option value="allow">قائمة السماح</option>
+          <option value="deny">قائمة الحظر</option>
+        </select>
+        <input id="ipListEntry" placeholder="CIDR مثل 10.0.0.0/24" style="flex:1" />
+        <button id="btnAddIp" class="primary">إضافة</button>
+      </div>
+      <div class="scroll-y" style="margin-top:10px">
+        <table class="tbl" id="tblIpList">
+          <thead><tr><th>القائمة</th><th>القيمة</th><th>إجراءات</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: DNS ═════════════════════ -->
+<div class="view" id="view-dns">
+  <div class="card">
+    <h2>السجلات الداخلية (Records)</h2>
+    <div class="row">
+      <input id="dnsDomain" placeholder="النطاق" />
+      <select id="dnsType">
+        <option>A</option><option>AAAA</option><option>CNAME</option>
+        <option>MX</option><option>SRV</option><option>TXT</option><option>PTR</option>
+      </select>
+      <input id="dnsValue" placeholder="القيمة" style="flex:1" />
+      <input id="dnsTtl" placeholder="TTL" style="width:90px" value="300" />
+      <button id="btnAddDns" class="primary">إضافة</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblDns">
+        <thead><tr><th>النطاق</th><th>النوع</th><th>القيمة</th><th>TTL</th><th>إجراءات</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>قائمة الحظر (Pi-hole style)</h2>
+      <input type="file" id="blocklistFile" accept=".txt" />
+      <button id="btnUploadBlocklist" class="primary">رفع الملف</button>
+      <button id="btnDownloadBlocklist">تنزيل الحالي</button>
+      <textarea id="blocklistArea" placeholder="نطاق واحد في كل سطر" style="margin-top:10px"></textarea>
+      <button id="btnSaveBlocklist" class="ok">حفظ</button>
+      <span class="muted" id="blocklistCount">— نطاق</span>
+    </div>
+    <div class="card">
+      <h2>إحصائيات DNS</h2>
+      <div class="grid grid-3">
+        <div class="kpi"><div class="label">إجمالي الاستعلامات</div><div class="value" id="dnsTotal">—</div></div>
+        <div class="kpi"><div class="label">المحظور</div><div class="value" id="dnsBlocked">—</div></div>
+        <div class="kpi"><div class="label">cache hit %</div><div class="value" id="dnsCache">—</div></div>
+      </div>
+      <h3>سجل الاستعلامات</h3>
+      <div class="log-feed" id="dnsLog">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>محلّلات الـ Upstream</h2>
+    <div class="row">
+      <input id="upstreamDns" placeholder="مثال 1.1.1.1#853 (DoT)" style="flex:1" />
+      <button id="btnAddUpstreamDns" class="primary">إضافة</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblUpstreamDns">
+        <thead><tr><th>العنوان</th><th>البروتوكول</th><th>زمن الاستجابة</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: NTP ═════════════════════ -->
+<div class="view" id="view-ntp">
+  <div class="card">
+    <h2>حالة المزامنة</h2>
+    <div class="grid grid-4">
+      <div class="kpi"><div class="label">الحالة</div><div class="value" id="ntpState">—</div></div>
+      <div class="kpi"><div class="label">Stratum</div><div class="value" id="ntpStratum">—</div></div>
+      <div class="kpi"><div class="label">آخر مزامنة</div><div class="value" id="ntpLastSync">—</div></div>
+      <div class="kpi"><div class="label">الانحراف (drift)</div><div class="value" id="ntpDrift">—</div></div>
+    </div>
+    <button id="btnForceSync" class="primary" style="margin-top:10px">إجبار المزامنة الآن</button>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>أنداد NTP (Peers)</h2>
+      <div class="scroll-y">
+        <table class="tbl" id="tblNtpPeers">
+          <thead><tr><th>العنوان</th><th>Stratum</th><th>التأخير</th><th>offset</th><th>jitter</th><th>الحالة</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>تطور الانحراف (Drift)</h2>
+      <div style="height:240px"><canvas id="chDrift"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: UPnP ═════════════════════ -->
+<div class="view" id="view-upnp">
+  <div class="card">
+    <h2>تحويل المنافذ النشطة (IGD)</h2>
+    <div class="row">
+      <button id="btnDiscoverUpnp" class="primary">اكتشاف أجهزة UPnP</button>
+      <button id="btnRefreshUpnp">تحديث</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblUpnp">
+        <thead>
+          <tr>
+            <th>البروتوكول</th><th>المنفذ الخارجي</th><th>IP الداخلي</th>
+            <th>المنفذ الداخلي</th><th>الوصف</th><th>المدة</th><th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>إضافة تحويل منفذ جديد</h2>
+    <div class="grid grid-4">
+      <div class="field"><label>البروتوكول</label><select id="upProto"><option>TCP</option><option>UDP</option></select></div>
+      <div class="field"><label>المنفذ الخارجي</label><input id="upExt" type="number" min="1" max="65535" /></div>
+      <div class="field"><label>المنفذ الداخلي</label><input id="upInt" type="number" min="1" max="65535" /></div>
+      <div class="field"><label>IP الداخلي</label><input id="upIp" placeholder="192.168.1.X" /></div>
+      <div class="field"><label>المدة (ثواني)</label><input id="upDur" type="number" value="3600" /></div>
+      <div class="field"><label>الوصف</label><input id="upDesc" placeholder="Helen-Server" /></div>
+    </div>
+    <button id="btnAddUpnp" class="primary">إضافة</button>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: VENDOR ═════════════════════ -->
+<div class="view" id="view-vendor">
+  <div class="card">
+    <h2>محولات الموردين (Vendor Adapters)</h2>
+    <div class="grid grid-2">
+      <div>
+        <div class="field"><label>المورد</label>
+          <select id="vendorPick">
+            <option value="mikrotik">Mikrotik (RouterOS API / SSH)</option>
+            <option value="ubiquiti">Ubiquiti EdgeOS / UniFi</option>
+            <option value="openwrt">OpenWrt (UCI / LuCI RPC)</option>
+            <option value="pfsense">pfSense (XML-RPC / API)</option>
+            <option value="cisco">Cisco IOS / IOS-XE (NETCONF / SSH)</option>
+          </select>
+        </div>
+        <div class="field"><label>المضيف</label><input id="vendorHost" placeholder="192.168.1.1" /></div>
+        <div class="field"><label>المنفذ</label><input id="vendorPort" type="number" placeholder="22 / 8728 / 443" /></div>
+        <div class="field"><label>اسم المستخدم</label><input id="vendorUser" /></div>
+        <div class="field"><label>كلمة المرور / API key</label><input id="vendorPass" type="password" /></div>
+        <div class="field"><label>طريقة الاتصال</label>
+          <select id="vendorMethod">
+            <option>ssh</option><option>api</option><option>netconf</option><option>xmlrpc</option>
+          </select>
+        </div>
+        <div class="row">
+          <button id="btnVendorTest">اختبار الاتصال</button>
+          <button id="btnVendorRender" class="primary">توليد قالب Helen</button>
+        </div>
+      </div>
+      <div>
+        <h3>معاينة التهيئة المولّدة</h3>
+        <textarea id="vendorPreview" readonly style="min-height:300px"></textarea>
+        <button id="btnVendorPush" class="warn" disabled>دفع التهيئة إلى الجهاز</button>
+        <span class="muted" id="vendorState">— لم يُولَّد بعد</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>عمليات سابقة</h2>
+    <div class="scroll-y">
+      <table class="tbl" id="tblVendorJobs">
+        <thead><tr><th>الوقت</th><th>المورد</th><th>المضيف</th><th>الإجراء</th><th>النتيجة</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: EXTERNAL ═════════════════════ -->
+<div class="view" id="view-external">
+  <div class="card">
+    <h2>الراوترات الخارجية (External Routers)</h2>
+    <div class="row">
+      <button id="btnAddExternal" class="primary">إضافة راوتر خارجي</button>
+      <button id="btnScanExternal">فحص الـ uplinks</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblExternal">
+        <thead>
+          <tr>
+            <th>المُعرّف</th><th>العنوان</th><th>الحالة</th>
+            <th>نوع NAT</th><th>عدد التعيينات</th><th>آخر فحص</th><th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>تعيينات المنافذ المُكتشفة</h2>
+    <div class="scroll-y">
+      <table class="tbl" id="tblExternalMappings">
+        <thead><tr><th>الراوتر</th><th>البروتوكول</th><th>خارجي</th><th>داخلي</th><th>الوصف</th><th>المصدر</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: BROKER ═════════════════════ -->
+<div class="view" id="view-broker">
+  <div class="card">
+    <h2>وسيط الاتصال (Connection Broker)</h2>
+    <div class="grid grid-4">
+      <div class="kpi"><div class="label">جلسات في الانتظار</div><div class="value" id="brkPending">—</div></div>
+      <div class="kpi"><div class="label">جلسات نشطة (relay)</div><div class="value" id="brkActive">—</div></div>
+      <div class="kpi"><div class="label">hole-punch نجاح</div><div class="value" id="brkHpOk">—</div></div>
+      <div class="kpi"><div class="label">hole-punch فشل</div><div class="value" id="brkHpFail">—</div></div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>الجلسات النشطة</h2>
+      <div class="scroll-y">
+        <table class="tbl" id="tblBrokerActive">
+          <thead><tr><th>الجلسة</th><th>A</th><th>B</th><th>النمط</th><th>منذ</th><th>إجراءات</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>محاولات hole-punch</h2>
+      <div class="scroll-y">
+        <table class="tbl" id="tblBrokerPunch">
+          <thead><tr><th>الوقت</th><th>A</th><th>B</th><th>نوع NAT</th><th>النتيجة</th><th>الزمن</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: SECURITY ═════════════════════ -->
+<div class="view" id="view-security">
+  <div class="card">
+    <h2>رمز LAN الحالي</h2>
+    <div class="row">
+      <code id="curToken" class="mono" style="background:var(--panel-2);padding:8px 12px;border-radius:6px;font-family:var(--mono);flex:1">—</code>
+      <button id="btnCopyToken">نسخ</button>
+      <button id="btnRotateToken" class="warn">توليد جديد</button>
+    </div>
+    <div class="muted" style="margin-top:6px">يجب على كل Helen-Server خلف هذا الراوتر استخدام نفس الرمز في <code>HELEN_ROUTER_TOKEN</code>.</div>
+  </div>
+
+  <div class="card">
+    <h2>الشبكات المسموح بها (CIDR)</h2>
+    <div class="row">
+      <input id="newSubnet" placeholder="مثل 192.168.1.0/24" style="flex:1" />
+      <button id="btnAddSubnet" class="primary">إضافة</button>
+    </div>
+    <div class="scroll-y" style="margin-top:10px">
+      <table class="tbl" id="tblSubnets">
+        <thead><tr><th>CIDR</th><th>الوصف</th><th>إجراءات</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>وضع الفرض (Enforcement Mode)</h2>
+    <div class="row">
+      <label><input type="radio" name="encmode" value="strict" /> صارم (Strict)</label>
+      <label><input type="radio" name="encmode" value="relaxed" /> متساهل (Relaxed)</label>
+      <label><input type="radio" name="encmode" value="learning" /> تعلّم (Learning)</label>
+      <button id="btnSaveMode" class="primary">حفظ</button>
+    </div>
+    <div class="muted" style="margin-top:6px">
+      <strong>Strict</strong>: رفض كل ما هو خارج قائمة السماح. <strong>Relaxed</strong>: سماح RFC1918 الكاملة. <strong>Learning</strong>: تسجيل دون رفض.
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: DIAGNOSTICS ═════════════════════ -->
+<div class="view" id="view-diag">
+  <div class="card">
+    <h2>أدوات التشخيص</h2>
+    <div class="grid grid-2">
+      <div>
+        <h3>Ping</h3>
+        <div class="row">
+          <input id="pingHost" placeholder="host or IP" style="flex:1" />
+          <input id="pingCount" type="number" value="4" style="width:80px" />
+          <button id="btnPing" class="primary">Ping</button>
+        </div>
+        <pre class="term" id="pingOut">—</pre>
+      </div>
+      <div>
+        <h3>Traceroute (mtr-style)</h3>
+        <div class="row">
+          <input id="trHost" placeholder="host or IP" style="flex:1" />
+          <button id="btnTrace" class="primary">Trace</button>
+        </div>
+        <pre class="term" id="trOut">—</pre>
+      </div>
+      <div>
+        <h3>DNS lookup</h3>
+        <div class="row">
+          <input id="lkName" placeholder="domain" style="flex:1" />
+          <select id="lkType"><option>A</option><option>AAAA</option><option>MX</option><option>TXT</option><option>SRV</option><option>NS</option><option>PTR</option></select>
+          <button id="btnLookup" class="primary">Lookup</button>
+        </div>
+        <pre class="term" id="lkOut">—</pre>
+      </div>
+      <div>
+        <h3>Port scan (LAN فقط)</h3>
+        <div class="row">
+          <input id="psHost" placeholder="IP" style="flex:1" />
+          <input id="psRange" placeholder="1-1024" style="width:120px" />
+          <button id="btnScan" class="primary">Scan</button>
+        </div>
+        <pre class="term" id="psOut">—</pre>
+      </div>
+      <div style="grid-column: span 2">
+        <h3>اختبار سعة النطاق ضد ند Mesh</h3>
+        <div class="row">
+          <select id="bwPeer"><option value="">— اختر ند —</option></select>
+          <input id="bwSec" type="number" value="5" style="width:100px" />
+          <select id="bwProto"><option>tcp</option><option>udp</option></select>
+          <button id="btnBw" class="primary">قياس</button>
+        </div>
+        <pre class="term" id="bwOut">—</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ VIEW: CONFIG ═════════════════════ -->
+<div class="view" id="view-config">
+  <div class="card">
+    <h2>محرّر التهيئة (YAML / JSON)</h2>
+    <div class="row">
+      <select id="cfgFormat">
+        <option value="yaml">YAML</option>
+        <option value="json">JSON</option>
+      </select>
+      <button id="btnLoadCfg">تحميل من الراوتر</button>
+      <button id="btnValidateCfg" class="warn">التحقق من المخطّط</button>
+      <button id="btnSaveCfg" class="primary">حفظ</button>
+      <button id="btnReloadCfgInline" class="ok">إعادة تحميل بدون إعادة تشغيل</button>
+      <span class="muted right" id="cfgState">—</span>
+    </div>
+    <textarea id="cfgEditor" style="min-height:480px;margin-top:10px" placeholder="# تهيئة الراوتر"></textarea>
+    <h3>نتائج التحقق</h3>
+    <div class="log-feed" id="cfgValidate">—</div>
+  </div>
+</div>
+
+<!-- ═════════════════════ MODAL ═════════════════════ -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle">عنوان</h3>
+    <div id="modalBody"></div>
+    <div class="actions">
+      <button id="modalCancel">إلغاء</button>
+      <button id="modalOk" class="primary">تأكيد</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-host" id="toastHost"></div>
+
+<!-- ═════════════════════ APPLICATION SCRIPT ═════════════════════ -->
+<script>
+"use strict";
+
+/* ════════════════════════════════════════════════════════════════
+   CONFIGURATION
+   - Operators: change ROUTER_BASE_URL_DEFAULT here OR through the UI
+     (the value is persisted to localStorage).
+   ════════════════════════════════════════════════════════════════ */
+const ROUTER_BASE_URL_DEFAULT = "http://router.helen.lan:8080";
+const ROUTER_URL_LS_KEY       = "helen_router_base_url";
+const ROUTER_TOKEN_LS_KEY     = "helen_router_token";
+const TOAST_TIMEOUT_MS        = 4500;
+const RTT_PROBE_INTERVAL_MS   = 5000;
+const KPI_REFRESH_INTERVAL_MS = 6000;
+const MESH_REFRESH_INTERVAL_MS= 8000;
+const PROXY_LOG_INTERVAL_MS   = 4000;
+const MAX_RETRIES             = 3;
+const RETRY_BACKOFF_BASE_MS   = 400;
+const REQ_TIMEOUT_MS          = 12000;
+
+function getRouterBaseUrl() {
+  return localStorage.getItem(ROUTER_URL_LS_KEY) || ROUTER_BASE_URL_DEFAULT;
+}
+function setRouterBaseUrl(u) {
+  localStorage.setItem(ROUTER_URL_LS_KEY, u);
+}
+function getRouterToken() {
+  return localStorage.getItem(ROUTER_TOKEN_LS_KEY) || "";
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FETCH WRAPPER (auth + retry + exponential backoff + timeout)
+   ════════════════════════════════════════════════════════════════ */
+async function rfetch(path, opts = {}) {
+  const base   = getRouterBaseUrl();
+  const url    = path.startsWith("http") ? path : (base.replace(/\/$/, "") + path);
+  const token  = getRouterToken();
+  const method = (opts.method || "GET").toUpperCase();
+
+  const headers = Object.assign({
+    "Accept": "application/json",
+    "X-Helen-Admin": "router-control-panel",
+  }, opts.headers || {});
+  if (token) headers["Authorization"] = "Bearer " + token;
+
+  let body = opts.body;
+  if (body && typeof body === "object" && !(body instanceof FormData)) {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    body = JSON.stringify(body);
+  }
+
+  let lastErr = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const ctrl = new AbortController();
+    const tmo  = setTimeout(() => ctrl.abort(), REQ_TIMEOUT_MS);
+    try {
+      const start = performance.now();
+      const res   = await fetch(url, { method, headers, body, signal: ctrl.signal, mode: "cors" });
+      clearTimeout(tmo);
+
+      const elapsed = performance.now() - start;
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const err  = new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+        err.status = res.status;
+        if (res.status >= 500 && attempt < MAX_RETRIES) {
+          lastErr = err;
+          await sleep(RETRY_BACKOFF_BASE_MS * Math.pow(2, attempt));
+          continue;
+        }
+        throw err;
+      }
+
+      const ct = res.headers.get("content-type") || "";
+      const data = ct.includes("application/json") ? await res.json() : await res.text();
+      data.__elapsed = elapsed;
+      return data;
+    } catch (e) {
+      clearTimeout(tmo);
+      lastErr = e;
+      if (attempt < MAX_RETRIES && (e.name === "AbortError" || e.message.includes("Failed to fetch"))) {
+        await sleep(RETRY_BACKOFF_BASE_MS * Math.pow(2, attempt));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr || new Error("fetch failed");
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ════════════════════════════════════════════════════════════════
+   UTILITIES — Arabic-locale numeric formatting
+   ════════════════════════════════════════════════════════════════ */
+const AR = "ar-EG";
+function fmtNum(n)        { if (n == null || isNaN(n)) return "—"; return Number(n).toLocaleString(AR); }
+function fmtPct(n)        { if (n == null || isNaN(n)) return "—"; return Number(n).toLocaleString(AR, { maximumFractionDigits: 1 }) + "٪"; }
+function fmtMs(n)         { if (n == null || isNaN(n)) return "—"; return Number(n).toLocaleString(AR, { maximumFractionDigits: 1 }) + " ms"; }
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return "—";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let v = Number(n), i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toLocaleString(AR, { maximumFractionDigits: 2 }) + " " + u[i];
+}
+function fmtTime(ts) {
+  if (!ts) return "—";
+  const d = (typeof ts === "number") ? new Date(ts * (ts > 1e12 ? 1 : 1000)) : new Date(ts);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString(AR, { hour12: false });
+}
+function fmtRelative(ts) {
+  if (!ts) return "—";
+  const now = Date.now();
+  const t = (typeof ts === "number" && ts < 1e12) ? ts * 1000 : ts;
+  const diff = Math.max(0, (now - new Date(t).getTime()) / 1000);
+  if (diff < 60)    return Math.floor(diff) + " ث";
+  if (diff < 3600)  return Math.floor(diff / 60) + " د";
+  if (diff < 86400) return Math.floor(diff / 3600) + " س";
+  return Math.floor(diff / 86400) + " ي";
+}
+function fmtUptime(sec) {
+  if (sec == null || isNaN(sec)) return "—";
+  sec = Math.floor(sec);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (d) return `${fmtNum(d)} ي ${fmtNum(h)} س`;
+  if (h) return `${fmtNum(h)} س ${fmtNum(m)} د`;
+  if (m) return `${fmtNum(m)} د ${fmtNum(s)} ث`;
+  return `${fmtNum(s)} ث`;
+}
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TOAST + MODAL
+   ════════════════════════════════════════════════════════════════ */
+function toast(msg, kind = "") {
+  const host = document.getElementById("toastHost");
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .25s"; }, TOAST_TIMEOUT_MS - 300);
+  setTimeout(() => el.remove(), TOAST_TIMEOUT_MS);
+}
+
+function confirmDialog(title, html, okLabel = "تأكيد", danger = false) {
+  return new Promise(resolve => {
+    document.getElementById("modalTitle").textContent = title;
+    document.getElementById("modalBody").innerHTML = html;
+    const ok = document.getElementById("modalOk");
+    ok.textContent = okLabel;
+    ok.className = danger ? "danger" : "primary";
+    document.getElementById("modalBg").classList.add("show");
+    const cleanup = () => {
+      document.getElementById("modalBg").classList.remove("show");
+      ok.onclick = null;
+      document.getElementById("modalCancel").onclick = null;
+    };
+    ok.onclick = () => { cleanup(); resolve(true); };
+    document.getElementById("modalCancel").onclick = () => { cleanup(); resolve(false); };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   GLOBAL STATE
+   ════════════════════════════════════════════════════════════════ */
+const state = {
+  online: false,
+  rttMs: null,
+  activeTab: "overview",
+  rps24: null,         // chart instance
+  drift: null,         // chart instance
+  meshTopology: null,
+  routingRules: [],
+  rateLimits: [],
+  ipLists: { allow: [], deny: [] },
+  registry: [],
+  upnpMaps: [],
+  externalRouters: [],
+  externalMappings: [],
+  vendorJobs: [],
+  ntpPeers: [],
+  subnets: [],
+  encMode: "strict",
+};
+
+/* ════════════════════════════════════════════════════════════════
+   CONNECTION HEALTH
+   ════════════════════════════════════════════════════════════════ */
+async function probeRouter() {
+  const t0 = performance.now();
+  try {
+    const r = await rfetch("/router/health", { method: "GET" });
+    state.rttMs  = performance.now() - t0;
+    state.online = true;
+    setOnlineUi(true);
+  } catch (e) {
+    state.online = false;
+    setOnlineUi(false);
+  }
+}
+
+function setOnlineUi(ok) {
+  const dot   = document.getElementById("connDot");
+  const rtt   = document.getElementById("rttText");
+  const ban   = document.getElementById("offlineBanner");
+  const banUrl= document.getElementById("banUrl");
+  document.getElementById("urlText").textContent = getRouterBaseUrl();
+  if (ok) {
+    dot.className = "dot ok";
+    rtt.textContent = fmtMs(state.rttMs);
+    ban.classList.remove("show");
+  } else {
+    dot.className = "dot err";
+    rtt.textContent = "غير متصل";
+    banUrl.textContent = getRouterBaseUrl();
+    ban.classList.add("show");
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TAB ROUTER
+   ════════════════════════════════════════════════════════════════ */
+function activateTab(name) {
+  state.activeTab = name;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
+  const fn = ON_ACTIVATE[name];
+  if (fn) try { fn(); } catch (e) { console.error(e); }
+}
+
+const ON_ACTIVATE = {
+  overview: refreshOverview,
+  mesh:     refreshMesh,
+  registry: refreshRegistry,
+  proxy:    refreshProxy,
+  dns:      refreshDns,
+  ntp:      refreshNtp,
+  upnp:     refreshUpnp,
+  vendor:   refreshVendor,
+  external: refreshExternal,
+  broker:   refreshBroker,
+  security: refreshSecurity,
+  diag:     refreshDiag,
+  config:   refreshConfig,
+};
+
+/* ════════════════════════════════════════════════════════════════
+   OVERVIEW
+   ════════════════════════════════════════════════════════════════ */
+async function refreshOverview() {
+  try {
+    const stats = await rfetch("/router/health").catch(() => ({}));
+    document.getElementById("kpi-uptime").textContent  = fmtUptime(stats.uptime_seconds);
+    document.getElementById("kpi-uptime-sub").textContent = fmtTime(Date.now() - (stats.uptime_seconds || 0) * 1000);
+    document.getElementById("kpi-version").textContent = stats.version || "—";
+    document.getElementById("kpi-build").textContent   = stats.build || "";
+
+    const ups = await rfetch("/router/upstreams").catch(() => ({ upstreams: [] }));
+    document.getElementById("kpi-mesh").textContent     = fmtNum((ups.upstreams || []).length);
+    document.getElementById("kpi-mesh-sub").textContent = `أصحاء: ${fmtNum((ups.upstreams || []).filter(u => u.healthy !== false).length)}`;
+
+    const topo = await rfetch("/mesh/topology").catch(() => ({ lsa_sessions: 0 }));
+    document.getElementById("kpi-lsa").textContent     = fmtNum(topo.lsa_sessions || (topo.lsdb ? Object.keys(topo.lsdb).length : 0));
+    document.getElementById("kpi-lsa-sub").textContent = topo.dijkstra_last_run ? "Dijkstra: " + fmtRelative(topo.dijkstra_last_run) : "";
+
+    const m = stats.metrics || {};
+    document.getElementById("kpi-rps").textContent   = fmtNum(m.proxy_rps || 0);
+    document.getElementById("kpi-rps-sub").textContent = `إجمالي: ${fmtNum(m.proxy_total || 0)}`;
+    document.getElementById("kpi-dnsps").textContent = fmtNum(m.dns_qps || 0);
+    document.getElementById("kpi-dnsps-sub").textContent = `cache: ${fmtPct(m.dns_cache_hit_pct || 0)}`;
+    document.getElementById("kpi-ntp").textContent   = fmtNum(m.ntp_clients || 0);
+    document.getElementById("kpi-ntp-sub").textContent = `stratum ${fmtNum(m.ntp_stratum || 0)}`;
+    document.getElementById("kpi-upnp").textContent  = fmtNum(m.upnp_active || 0);
+    document.getElementById("kpi-upnp-sub").textContent = m.upnp_last_renew ? "آخر تجديد: " + fmtRelative(m.upnp_last_renew) : "";
+
+    drawRps24(m.rps_24h || synthesizeSeries(48));
+    renderTopPaths(m.top_paths || []);
+    renderAlerts(m.recent_alerts || []);
+  } catch (e) {
+    console.error("overview", e);
+  }
+}
+
+function synthesizeSeries(n) {
+  // Placeholder series if backend hasn't materialised metrics yet.
+  const arr = [];
+  const now = Date.now();
+  for (let i = n - 1; i >= 0; i--) {
+    arr.push({ t: now - i * 30 * 60 * 1000, v: Math.floor(20 + Math.random() * 80) });
+  }
+  return arr;
+}
+
+function drawRps24(series) {
+  const ctx = document.getElementById("chRps24").getContext("2d");
+  const labels = series.map(p => new Date(p.t || p[0]).toLocaleTimeString(AR, { hour: "2-digit", minute: "2-digit" }));
+  const values = series.map(p => p.v != null ? p.v : p[1]);
+  if (state.rps24) state.rps24.destroy();
+  state.rps24 = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "طلبات/30د",
+        data: values,
+        borderColor: "#00d4ff",
+        backgroundColor: "rgba(0,212,255,0.15)",
+        fill: true, tension: 0.3, pointRadius: 0,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#a0a8b0" } } },
+      scales: {
+        x: { ticks: { color: "#a0a8b0", maxTicksLimit: 12 }, grid: { color: "#1a2a3a" } },
+        y: { ticks: { color: "#a0a8b0" }, grid: { color: "#1a2a3a" } },
+      },
+    },
+  });
+}
+
+function renderTopPaths(paths) {
+  const tb = document.querySelector("#tblTopPaths tbody");
+  tb.innerHTML = paths.length === 0
+    ? `<tr><td colspan="4" class="center muted">لا توجد بيانات بعد</td></tr>`
+    : paths.map(p => `
+      <tr>
+        <td class="mono">${escapeHtml(p.path)}</td>
+        <td>${fmtNum(p.count)}</td>
+        <td>${fmtMs(p.avg_ms)}</td>
+        <td><span class="pill ${p.errors > 0 ? "err" : "ok"}">${fmtNum(p.errors)}</span></td>
+      </tr>`).join("");
+}
+
+function renderAlerts(alerts) {
+  const host = document.getElementById("overviewAlerts");
+  if (!alerts.length) { host.innerHTML = `<span class="muted">لا توجد تنبيهات.</span>`; return; }
+  host.innerHTML = alerts.map(a => `<div class="ln ${a.level || ""}">[${fmtTime(a.ts)}] ${escapeHtml(a.message)}</div>`).join("");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MESH TOPOLOGY
+   ════════════════════════════════════════════════════════════════ */
+async function refreshMesh() {
+  try {
+    const topo = await rfetch("/mesh/topology");
+    state.meshTopology = topo;
+    document.getElementById("meshSelfId").textContent = topo.self_id || topo.router_id || "—";
+    document.getElementById("meshNeighCount").textContent = fmtNum((topo.neighbours || topo.neighbors || []).length);
+    document.getElementById("meshLastUpdate").textContent = fmtRelative(topo.last_update || Date.now());
+    drawMesh(topo);
+    renderMeshLinks(topo);
+  } catch (e) {
+    console.error("mesh", e);
+  }
+}
+
+function drawMesh(topo) {
+  const svg = document.getElementById("topoSvg");
+  svg.innerHTML = "";
+  const W = 1000, H = 420;
+  const self = topo.self_id || topo.router_id || "self";
+  const neighbours = topo.neighbours || topo.neighbors || [];
+  const nodes = [{ id: self, x: W / 2, y: H / 2, self: true }];
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) * 0.38;
+  neighbours.forEach((n, i) => {
+    const ang = (2 * Math.PI * i) / Math.max(1, neighbours.length) - Math.PI / 2;
+    nodes.push({ id: n.id || n.router_id || "n" + i, x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang), cost: n.cost, rtt: n.rtt_ms });
+  });
+
+  // edges
+  for (let i = 1; i < nodes.length; i++) {
+    const a = nodes[0], b = nodes[i];
+    const hot = neighbours[i - 1] && neighbours[i - 1].active !== false;
+    svg.insertAdjacentHTML("beforeend",
+      `<line class="edge ${hot ? "hot" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 6;
+    svg.insertAdjacentHTML("beforeend",
+      `<text class="edge-lbl" x="${mx}" y="${my}">cost=${b.cost ?? "?"} rtt=${b.rtt != null ? Math.round(b.rtt) + "ms" : "?"}</text>`);
+  }
+
+  // nodes
+  nodes.forEach(n => {
+    svg.insertAdjacentHTML("beforeend",
+      `<circle class="node ${n.self ? "self" : ""}" cx="${n.x}" cy="${n.y}" r="22"/>` +
+      `<text class="node-lbl" x="${n.x}" y="${n.y + 4}">${escapeHtml(String(n.id).slice(0, 8))}</text>`);
+  });
+}
+
+function renderMeshLinks(topo) {
+  const tb = document.querySelector("#tblMeshLinks tbody");
+  const ns = topo.neighbours || topo.neighbors || [];
+  tb.innerHTML = ns.length === 0
+    ? `<tr><td colspan="7" class="center muted">لا جيران</td></tr>`
+    : ns.map(n => `
+      <tr>
+        <td class="mono">${escapeHtml(n.id || n.router_id)}</td>
+        <td class="mono">${escapeHtml(n.address || "")}</td>
+        <td>${fmtMs(n.rtt_ms)}</td>
+        <td>${fmtNum(n.cost)}</td>
+        <td>${fmtRelative(n.last_lsa)}</td>
+        <td><span class="pill ${n.active !== false ? "ok" : "err"}">${n.active !== false ? "نشط" : "خامل"}</span></td>
+        <td>
+          <button data-act="del-neighbour" data-id="${escapeHtml(n.id || n.router_id)}">إزالة</button>
+        </td>
+      </tr>`).join("");
+
+  tb.querySelectorAll('[data-act="del-neighbour"]').forEach(b => {
+    b.onclick = async () => {
+      if (!await confirmDialog("إزالة جار", `هل تريد إزالة <strong>${escapeHtml(b.dataset.id)}</strong>؟`, "إزالة", true)) return;
+      try {
+        await rfetch("/mesh/neighbours/" + encodeURIComponent(b.dataset.id), { method: "DELETE" });
+        toast("تمت الإزالة", "ok"); refreshMesh();
+      } catch (e) { toast("فشل: " + e.message, "err"); }
+    };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REGISTRY
+   ════════════════════════════════════════════════════════════════ */
+async function refreshRegistry() {
+  try {
+    const d = await rfetch("/router/upstreams");
+    state.registry = d.upstreams || [];
+    renderRegistry();
+    renderRoutingRules();
+  } catch (e) { console.error("registry", e); }
+}
+
+function renderRegistry() {
+  const tb = document.querySelector("#tblRegistry tbody");
+  const fl = (document.getElementById("regFilter").value || "").toLowerCase();
+  const rows = state.registry.filter(s => {
+    const k = `${s.id || ""} ${s.hostname || ""}`.toLowerCase();
+    return !fl || k.includes(fl);
+  });
+  tb.innerHTML = rows.length === 0
+    ? `<tr><td colspan="7" class="center muted">لا توجد خدمات مسجلة</td></tr>`
+    : rows.map(s => `
+      <tr>
+        <td class="mono">${escapeHtml(s.id || "")}</td>
+        <td>${escapeHtml(s.hostname || "")}</td>
+        <td class="mono">${escapeHtml(s.ip || "")}:${escapeHtml(String(s.port || ""))}</td>
+        <td><span class="pill ${s.healthy ? "ok" : "err"}">${s.healthy ? "صحي" : "غير صحي"}</span></td>
+        <td>${fmtNum(s.weight || 1)}</td>
+        <td>${fmtRelative(s.last_heartbeat)}</td>
+        <td class="row" style="gap:4px">
+          <button data-act="toggle" data-id="${escapeHtml(s.id || "")}">${s.enabled === false ? "تفعيل" : "تعطيل"}</button>
+          <button class="danger" data-act="del" data-id="${escapeHtml(s.id || "")}">حذف</button>
+        </td>
+      </tr>`).join("");
+
+  tb.querySelectorAll("[data-act='del']").forEach(b => b.onclick = async () => {
+    if (!await confirmDialog("حذف خدمة", `حذف الخدمة <strong>${escapeHtml(b.dataset.id)}</strong>؟`, "حذف", true)) return;
+    try { await rfetch("/router/register/" + encodeURIComponent(b.dataset.id), { method: "DELETE" }); toast("تم الحذف", "ok"); refreshRegistry(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+  tb.querySelectorAll("[data-act='toggle']").forEach(b => b.onclick = async () => {
+    try { await rfetch("/router/register/" + encodeURIComponent(b.dataset.id) + "/toggle", { method: "POST" }); refreshRegistry(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+function renderRoutingRules() {
+  const tb = document.querySelector("#tblRoutingRules tbody");
+  const rules = state.routingRules;
+  tb.innerHTML = rules.length === 0
+    ? `<tr><td colspan="6" class="center muted">لا توجد قواعد</td></tr>`
+    : rules.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td class="mono">${escapeHtml(r.pattern || "")}</td>
+        <td>${escapeHtml(r.method || "ANY")}</td>
+        <td class="mono">${escapeHtml(r.target || "")}</td>
+        <td>${fmtNum(r.weight || 1)}</td>
+        <td><button class="danger" data-i="${i}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-i]").forEach(b => b.onclick = () => {
+    state.routingRules.splice(+b.dataset.i, 1); renderRoutingRules();
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PROXY LOG + RATE LIMITS + IP LISTS
+   ════════════════════════════════════════════════════════════════ */
+async function refreshProxy() {
+  try {
+    const params = new URLSearchParams();
+    const p = document.getElementById("logFltPath").value;
+    const m = document.getElementById("logFltMethod").value;
+    const s = document.getElementById("logFltStatus").value;
+    const u = document.getElementById("logFltUpstream").value;
+    if (p) params.set("path", p);
+    if (m) params.set("method", m);
+    if (s) params.set("status", s);
+    if (u) params.set("upstream", u);
+    const d = await rfetch("/router/proxy/log?" + params.toString()).catch(() => ({ entries: [] }));
+    renderProxyLog(d.entries || []);
+
+    const rl = await rfetch("/router/proxy/rate-limits").catch(() => ({ rules: [] }));
+    state.rateLimits = rl.rules || []; renderRateLimits();
+
+    const il = await rfetch("/router/proxy/ip-lists").catch(() => ({ allow: [], deny: [] }));
+    state.ipLists = il; renderIpLists();
+  } catch (e) { console.error("proxy", e); }
+}
+
+function renderProxyLog(entries) {
+  const tb = document.querySelector("#tblProxyLog tbody");
+  tb.innerHTML = entries.length === 0
+    ? `<tr><td colspan="8" class="center muted">لا توجد طلبات</td></tr>`
+    : entries.slice(0, 1000).map(e => {
+      const sc = e.status >= 500 ? "err" : (e.status >= 400 ? "warn" : "ok");
+      return `<tr>
+        <td class="nowrap">${fmtTime(e.ts)}</td>
+        <td class="mono">${escapeHtml(e.client_ip)}</td>
+        <td>${escapeHtml(e.method)}</td>
+        <td class="mono">${escapeHtml(e.path)}</td>
+        <td><span class="pill ${sc}">${fmtNum(e.status)}</span></td>
+        <td class="mono">${escapeHtml(e.upstream || "")}</td>
+        <td>${fmtMs(e.duration_ms)}</td>
+        <td>${fmtBytes(e.bytes)}</td>
+      </tr>`;
+    }).join("");
+}
+
+function renderRateLimits() {
+  const tb = document.querySelector("#tblRateLimits tbody");
+  tb.innerHTML = state.rateLimits.length === 0
+    ? `<tr><td colspan="5" class="center muted">—</td></tr>`
+    : state.rateLimits.map((r, i) => `
+      <tr>
+        <td class="mono">${escapeHtml(r.path)}</td>
+        <td>${fmtNum(r.per_minute)}</td>
+        <td>${fmtNum(r.burst)}</td>
+        <td>${escapeHtml(r.key || "ip")}</td>
+        <td><button class="danger" data-i="${i}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-i]").forEach(b => b.onclick = async () => {
+    try {
+      await rfetch("/router/proxy/rate-limits/" + b.dataset.i, { method: "DELETE" });
+      refreshProxy();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+function renderIpLists() {
+  const tb = document.querySelector("#tblIpList tbody");
+  const rows = [];
+  (state.ipLists.allow || []).forEach(v => rows.push({ list: "allow", value: v }));
+  (state.ipLists.deny  || []).forEach(v => rows.push({ list: "deny",  value: v }));
+  tb.innerHTML = rows.length === 0
+    ? `<tr><td colspan="3" class="center muted">—</td></tr>`
+    : rows.map(r => `
+      <tr>
+        <td><span class="pill ${r.list === "allow" ? "ok" : "err"}">${r.list === "allow" ? "سماح" : "حظر"}</span></td>
+        <td class="mono">${escapeHtml(r.value)}</td>
+        <td><button class="danger" data-list="${r.list}" data-val="${escapeHtml(r.value)}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-list]").forEach(b => b.onclick = async () => {
+    try {
+      await rfetch("/router/proxy/ip-lists/" + b.dataset.list, {
+        method: "DELETE", body: { value: b.dataset.val },
+      });
+      refreshProxy();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DNS
+   ════════════════════════════════════════════════════════════════ */
+async function refreshDns() {
+  try {
+    const recs = await rfetch("/router/dns/records").catch(() => ({ records: [] }));
+    renderDnsRecords(recs.records || []);
+    const stats = await rfetch("/router/dns/stats").catch(() => ({}));
+    document.getElementById("dnsTotal").textContent   = fmtNum(stats.total || 0);
+    document.getElementById("dnsBlocked").textContent = fmtNum(stats.blocked || 0);
+    document.getElementById("dnsCache").textContent   = fmtPct(stats.cache_hit_pct || 0);
+    const log = await rfetch("/router/dns/log?limit=50").catch(() => ({ entries: [] }));
+    document.getElementById("dnsLog").innerHTML = (log.entries || []).map(e =>
+      `<div class="ln ${e.blocked ? "warn" : "ok"}">${fmtTime(e.ts)} ${escapeHtml(e.client)} → ${escapeHtml(e.qname)} (${escapeHtml(e.qtype)}) ${e.blocked ? "[محظور]" : "→ " + escapeHtml(e.answer || "")}</div>`
+    ).join("") || "—";
+    const bl = await rfetch("/router/dns/blocklist").catch(() => ({ entries: [] }));
+    document.getElementById("blocklistArea").value = (bl.entries || []).join("\n");
+    document.getElementById("blocklistCount").textContent = fmtNum((bl.entries || []).length) + " نطاق";
+    const up = await rfetch("/router/dns/upstreams").catch(() => ({ upstreams: [] }));
+    renderUpstreamDns(up.upstreams || []);
+  } catch (e) { console.error("dns", e); }
+}
+
+function renderDnsRecords(recs) {
+  const tb = document.querySelector("#tblDns tbody");
+  tb.innerHTML = recs.length === 0
+    ? `<tr><td colspan="5" class="center muted">لا توجد سجلات</td></tr>`
+    : recs.map(r => `
+      <tr>
+        <td class="mono">${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.type)}</td>
+        <td class="mono">${escapeHtml(r.value)}</td>
+        <td>${fmtNum(r.ttl)}</td>
+        <td><button class="danger" data-name="${escapeHtml(r.name)}" data-type="${escapeHtml(r.type)}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-name]").forEach(b => b.onclick = async () => {
+    try {
+      await rfetch(`/router/dns/records/${encodeURIComponent(b.dataset.name)}/${encodeURIComponent(b.dataset.type)}`, { method: "DELETE" });
+      refreshDns();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+function renderUpstreamDns(list) {
+  const tb = document.querySelector("#tblUpstreamDns tbody");
+  tb.innerHTML = list.length === 0
+    ? `<tr><td colspan="5" class="center muted">—</td></tr>`
+    : list.map(u => `
+      <tr>
+        <td class="mono">${escapeHtml(u.address)}</td>
+        <td>${escapeHtml(u.proto || "udp")}</td>
+        <td>${fmtMs(u.latency_ms)}</td>
+        <td><span class="pill ${u.healthy ? "ok" : "err"}">${u.healthy ? "صحي" : "معطل"}</span></td>
+        <td><button class="danger" data-addr="${escapeHtml(u.address)}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-addr]").forEach(b => b.onclick = async () => {
+    try { await rfetch("/router/dns/upstreams", { method: "DELETE", body: { address: b.dataset.addr } }); refreshDns(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NTP
+   ════════════════════════════════════════════════════════════════ */
+async function refreshNtp() {
+  try {
+    const s = await rfetch("/router/ntp/status").catch(() => ({}));
+    document.getElementById("ntpState").textContent    = s.synced ? "مُتزامن" : "غير متزامن";
+    document.getElementById("ntpStratum").textContent  = fmtNum(s.stratum || 0);
+    document.getElementById("ntpLastSync").textContent = fmtRelative(s.last_sync);
+    document.getElementById("ntpDrift").textContent    = fmtMs(s.drift_ms);
+    state.ntpPeers = s.peers || [];
+    renderNtpPeers();
+    drawDrift(s.drift_series || synthesizeSeries(60));
+  } catch (e) { console.error("ntp", e); }
+}
+
+function renderNtpPeers() {
+  const tb = document.querySelector("#tblNtpPeers tbody");
+  tb.innerHTML = state.ntpPeers.length === 0
+    ? `<tr><td colspan="6" class="center muted">—</td></tr>`
+    : state.ntpPeers.map(p => `
+      <tr>
+        <td class="mono">${escapeHtml(p.address)}</td>
+        <td>${fmtNum(p.stratum)}</td>
+        <td>${fmtMs(p.delay_ms)}</td>
+        <td>${fmtMs(p.offset_ms)}</td>
+        <td>${fmtMs(p.jitter_ms)}</td>
+        <td><span class="pill ${p.reachable ? "ok" : "err"}">${p.reachable ? "متصل" : "غير متصل"}</span></td>
+      </tr>`).join("");
+}
+
+function drawDrift(series) {
+  const ctx = document.getElementById("chDrift").getContext("2d");
+  const labels = series.map(p => new Date(p.t || p[0]).toLocaleTimeString(AR, { hour: "2-digit", minute: "2-digit" }));
+  const values = series.map(p => p.v != null ? p.v : p[1]);
+  if (state.drift) state.drift.destroy();
+  state.drift = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets: [{ label: "drift (ms)", data: values, borderColor: "#facc15", backgroundColor: "rgba(250,204,21,0.15)", fill: true, tension: 0.3, pointRadius: 0 }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#a0a8b0" } } },
+      scales: {
+        x: { ticks: { color: "#a0a8b0", maxTicksLimit: 12 }, grid: { color: "#1a2a3a" } },
+        y: { ticks: { color: "#a0a8b0" }, grid: { color: "#1a2a3a" } },
+      },
+    },
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   UPnP
+   ════════════════════════════════════════════════════════════════ */
+async function refreshUpnp() {
+  try {
+    const d = await rfetch("/router/upnp/portmaps").catch(() => ({ entries: [] }));
+    state.upnpMaps = d.entries || [];
+    renderUpnp();
+  } catch (e) { console.error("upnp", e); }
+}
+
+function renderUpnp() {
+  const tb = document.querySelector("#tblUpnp tbody");
+  tb.innerHTML = state.upnpMaps.length === 0
+    ? `<tr><td colspan="7" class="center muted">لا توجد منافذ نشطة</td></tr>`
+    : state.upnpMaps.map(m => `
+      <tr>
+        <td>${escapeHtml(m.protocol)}</td>
+        <td>${fmtNum(m.external_port)}</td>
+        <td class="mono">${escapeHtml(m.internal_ip)}</td>
+        <td>${fmtNum(m.internal_port)}</td>
+        <td>${escapeHtml(m.description || "")}</td>
+        <td>${fmtNum(m.lease_duration || 0)} ث</td>
+        <td><button class="danger" data-ext="${m.external_port}" data-proto="${m.protocol}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-ext]").forEach(b => b.onclick = async () => {
+    try {
+      await rfetch(`/router/upnp/portmap/${b.dataset.proto}/${b.dataset.ext}`, { method: "DELETE" });
+      refreshUpnp();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   VENDOR ADAPTERS
+   ════════════════════════════════════════════════════════════════ */
+const VENDOR_TEMPLATES = {
+  mikrotik: `# Helen-friendly RouterOS config (preview only — review before push)
+/ip firewall filter add chain=input action=accept src-address=192.168.0.0/16 comment="Helen LAN"
+/ip firewall nat add chain=dstnat protocol=tcp dst-port=8080 action=dst-nat to-addresses={ROUTER_IP} to-ports=8080
+/ip dns set servers={ROUTER_IP}
+/system ntp client set enabled=yes primary-ntp={ROUTER_IP}
+/ip dhcp-server network set 0 dns-server={ROUTER_IP} ntp-server={ROUTER_IP}`,
+  ubiquiti: `# Helen-friendly EdgeOS / UniFi config
+configure
+set service nat rule 5010 description "Helen-Router upstream"
+set service nat rule 5010 destination port 8080
+set service nat rule 5010 inbound-interface eth0
+set service nat rule 5010 protocol tcp
+set service nat rule 5010 inside-address address {ROUTER_IP}
+set service nat rule 5010 inside-address port 8080
+set service nat rule 5010 type destination
+set system ntp server {ROUTER_IP}
+commit ; save ; exit`,
+  openwrt: `# Helen-friendly OpenWrt UCI config
+uci set firewall.@redirect[-1]=redirect
+uci set firewall.@redirect[-1].target='DNAT'
+uci set firewall.@redirect[-1].src='wan'
+uci set firewall.@redirect[-1].dest='lan'
+uci set firewall.@redirect[-1].proto='tcp'
+uci set firewall.@redirect[-1].src_dport='8080'
+uci set firewall.@redirect[-1].dest_ip='{ROUTER_IP}'
+uci set firewall.@redirect[-1].dest_port='8080'
+uci set dhcp.@dnsmasq[0].server='{ROUTER_IP}'
+uci set system.ntp.server='{ROUTER_IP}'
+uci commit && /etc/init.d/firewall reload && /etc/init.d/dnsmasq reload`,
+  pfsense: `<!-- Helen-friendly pfSense XML-RPC payload (excerpt) -->
+<nat>
+  <rule>
+    <interface>wan</interface>
+    <protocol>tcp</protocol>
+    <target>{ROUTER_IP}</target>
+    <local-port>8080</local-port>
+    <destination><any/></destination>
+    <descr>Helen-Router upstream</descr>
+  </rule>
+</nat>
+<system>
+  <timeservers>{ROUTER_IP}</timeservers>
+  <dnsserver>{ROUTER_IP}</dnsserver>
+</system>`,
+  cisco: `! Helen-friendly Cisco IOS / IOS-XE config
+ip nat inside source static tcp {ROUTER_IP} 8080 interface GigabitEthernet0/0 8080
+ip dns server
+ip name-server {ROUTER_IP}
+ntp server {ROUTER_IP}
+access-list 100 permit tcp 192.168.0.0 0.0.255.255 host {ROUTER_IP} eq 8080
+end
+write memory`,
+};
+
+function refreshVendor() {
+  const ven = document.getElementById("vendorPick").value;
+  // jobs history (cached locally + remote)
+  rfetch("/router/vendor/jobs").then(d => {
+    state.vendorJobs = d.jobs || [];
+    renderVendorJobs();
+  }).catch(() => { renderVendorJobs(); });
+}
+
+function renderVendorJobs() {
+  const tb = document.querySelector("#tblVendorJobs tbody");
+  tb.innerHTML = state.vendorJobs.length === 0
+    ? `<tr><td colspan="5" class="center muted">—</td></tr>`
+    : state.vendorJobs.map(j => `
+      <tr>
+        <td>${fmtTime(j.ts)}</td>
+        <td>${escapeHtml(j.vendor)}</td>
+        <td class="mono">${escapeHtml(j.host)}</td>
+        <td>${escapeHtml(j.action)}</td>
+        <td><span class="pill ${j.success ? "ok" : "err"}">${j.success ? "نجاح" : "فشل"}</span></td>
+      </tr>`).join("");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   EXTERNAL ROUTERS
+   ════════════════════════════════════════════════════════════════ */
+async function refreshExternal() {
+  try {
+    const d = await rfetch("/router/external").catch(() => ({ routers: [], mappings: [] }));
+    state.externalRouters  = d.routers   || [];
+    state.externalMappings = d.mappings  || [];
+    renderExternal();
+  } catch (e) { console.error("external", e); }
+}
+
+function renderExternal() {
+  const tb = document.querySelector("#tblExternal tbody");
+  tb.innerHTML = state.externalRouters.length === 0
+    ? `<tr><td colspan="7" class="center muted">—</td></tr>`
+    : state.externalRouters.map(r => `
+      <tr>
+        <td class="mono">${escapeHtml(r.id)}</td>
+        <td class="mono">${escapeHtml(r.address)}</td>
+        <td><span class="pill ${r.online ? "ok" : "err"}">${r.online ? "متصل" : "غير متصل"}</span></td>
+        <td>${escapeHtml(r.nat_type || "—")}</td>
+        <td>${fmtNum(r.mapping_count || 0)}</td>
+        <td>${fmtRelative(r.last_seen)}</td>
+        <td><button class="danger" data-id="${escapeHtml(r.id)}">إزالة</button></td>
+      </tr>`).join("");
+
+  const tb2 = document.querySelector("#tblExternalMappings tbody");
+  tb2.innerHTML = state.externalMappings.length === 0
+    ? `<tr><td colspan="6" class="center muted">—</td></tr>`
+    : state.externalMappings.map(m => `
+      <tr>
+        <td class="mono">${escapeHtml(m.router_id)}</td>
+        <td>${escapeHtml(m.protocol)}</td>
+        <td>${fmtNum(m.external_port)}</td>
+        <td class="mono">${escapeHtml(m.internal_ip)}:${fmtNum(m.internal_port)}</td>
+        <td>${escapeHtml(m.description || "")}</td>
+        <td>${escapeHtml(m.source || "—")}</td>
+      </tr>`).join("");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CONNECTION BROKER
+   ════════════════════════════════════════════════════════════════ */
+async function refreshBroker() {
+  try {
+    const d = await rfetch("/router/broker/status").catch(() => ({}));
+    document.getElementById("brkPending").textContent = fmtNum(d.pending || 0);
+    document.getElementById("brkActive").textContent  = fmtNum(d.active || 0);
+    document.getElementById("brkHpOk").textContent    = fmtNum(d.holepunch_success || 0);
+    document.getElementById("brkHpFail").textContent  = fmtNum(d.holepunch_fail || 0);
+    renderBrokerTables(d);
+  } catch (e) { console.error("broker", e); }
+}
+
+function renderBrokerTables(d) {
+  const ta = document.querySelector("#tblBrokerActive tbody");
+  const sess = d.sessions || [];
+  ta.innerHTML = sess.length === 0
+    ? `<tr><td colspan="6" class="center muted">—</td></tr>`
+    : sess.map(s => `
+      <tr>
+        <td class="mono">${escapeHtml(s.id)}</td>
+        <td class="mono">${escapeHtml(s.a)}</td>
+        <td class="mono">${escapeHtml(s.b)}</td>
+        <td>${escapeHtml(s.mode)}</td>
+        <td>${fmtRelative(s.started)}</td>
+        <td><button class="danger" data-id="${escapeHtml(s.id)}">قطع</button></td>
+      </tr>`).join("");
+
+  const tp = document.querySelector("#tblBrokerPunch tbody");
+  const hp = d.holepunch_attempts || [];
+  tp.innerHTML = hp.length === 0
+    ? `<tr><td colspan="6" class="center muted">—</td></tr>`
+    : hp.map(h => `
+      <tr>
+        <td>${fmtTime(h.ts)}</td>
+        <td class="mono">${escapeHtml(h.a)}</td>
+        <td class="mono">${escapeHtml(h.b)}</td>
+        <td>${escapeHtml(h.nat_type || "")}</td>
+        <td><span class="pill ${h.result === "ok" ? "ok" : h.result === "in_progress" ? "info" : "err"}">${escapeHtml(h.result)}</span></td>
+        <td>${fmtMs(h.duration_ms)}</td>
+      </tr>`).join("");
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SECURITY
+   ════════════════════════════════════════════════════════════════ */
+async function refreshSecurity() {
+  try {
+    const d = await rfetch("/router/security").catch(() => ({}));
+    document.getElementById("curToken").textContent = d.token || "—";
+    state.subnets = d.allowed_subnets || [];
+    renderSubnets();
+    state.encMode = d.enforcement_mode || "strict";
+    document.querySelectorAll("input[name='encmode']").forEach(r => { r.checked = (r.value === state.encMode); });
+  } catch (e) { console.error("security", e); }
+}
+
+function renderSubnets() {
+  const tb = document.querySelector("#tblSubnets tbody");
+  tb.innerHTML = state.subnets.length === 0
+    ? `<tr><td colspan="3" class="center muted">—</td></tr>`
+    : state.subnets.map(s => `
+      <tr>
+        <td class="mono">${escapeHtml(s.cidr)}</td>
+        <td>${escapeHtml(s.description || "")}</td>
+        <td><button class="danger" data-cidr="${escapeHtml(s.cidr)}">حذف</button></td>
+      </tr>`).join("");
+  tb.querySelectorAll("button[data-cidr]").forEach(b => b.onclick = async () => {
+    if (!await confirmDialog("حذف شبكة", `إزالة <strong>${escapeHtml(b.dataset.cidr)}</strong>؟`, "حذف", true)) return;
+    try {
+      await rfetch("/router/security/subnets", { method: "DELETE", body: { cidr: b.dataset.cidr } });
+      refreshSecurity();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DIAGNOSTICS
+   ════════════════════════════════════════════════════════════════ */
+async function refreshDiag() {
+  try {
+    const ups = await rfetch("/router/upstreams").catch(() => ({ upstreams: [] }));
+    const sel = document.getElementById("bwPeer");
+    sel.innerHTML = `<option value="">— اختر ند —</option>` + (ups.upstreams || []).map(u =>
+      `<option value="${escapeHtml(u.id)}">${escapeHtml(u.hostname || u.id)}</option>`).join("");
+  } catch (e) {}
+}
+
+async function diagCall(endpoint, payload, outId) {
+  const out = document.getElementById(outId);
+  out.textContent = "جارٍ التنفيذ...";
+  try {
+    const d = await rfetch(endpoint, { method: "POST", body: payload });
+    out.textContent = typeof d === "string" ? d : (d.output || JSON.stringify(d, null, 2));
+  } catch (e) { out.textContent = "خطأ: " + e.message; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CONFIG EDITOR
+   ════════════════════════════════════════════════════════════════ */
+async function refreshConfig() {
+  // intentionally don't auto-load — user might be editing
+  document.getElementById("cfgState").textContent = "— لم يُحمَّل بعد —";
+}
+
+async function loadConfig() {
+  const fmt = document.getElementById("cfgFormat").value;
+  try {
+    const d = await rfetch("/router/config?format=" + fmt);
+    document.getElementById("cfgEditor").value = (typeof d === "string") ? d : (d.content || JSON.stringify(d, null, 2));
+    document.getElementById("cfgState").textContent = "تم التحميل: " + fmtTime(Date.now());
+  } catch (e) { toast("فشل التحميل: " + e.message, "err"); }
+}
+
+async function saveConfig() {
+  const fmt = document.getElementById("cfgFormat").value;
+  const content = document.getElementById("cfgEditor").value;
+  if (!await confirmDialog("حفظ التهيئة", "هل تريد حفظ التهيئة الحالية على القرص؟", "حفظ")) return;
+  try {
+    await rfetch("/router/config?format=" + fmt, { method: "PUT", body: { content }, headers: { "Content-Type": "application/json" } });
+    toast("تم الحفظ", "ok");
+    document.getElementById("cfgState").textContent = "تم الحفظ: " + fmtTime(Date.now());
+  } catch (e) { toast("فشل الحفظ: " + e.message, "err"); }
+}
+
+async function validateConfig() {
+  const fmt = document.getElementById("cfgFormat").value;
+  const content = document.getElementById("cfgEditor").value;
+  document.getElementById("cfgValidate").textContent = "جارٍ التحقق...";
+  try {
+    const d = await rfetch("/router/config/validate?format=" + fmt, { method: "POST", body: { content } });
+    if (d.valid) {
+      document.getElementById("cfgValidate").innerHTML = `<div class="ln ok">صحيح — لا أخطاء.</div>`;
+    } else {
+      document.getElementById("cfgValidate").innerHTML = (d.errors || []).map(e =>
+        `<div class="ln err">[${escapeHtml(e.path || "")}] ${escapeHtml(e.message)}</div>`).join("");
+    }
+  } catch (e) { document.getElementById("cfgValidate").innerHTML = `<div class="ln err">${escapeHtml(e.message)}</div>`; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   EVENT WIRING
+   ════════════════════════════════════════════════════════════════ */
+function wire() {
+  /* Tabs */
+  document.querySelectorAll(".tab").forEach(t => t.onclick = () => activateTab(t.dataset.tab));
+
+  /* Top bar */
+  document.getElementById("btnChangeUrl").onclick = async () => {
+    const cur = getRouterBaseUrl();
+    const html = `
+      <div class="field"><label>عنوان الراوتر الكامل</label>
+        <input id="newUrl" value="${escapeHtml(cur)}" style="width:100%" /></div>
+      <div class="field"><label>الرمز (Bearer token)</label>
+        <input id="newTok" value="${escapeHtml(getRouterToken())}" style="width:100%" /></div>`;
+    if (await confirmDialog("تغيير عنوان الراوتر", html, "حفظ")) {
+      setRouterBaseUrl(document.getElementById("newUrl").value.trim() || ROUTER_BASE_URL_DEFAULT);
+      localStorage.setItem(ROUTER_TOKEN_LS_KEY, document.getElementById("newTok").value.trim());
+      document.getElementById("urlText").textContent = getRouterBaseUrl();
+      probeRouter(); ON_ACTIVATE[state.activeTab] && ON_ACTIVATE[state.activeTab]();
+    }
+  };
+  document.getElementById("btnReloadCfg").onclick = async () => {
+    if (!await confirmDialog("إعادة تحميل التهيئة", "هل تريد إعادة تحميل التهيئة الحية من القرص؟")) return;
+    try { await rfetch("/router/admin/reload", { method: "POST" }); toast("تم إعادة التحميل", "ok"); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnViewLogs").onclick = () => { activateTab("proxy"); };
+  document.getElementById("btnRestart").onclick = async () => {
+    if (!await confirmDialog("إعادة تشغيل الراوتر",
+      "<strong>تنبيه</strong>: سيتم قطع جميع الاتصالات لبضع ثوانٍ. هل أنت متأكد؟", "إعادة التشغيل", true)) return;
+    try { await rfetch("/router/admin/restart", { method: "POST" }); toast("جاري إعادة التشغيل...", "ok"); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("banRetry").onclick = () => probeRouter();
+
+  /* Mesh */
+  document.getElementById("btnReroute").onclick = async () => {
+    try { await rfetch("/mesh/reroute", { method: "POST" }); toast("تم تشغيل Dijkstra", "ok"); refreshMesh(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnAddNeighbour").onclick = async () => {
+    const html = `
+      <div class="field"><label>مُعرّف الند</label><input id="nbId" /></div>
+      <div class="field"><label>العنوان (host:port)</label><input id="nbAddr" /></div>
+      <div class="field"><label>التكلفة (cost)</label><input id="nbCost" type="number" value="10" /></div>`;
+    if (!await confirmDialog("إضافة جار", html, "إضافة")) return;
+    try {
+      await rfetch("/mesh/neighbours", { method: "POST", body: {
+        id: document.getElementById("nbId").value.trim(),
+        address: document.getElementById("nbAddr").value.trim(),
+        cost: +document.getElementById("nbCost").value || 10,
+      }});
+      toast("تمت الإضافة", "ok"); refreshMesh();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* Registry */
+  document.getElementById("regFilter").oninput = renderRegistry;
+  document.getElementById("btnRefreshRegistry").onclick = refreshRegistry;
+  document.getElementById("btnAddService").onclick = async () => {
+    const html = `
+      <div class="field"><label>المُعرّف</label><input id="svId" /></div>
+      <div class="field"><label>المضيف</label><input id="svHost" /></div>
+      <div class="field"><label>IP</label><input id="svIp" /></div>
+      <div class="field"><label>المنفذ</label><input id="svPort" type="number" value="3000" /></div>
+      <div class="field"><label>الوزن</label><input id="svW" type="number" value="1" /></div>`;
+    if (!await confirmDialog("تسجيل خدمة", html, "تسجيل")) return;
+    try {
+      await rfetch("/router/register", { method: "POST", body: {
+        id:       document.getElementById("svId").value.trim(),
+        hostname: document.getElementById("svHost").value.trim(),
+        ip:       document.getElementById("svIp").value.trim(),
+        port:     +document.getElementById("svPort").value,
+        weight:   +document.getElementById("svW").value || 1,
+      }});
+      toast("تم التسجيل", "ok"); refreshRegistry();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnAddRule").onclick = async () => {
+    const html = `
+      <div class="field"><label>regex المسار</label><input id="rPat" placeholder="^/api/.*" /></div>
+      <div class="field"><label>الطريقة</label><input id="rMth" value="ANY" /></div>
+      <div class="field"><label>الخدمة الهدف (id)</label><input id="rTgt" /></div>
+      <div class="field"><label>الوزن</label><input id="rW" type="number" value="1" /></div>`;
+    if (!await confirmDialog("قاعدة توجيه جديدة", html, "إضافة")) return;
+    state.routingRules.push({
+      pattern: document.getElementById("rPat").value.trim(),
+      method:  document.getElementById("rMth").value.trim(),
+      target:  document.getElementById("rTgt").value.trim(),
+      weight:  +document.getElementById("rW").value || 1,
+    });
+    renderRoutingRules();
+    try { await rfetch("/router/routing/rules", { method: "PUT", body: { rules: state.routingRules } }); }
+    catch (e) { toast("لم يحفظ على الخادم: " + e.message, "err"); }
+  };
+
+  /* Proxy */
+  document.getElementById("btnApplyFilter").onclick = refreshProxy;
+  document.getElementById("btnClearFilter").onclick = () => {
+    ["logFltPath","logFltMethod","logFltStatus","logFltUpstream"].forEach(id => document.getElementById(id).value = "");
+    refreshProxy();
+  };
+  document.getElementById("btnAddRateLimit").onclick = async () => {
+    const html = `
+      <div class="field"><label>المسار</label><input id="rlPath" /></div>
+      <div class="field"><label>الحد/دقيقة</label><input id="rlMin" type="number" value="60" /></div>
+      <div class="field"><label>burst</label><input id="rlBurst" type="number" value="20" /></div>
+      <div class="field"><label>المفتاح</label><select id="rlKey"><option value="ip">ip</option><option value="token">token</option></select></div>`;
+    if (!await confirmDialog("قاعدة rate-limit", html, "إضافة")) return;
+    try {
+      await rfetch("/router/proxy/rate-limits", { method: "POST", body: {
+        path: document.getElementById("rlPath").value.trim(),
+        per_minute: +document.getElementById("rlMin").value,
+        burst:      +document.getElementById("rlBurst").value,
+        key:        document.getElementById("rlKey").value,
+      }});
+      refreshProxy();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnAddIp").onclick = async () => {
+    const list = document.getElementById("ipListSelect").value;
+    const val  = document.getElementById("ipListEntry").value.trim();
+    if (!val) return;
+    try {
+      await rfetch("/router/proxy/ip-lists/" + list, { method: "POST", body: { value: val } });
+      document.getElementById("ipListEntry").value = "";
+      refreshProxy();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* DNS */
+  document.getElementById("btnAddDns").onclick = async () => {
+    try {
+      await rfetch("/router/dns/records", { method: "POST", body: {
+        name:  document.getElementById("dnsDomain").value.trim(),
+        type:  document.getElementById("dnsType").value,
+        value: document.getElementById("dnsValue").value.trim(),
+        ttl:  +document.getElementById("dnsTtl").value || 300,
+      }});
+      ["dnsDomain","dnsValue"].forEach(id => document.getElementById(id).value = "");
+      refreshDns();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnUploadBlocklist").onclick = async () => {
+    const f = document.getElementById("blocklistFile").files[0];
+    if (!f) { toast("اختر ملفاً أولاً", "err"); return; }
+    const txt = await f.text();
+    const lines = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    document.getElementById("blocklistArea").value = lines.join("\n");
+    toast(`تم تحميل ${fmtNum(lines.length)} نطاق محلياً، اضغط حفظ.`, "ok");
+  };
+  document.getElementById("btnSaveBlocklist").onclick = async () => {
+    const lines = document.getElementById("blocklistArea").value
+      .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    try {
+      await rfetch("/router/dns/blocklist", { method: "PUT", body: { entries: lines } });
+      document.getElementById("blocklistCount").textContent = fmtNum(lines.length) + " نطاق";
+      toast("تم الحفظ", "ok");
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnDownloadBlocklist").onclick = async () => {
+    try {
+      const d = await rfetch("/router/dns/blocklist");
+      const blob = new Blob([(d.entries || []).join("\n")], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "helen-blocklist.txt";
+      a.click();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnAddUpstreamDns").onclick = async () => {
+    const v = document.getElementById("upstreamDns").value.trim();
+    if (!v) return;
+    try {
+      await rfetch("/router/dns/upstreams", { method: "POST", body: { address: v } });
+      document.getElementById("upstreamDns").value = "";
+      refreshDns();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* NTP */
+  document.getElementById("btnForceSync").onclick = async () => {
+    try { await rfetch("/router/ntp/sync", { method: "POST" }); toast("تم الإرسال", "ok"); refreshNtp(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* UPnP */
+  document.getElementById("btnDiscoverUpnp").onclick = async () => {
+    try { const d = await rfetch("/router/upnp/discover", { method: "POST" }); toast(`عُثر على ${fmtNum(d.found || 0)}`, "ok"); refreshUpnp(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnRefreshUpnp").onclick = refreshUpnp;
+  document.getElementById("btnAddUpnp").onclick = async () => {
+    try {
+      await rfetch("/router/upnp/portmap", { method: "POST", body: {
+        protocol:      document.getElementById("upProto").value,
+        external_port: +document.getElementById("upExt").value,
+        internal_port: +document.getElementById("upInt").value,
+        internal_ip:   document.getElementById("upIp").value.trim(),
+        lease_duration:+document.getElementById("upDur").value,
+        description:   document.getElementById("upDesc").value.trim(),
+      }});
+      toast("تمت الإضافة", "ok"); refreshUpnp();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* Vendor */
+  document.getElementById("btnVendorTest").onclick = async () => {
+    try {
+      const d = await rfetch("/router/vendor/test", { method: "POST", body: vendorPayload() });
+      toast(d.success ? "الاتصال ناجح" : "فشل: " + (d.error || ""), d.success ? "ok" : "err");
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnVendorRender").onclick = () => {
+    const v = document.getElementById("vendorPick").value;
+    const tpl = VENDOR_TEMPLATES[v] || "# unknown vendor";
+    document.getElementById("vendorPreview").value =
+      tpl.replace(/\{ROUTER_IP\}/g, document.getElementById("vendorHost").value.trim() || "<router-ip>");
+    document.getElementById("vendorState").textContent = "تم التوليد — راجع قبل الدفع.";
+    document.getElementById("btnVendorPush").disabled = false;
+  };
+  document.getElementById("btnVendorPush").onclick = async () => {
+    if (!await confirmDialog("دفع التهيئة",
+      "<strong>تحذير</strong>: سيتم تنفيذ هذه الأوامر على الجهاز المستهدف. تأكد من المعاينة أعلاه.",
+      "دفع الآن", true)) return;
+    try {
+      const d = await rfetch("/router/vendor/push", { method: "POST", body: Object.assign(vendorPayload(), {
+        config: document.getElementById("vendorPreview").value,
+      })});
+      toast(d.success ? "تم الدفع" : "فشل", d.success ? "ok" : "err");
+      refreshVendor();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* External */
+  document.getElementById("btnAddExternal").onclick = async () => {
+    const html = `
+      <div class="field"><label>المُعرّف</label><input id="exId" /></div>
+      <div class="field"><label>العنوان</label><input id="exAddr" /></div>`;
+    if (!await confirmDialog("إضافة راوتر خارجي", html, "إضافة")) return;
+    try {
+      await rfetch("/router/external", { method: "POST", body: {
+        id: document.getElementById("exId").value.trim(),
+        address: document.getElementById("exAddr").value.trim(),
+      }});
+      refreshExternal();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnScanExternal").onclick = async () => {
+    try { await rfetch("/router/external/scan", { method: "POST" }); refreshExternal(); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* Security */
+  document.getElementById("btnCopyToken").onclick = () => {
+    navigator.clipboard.writeText(document.getElementById("curToken").textContent).then(() => toast("تم النسخ", "ok"));
+  };
+  document.getElementById("btnRotateToken").onclick = async () => {
+    if (!await confirmDialog("توليد رمز جديد",
+      "<strong>تنبيه</strong>: سيتطلب تحديث الرمز على كل خادم وعميل.", "توليد", true)) return;
+    try { const d = await rfetch("/router/security/rotate-token", { method: "POST" }); document.getElementById("curToken").textContent = d.token; toast("تم", "ok"); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnAddSubnet").onclick = async () => {
+    const v = document.getElementById("newSubnet").value.trim();
+    if (!v) return;
+    try {
+      await rfetch("/router/security/subnets", { method: "POST", body: { cidr: v } });
+      document.getElementById("newSubnet").value = "";
+      refreshSecurity();
+    } catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+  document.getElementById("btnSaveMode").onclick = async () => {
+    const mode = document.querySelector("input[name='encmode']:checked")?.value;
+    try { await rfetch("/router/security/enforcement", { method: "PUT", body: { mode } }); toast("تم الحفظ", "ok"); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+
+  /* Diag */
+  document.getElementById("btnPing").onclick = () => diagCall("/router/diag/ping",
+    { host: document.getElementById("pingHost").value.trim(), count: +document.getElementById("pingCount").value || 4 }, "pingOut");
+  document.getElementById("btnTrace").onclick = () => diagCall("/router/diag/traceroute",
+    { host: document.getElementById("trHost").value.trim() }, "trOut");
+  document.getElementById("btnLookup").onclick = () => diagCall("/router/diag/dns",
+    { name: document.getElementById("lkName").value.trim(), type: document.getElementById("lkType").value }, "lkOut");
+  document.getElementById("btnScan").onclick = () => diagCall("/router/diag/portscan",
+    { host: document.getElementById("psHost").value.trim(), range: document.getElementById("psRange").value.trim() }, "psOut");
+  document.getElementById("btnBw").onclick = () => diagCall("/router/diag/bandwidth", {
+    peer: document.getElementById("bwPeer").value,
+    seconds: +document.getElementById("bwSec").value,
+    protocol: document.getElementById("bwProto").value,
+  }, "bwOut");
+
+  /* Config */
+  document.getElementById("btnLoadCfg").onclick = loadConfig;
+  document.getElementById("btnSaveCfg").onclick = saveConfig;
+  document.getElementById("btnValidateCfg").onclick = validateConfig;
+  document.getElementById("btnReloadCfgInline").onclick = async () => {
+    try { await rfetch("/router/admin/reload", { method: "POST" }); toast("تم إعادة التحميل", "ok"); }
+    catch (e) { toast("فشل: " + e.message, "err"); }
+  };
+}
+
+function vendorPayload() {
+  return {
+    vendor: document.getElementById("vendorPick").value,
+    host:   document.getElementById("vendorHost").value.trim(),
+    port:   +document.getElementById("vendorPort").value || undefined,
+    user:   document.getElementById("vendorUser").value.trim(),
+    pass:   document.getElementById("vendorPass").value,
+    method: document.getElementById("vendorMethod").value,
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AUTO-REFRESH SCHEDULERS
+   ════════════════════════════════════════════════════════════════ */
+function startSchedulers() {
+  setInterval(() => { probeRouter(); }, RTT_PROBE_INTERVAL_MS);
+
+  setInterval(() => {
+    if (state.activeTab === "overview" && state.online) refreshOverview();
+  }, KPI_REFRESH_INTERVAL_MS);
+
+  setInterval(() => {
+    if (state.activeTab === "mesh" && state.online && document.getElementById("meshAutoRefresh").checked) refreshMesh();
+  }, MESH_REFRESH_INTERVAL_MS);
+
+  setInterval(() => {
+    if (state.activeTab === "proxy" && state.online && document.getElementById("proxyAutoRefresh").checked) refreshProxy();
+  }, PROXY_LOG_INTERVAL_MS);
+
+  setInterval(() => {
+    if ((state.activeTab === "broker" || state.activeTab === "ntp") && state.online) ON_ACTIVATE[state.activeTab]();
+  }, 8000);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BOOT
+   ════════════════════════════════════════════════════════════════ */
+document.addEventListener("DOMContentLoaded", () => {
+  wire();
+  document.getElementById("urlText").textContent = getRouterBaseUrl();
+  probeRouter().finally(() => {
+    refreshOverview();
+    startSchedulers();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   END OF SCRIPT
+   ════════════════════════════════════════════════════════════════ */
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+/* Tabs */
+"Contacts"           = "Contacts";
+"Recents"            = "Recents";
+"Favorites"          = "Favorites";
+"Settings"           = "Settings";
+
+/* Common */
+"Search"             = "Search";
+"Today"              = "Today";
+"Yesterday"          = "Yesterday";
+"Cancel"             = "Cancel";
+"Done"               = "Done";
+
+/* Recents */
+"All"                = "All";
+"Missed"             = "Missed";
+"Incoming"           = "Incoming";
+"Outgoing"           = "Outgoing";
+"No Missed Calls"    = "No Missed Calls";
+"No Recent Calls"    = "No Recent Calls";
+"Calls you make or receive will appear here."
+                     = "Calls you make or receive will appear here.";
+"Call info"          = "Call info";
+"Call"               = "Call";
+"Delete"             = "Delete";
+"Incoming call"      = "Incoming call";
+"Outgoing call"      = "Outgoing call";
+"Missed call"        = "Missed call";
+
+/* Contacts */
+"No Results"         = "No Results";
+"Check the spelling or try a different name."
+                     = "Check the spelling or try a different name.";
+"Message"            = "Message";
+"Favorite"           = "Favorite";
+"Unfavorite"         = "Unfavorite";
+
+/* Favorites */
+"No Favorites"       = "No Favorites";
+"Add favorites for one-tap dialing."
+                     = "Add favorites for one-tap dialing.";
+"mobile"             = "mobile";
+"Contact info"       = "Contact info";
+
+/* Detail */
+"call"               = "call";
+"message"            = "message";
+"video"              = "video";
+"mail"               = "mail";
+"email"              = "email";
+"Notes"              = "Notes";
+"Add to Favorites"   = "Add to Favorites";
+"Remove from Favorites" = "Remove from Favorites";
+"Double-tap to copy" = "Double-tap to copy";
+
+/* Call screen */
+"Phone"              = "Phone";
+"FaceTime"           = "FaceTime";
+"mute"               = "mute";
+"keypad"             = "keypad";
+"speaker"            = "speaker";
+"add"                = "add";
+"contacts"           = "contacts";
+"On"                 = "On";
+"Off"                = "Off";
+"End call"           = "End call";
+
+/* Settings */
+"Account"            = "Account";
+"Notifications"      = "Notifications";
+"Read Receipts"      = "Read Receipts";
+"Appearance"         = "Appearance";
+"Theme"              = "Theme";
+"System"             = "System";
+"Light"              = "Light";
+"Dark"               = "Dark";
+"Privacy & Security" = "Privacy & Security";
+"Storage"            = "Storage";
+"Help"               = "Help";
+"Version"            = "Version";
+"Sign Out"           = "Sign Out";

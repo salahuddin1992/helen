@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Server Console</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #111a2e;
+    --panel-2: #18243d;
+    --border: #243451;
+    --text: #e7eefc;
+    --muted: #95a4c2;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --err: #ef4444;
+    --accent: #4cc2ff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Tahoma", sans-serif;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(180deg, #132039 0%, #0d1629 100%);
+  }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .2px; }
+  h1 small { color: var(--muted); font-weight: 400; margin-inline-start: 8px; font-size: 12px; }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; margin-inline-end: 8px;
+    box-shadow: 0 0 10px currentColor;
+  }
+  .dot.ok { background: var(--ok); color: var(--ok); }
+  .dot.err { background: var(--err); color: var(--err); }
+  .dot.warn { background: var(--warn); color: var(--warn); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 0;
+  }
+  aside {
+    border-inline-start: 1px solid var(--border);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: auto;
+    background: var(--panel);
+  }
+  section.logs {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 8px;
+  }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+  .kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 13px;
+  }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-family: var(--mono); direction: ltr; text-align: start; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: #1a2946;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  .btn:hover { background: #22335a; border-color: #355082; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: #1c4d8a; border-color: #2c6bb8; }
+  .btn.primary:hover { background: #225fa8; }
+  .btn.danger { background: #6b1f1f; border-color: #a23434; }
+  .btn.danger:hover { background: #8a2828; }
+  .btn.ghost { background: transparent; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .logs h3 {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .log-body {
+    flex: 1;
+    overflow: auto;
+    background: #060c1a;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    direction: ltr;
+    text-align: start;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+  .line { padding: 1px 0; }
+  .line .lvl {
+    display: inline-block;
+    min-width: 56px;
+    font-weight: 600;
+    margin-inline-end: 6px;
+  }
+  .line.DEBUG .lvl { color: #7c8dab; }
+  .line.INFO .lvl { color: var(--accent); }
+  .line.WARNING .lvl { color: var(--warn); }
+  .line.ERROR .lvl, .line.CRITICAL .lvl { color: var(--err); }
+  .line .ts { color: #6b7a99; margin-inline-end: 6px; }
+
+  .hint {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row .grow { flex: 1; }
+  label.chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <span id="statusDot" class="dot warn"></span>
+    Helen Server
+    <small id="statusText">جاري التحقق…</small>
+  </h1>
+  <div class="actions">
+    <button class="btn" onclick="doStart()">تشغيل</button>
+    <button class="btn" onclick="doRestart()">إعادة تشغيل</button>
+    <button class="btn danger" onclick="doStop()">إيقاف</button>
+    <button class="btn primary" onclick="openAdmin()">فتح لوحة الأدمن</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="card">
+      <h3>الحالة</h3>
+      <div class="kv">
+        <div class="k">المنفذ</div><div class="v" id="kPort">—</div>
+        <div class="k">العنوان</div><div class="v" id="kHost">—</div>
+        <div class="k">PID</div><div class="v" id="kPid">—</div>
+        <div class="k">المدة</div><div class="v" id="kUptime">—</div>
+        <div class="k">الإصدار</div><div class="v" id="kMode">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>مباشر</h3>
+      <div class="kv">
+        <div class="k">المستخدمون المتصلون</div><div class="v" id="kOnline">—</div>
+        <div class="k">Rate-limit buckets</div><div class="v" id="kBuckets">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>النسخ الاحتياطي</h3>
+      <div class="kv">
+        <div class="k">الحاله</div><div class="v" id="bkEnabled">—</div>
+        <div class="k">الفاصل</div><div class="v" id="bkInterval">—</div>
+        <div class="k">التشغيلات</div><div class="v" id="bkRuns">—</div>
+        <div class="k">آخر تشغيل</div><div class="v" id="bkLast">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>اختصارات</h3>
+      <div class="actions">
+        <button class="btn ghost" onclick="api.open_logs_folder()">مجلد السجلات</button>
+        <button class="btn ghost" onclick="openDocs()">/docs (API)</button>
+        <button class="btn ghost" onclick="openHealth()">/api/health</button>
+      </div>
+      <div class="hint" style="margin-top:8px">
+        إغلاق النافذة يُصغّر التطبيق إلى شريط المهام — السيرفر يبقى يعمل.
+        للإيقاف الكامل استخدم زر الإيقاف ثم "Quit" من أيقونة الشريط.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>تحكم</h3>
+      <div class="actions">
+        <button class="btn danger" onclick="quitApp()">إنهاء التطبيق بالكامل</button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="logs">
+    <h3>
+      <span>السجلات المباشرة</span>
+      <span>
+        <label class="chk"><input type="checkbox" id="autoscroll" checked /> انتقال تلقائي</label>
+        <button class="btn ghost" onclick="clearLogs()">مسح العرض</button>
+      </span>
+    </h3>
+    <div id="logBody" class="log-body"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  // ── pywebview js_api indirection ─────────────────────────
+  // The bridge is injected AFTER the page loads; wrap every call so the UI
+  // can render before the backend is reachable and retries cleanly on a race.
+  const pend = [];
+  let apiReady = null;
+
+  function whenApi() {
+    if (apiReady) return apiReady;
+    apiReady = new Promise((resolve) => {
+      function check() {
+        if (window.pywebview && window.pywebview.api) return resolve(window.pywebview.api);
+        setTimeout(check, 60);
+      }
+      check();
+    });
+    return apiReady;
+  }
+
+  // Public API wrapper used by inline button handlers.
+  window.api = {
+    status: () => whenApi().then(a => a.status()),
+    start:  () => whenApi().then(a => a.start()),
+    stop:   () => whenApi().then(a => a.stop()),
+    restart:() => whenApi().then(a => a.restart()),
+    recent_logs: (s) => whenApi().then(a => a.recent_logs(s)),
+    open_logs_folder: () => whenApi().then(a => a.open_logs_folder()),
+    open_admin: () => whenApi().then(a => a.open_admin()),
+    open_url: (u) => whenApi().then(a => a.open_url(u)),
+    backup_state: () => whenApi().then(a => a.backup_state()),
+    quit_app: () => whenApi().then(a => a.quit_app()),
+  };
+
+  // ── Status panel ─────────────────────────────────────────
+  const el = (id) => document.getElementById(id);
+
+  function fmtUptime(sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h) return `${h}h ${m}m ${s}s`;
+    if (m) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  async function refreshStatus() {
+    try {
+      const s = await window.api.status();
+      const dot = el('statusDot'), txt = el('statusText');
+      if (s.listening && s.alive) {
+        dot.className = 'dot ok';
+        txt.textContent = 'يعمل';
+      } else if (s.alive) {
+        dot.className = 'dot warn';
+        txt.textContent = 'يبدأ…';
+      } else {
+        dot.className = 'dot err';
+        txt.textContent = 'متوقف';
+      }
+      el('kPort').textContent = s.port ?? '—';
+      el('kHost').textContent = s.host ?? '—';
+      el('kPid').textContent = s.pid ?? '—';
+      el('kUptime').textContent = fmtUptime(s.uptime_sec);
+      el('kMode').textContent = s.frozen ? 'Packaged (PyInstaller)' : 'Dev';
+      el('kOnline').textContent = (s.online_users ?? '—');
+      el('kBuckets').textContent = (s.rate_limit_buckets ?? '—');
+      window.__lastStatus = s;
+    } catch (e) {
+      // Bridge may not be ready yet — silent retry on the next tick.
+    }
+    // Backup scheduler card — separate call so a scheduler error doesn't
+    // blank the main status panel.
+    try {
+      const b = await window.api.backup_state();
+      if (b && !b.error) {
+        el('bkEnabled').textContent = b.enabled ? 'مفعّل' : 'معطّل';
+        el('bkInterval').textContent = (b.interval_hours ?? '—') + 'h · ' + (b.retain_count ?? '—') + ' نسخ';
+        el('bkRuns').textContent = (b.run_count ?? 0) + ' (' + (b.failure_count ?? 0) + ' فشل)';
+        if (b.last_run) {
+          const ts = (b.last_run.ts || '').replace('T', ' ').slice(0, 19);
+          const mark = b.last_run.ok ? '✓' : '✗';
+          el('bkLast').textContent = mark + ' ' + ts;
+        } else {
+          el('bkLast').textContent = 'لم يُشغَّل بعد';
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // ── Log tail ────────────────────────────────────────────
+  let lastSeq = 0;
+  const logBody = document.getElementById('logBody');
+
+  function appendLogs(rows) {
+    if (!rows || !rows.length) return;
+    const frag = document.createDocumentFragment();
+    for (const r of rows) {
+      const div = document.createElement('div');
+      div.className = 'line ' + (r.level || '');
+      const ts = new Date((r.ts || 0) * 1000);
+      const hh = String(ts.getHours()).padStart(2, '0');
+      const mm = String(ts.getMinutes()).padStart(2, '0');
+      const ss = String(ts.getSeconds()).padStart(2, '0');
+      div.innerHTML =
+        '<span class="ts">' + hh + ':' + mm + ':' + ss + '</span>' +
+        '<span class="lvl">' + (r.level || '') + '</span>' +
+        escapeHtml(r.msg || '');
+      frag.appendChild(div);
+      if (r.seq > lastSeq) lastSeq = r.seq;
+    }
+    logBody.appendChild(frag);
+
+    // Cap to ~2000 lines on the DOM to keep it fast.
+    while (logBody.childNodes.length > 2000) {
+      logBody.removeChild(logBody.firstChild);
+    }
+    if (el('autoscroll').checked) {
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function pollLogs() {
+    try {
+      const rows = await window.api.recent_logs(lastSeq);
+      appendLogs(rows);
+    } catch (e) { /* silent */ }
+  }
+
+  window.clearLogs = () => { logBody.innerHTML = ''; };
+
+  // ── External nav helpers ────────────────────────────────
+  // pywebview can't spawn new browser tabs via window.open — delegate to
+  // Python's webbrowser.open() for these external shortcuts.
+  async function openInBrowser(url) {
+    const r = await window.api.open_url(url);
+    if (!r || !r.ok) alert('تعذّر فتح ' + url + (r && r.error ? ' — ' + r.error : ''));
+  }
+  window.openDocs = () => {
+    const s = window.__lastStatus;
+    if (!s) return;
+    openInBrowser(`http://127.0.0.1:${s.port}/docs`);
+  };
+  window.openHealth = () => {
+    const s = window.__lastStatus;
+    if (!s) return;
+    openInBrowser(`http://127.0.0.1:${s.port}/api/health`);
+  };
+  window.openAdmin = async () => {
+    try {
+      const r = await window.api.open_admin();
+      if (r && r.ok) return;
+      if (r && r.already_running) {
+        alert('Helen-Admin قيد التشغيل مسبقاً — تحقّق من شريط المهام (system tray).');
+      } else if (r && r.error) {
+        alert('تعذّر فتح لوحة الأدمن: ' + r.error);
+      } else {
+        alert('تعذّر فتح لوحة الأدمن.');
+      }
+    } catch (e) {
+      alert('خطأ: ' + e);
+    }
+  };
+  window.quitApp = async () => {
+    if (!confirm('إنهاء Helen Server بالكامل؟ سيتم إيقاف السيرفر.')) return;
+    try { await window.api.quit_app(); } catch (e) {}
+  };
+
+  // ── Lifecycle buttons with feedback ─────────────────────
+  function flashStatus(msg, kind) {
+    // Lightweight toast — a plain div docked to the bottom-right.
+    let el = document.getElementById('toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toast';
+      el.style.cssText =
+        'position:fixed;bottom:16px;left:16px;z-index:9999;padding:10px 14px;' +
+        'border-radius:8px;font-size:13px;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.5);' +
+        'transition:opacity .3s;opacity:0;pointer-events:none';
+      document.body.appendChild(el);
+    }
+    el.style.background = kind === 'err' ? '#7f1d1d' : (kind === 'warn' ? '#854d0e' : '#166534');
+    el.style.color = '#fff';
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.opacity = '0'; }, 2500);
+  }
+
+  window.doStart = async () => {
+    flashStatus('جارٍ التشغيل…', 'warn');
+    try {
+      const r = await window.api.start();
+      if (r && r.already_running) flashStatus('الخادم يعمل بالفعل', 'warn');
+      else flashStatus('✓ تم طلب التشغيل', 'ok');
+    } catch (e) { flashStatus('فشل: ' + e, 'err'); }
+    setTimeout(refreshStatus, 400);
+  };
+  window.doStop = async () => {
+    if (!confirm('إيقاف الخادم؟ سينقطع المستخدمون.')) return;
+    flashStatus('جارٍ الإيقاف…', 'warn');
+    try {
+      const r = await window.api.stop();
+      if (r && r.already_stopped) flashStatus('الخادم موقوف مسبقاً', 'warn');
+      else flashStatus('✓ تم طلب الإيقاف', 'ok');
+    } catch (e) { flashStatus('فشل: ' + e, 'err'); }
+    setTimeout(refreshStatus, 800);
+  };
+  window.doRestart = async () => {
+    if (!confirm('إعادة تشغيل؟ ستفتح نافذة جديدة — وسيُغلق هذا التطبيق خلال ثوانٍ.')) return;
+    flashStatus('جارٍ إعادة التشغيل — ستُفتح نافذة جديدة', 'warn');
+    try {
+      await window.api.restart();
+    } catch (e) { flashStatus('فشل: ' + e, 'err'); }
+    // The process will exit within ~2s; no further UI action needed.
+  };
+
+  // ── Boot ────────────────────────────────────────────────
+  refreshStatus();
+  setInterval(refreshStatus, 2000);
+  pollLogs();
+  setInterval(pollLogs, 1200);
+})();
+</script>
+</body>
+</html>

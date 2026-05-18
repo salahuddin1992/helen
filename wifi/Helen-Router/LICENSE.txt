@@ -1,0 +1,22 @@
+Helen-Router — Internal LAN Router / Choke Point
+=================================================
+
+License: Proprietary / Internal Use Only
+
+Copyright (C) 2024-2026 Helen Project Team
+All rights reserved.
+
+This software acts as a mandatory entry point between Helen clients and
+Helen-Server instances inside an internal LAN. Helen-Server may be
+configured (`HELEN_REQUIRE_ROUTER=1`) to refuse direct client traffic
+that did not transit this router.
+
+Use is restricted to private internal networks (RFC1918 / intranet /
+private fiber). NOT licensed for public-internet exposure.
+
+Default ports:
+  8080  HTTP API + WebSocket (router entry point)
+
+Token requirements:
+  HELEN_ROUTER_TOKEN must be 32+ characters of cryptographic randomness.
+  Servers and the router must share the same value.

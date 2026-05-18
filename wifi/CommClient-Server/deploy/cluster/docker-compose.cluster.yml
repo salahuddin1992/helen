@@ -1,0 +1,142 @@
+version: "3.9"
+
+# ===================================================================
+# Helen-Server — 3-node HA cluster with Redis + nginx reverse proxy.
+# ===================================================================
+#
+# Bring up:
+#     docker compose -f docker-compose.cluster.yml up -d
+#
+# Scale further:
+#     docker compose -f docker-compose.cluster.yml up -d --scale helen=5
+#     (in that case use the dynamic /api/admin/cluster/nginx-upstream
+#      to regenerate the nginx config and reload)
+#
+# All three nodes share:
+#   - the same SQLite mount (for dev) OR a Postgres URL
+#   - the same Redis instance for leader-election, pub/sub, sessions
+#   - the same COMMCLIENT_CLUSTER_ID for federation
+# -------------------------------------------------------------------
+
+x-helen-common: &helen-common
+  image: helen-server:latest
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+  environment:
+    DB_BACKEND: "postgresql"
+    DATABASE_URL: "postgresql+asyncpg://helen:helen@postgres:5432/helen"
+    REDIS_URL: "redis://redis:6379/0"
+    SESSION_STORE_BACKEND: "redis"
+    LEADER_ELECTION_BACKEND: "redis"
+    COMMCLIENT_CLUSTER_ID: "helen-prod"
+    JWT_SECRET: "${HELEN_JWT_SECRET:?HELEN_JWT_SECRET required}"
+    PORT: "3000"
+    HOST: "0.0.0.0"
+    LOG_LEVEL: "INFO"
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+  volumes:
+    - helen-data:/app/data
+  networks:
+    - helen-cluster
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - helen-cluster
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: helen
+      POSTGRES_PASSWORD: helen
+      POSTGRES_DB: helen
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helen -d helen"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - helen-cluster
+
+  helen1:
+    <<: *helen-common
+    container_name: helen1
+    environment:
+      DB_BACKEND: "postgresql"
+      DATABASE_URL: "postgresql+asyncpg://helen:helen@postgres:5432/helen"
+      REDIS_URL: "redis://redis:6379/0"
+      SESSION_STORE_BACKEND: "redis"
+      LEADER_ELECTION_BACKEND: "redis"
+      COMMCLIENT_CLUSTER_ID: "helen-prod"
+      JWT_SECRET: "${HELEN_JWT_SECRET:?HELEN_JWT_SECRET required}"
+      HELEN_ADVERTISE_URL: "http://helen1:3000"
+      HELEN_VERSION: "${HELEN_VERSION:-dev}"
+
+  helen2:
+    <<: *helen-common
+    container_name: helen2
+    environment:
+      DB_BACKEND: "postgresql"
+      DATABASE_URL: "postgresql+asyncpg://helen:helen@postgres:5432/helen"
+      REDIS_URL: "redis://redis:6379/0"
+      SESSION_STORE_BACKEND: "redis"
+      LEADER_ELECTION_BACKEND: "redis"
+      COMMCLIENT_CLUSTER_ID: "helen-prod"
+      JWT_SECRET: "${HELEN_JWT_SECRET:?HELEN_JWT_SECRET required}"
+      HELEN_ADVERTISE_URL: "http://helen2:3000"
+      HELEN_VERSION: "${HELEN_VERSION:-dev}"
+
+  helen3:
+    <<: *helen-common
+    container_name: helen3
+    environment:
+      DB_BACKEND: "postgresql"
+      DATABASE_URL: "postgresql+asyncpg://helen:helen@postgres:5432/helen"
+      REDIS_URL: "redis://redis:6379/0"
+      SESSION_STORE_BACKEND: "redis"
+      LEADER_ELECTION_BACKEND: "redis"
+      COMMCLIENT_CLUSTER_ID: "helen-prod"
+      JWT_SECRET: "${HELEN_JWT_SECRET:?HELEN_JWT_SECRET required}"
+      HELEN_ADVERTISE_URL: "http://helen3:3000"
+      HELEN_VERSION: "${HELEN_VERSION:-dev}"
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-sticky.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/ssl/helen:ro
+    depends_on:
+      - helen1
+      - helen2
+      - helen3
+    networks:
+      - helen-cluster
+
+volumes:
+  helen-data:
+  redis-data:
+  postgres-data:
+
+networks:
+  helen-cluster:
+    driver: bridge

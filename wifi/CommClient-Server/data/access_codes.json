@@ -1,0 +1,1656 @@
+{
+  "codes": {
+    "JPDA2CET": {
+      "code": "JPDA2CET",
+      "owner_user_id": "90a9af6c269e423ebd0a8e634ceade27",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "db9506885b954bc0907679ca78ab0fed",
+      "created_at": 1778124230.9623697,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "e6505e61de83485a9e009f6450b65028",
+          "at": 1778124230.9698794
+        }
+      ]
+    },
+    "Z3QMJFP7": {
+      "code": "Z3QMJFP7",
+      "owner_user_id": "015e3dd69a19432c9450edaf9db96f16",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "f7708ce8c4954b0bbcf32ad867a8b101",
+      "created_at": 1778124232.7096314,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "c90a04811f184dbdbbfcbabfc5be84d9",
+          "at": 1778124232.7231262
+        },
+        {
+          "by": "c90a04811f184dbdbbfcbabfc5be84d9",
+          "at": 1778124232.7476795
+        }
+      ]
+    },
+    "RP8RLZMB": {
+      "code": "RP8RLZMB",
+      "owner_user_id": "b24d4fc8c6c74a778a0d82fb607ce0fb",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "17c197f9a783483b8bc93250fbc0321e",
+      "created_at": 1778124234.0470152,
+      "expires_at": null,
+      "revoked": false
+    },
+    "JWT7E5LX": {
+      "code": "JWT7E5LX",
+      "owner_user_id": "18270d1899e84b93a00b56b567438284",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "e46031da4f574a7cac7b49740d205dc7",
+      "created_at": 1778124237.0183623,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "886abcd97dc5429ba971ef5702400309",
+          "at": 1778124237.03382
+        }
+      ]
+    },
+    "N27VASE8": {
+      "code": "N27VASE8",
+      "owner_user_id": "f00456ec7dbf432eb108f64c92a90405",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "6547c274c5e347468d1248f3b8ddabd1",
+      "created_at": 1778124238.7530882,
+      "expires_at": null,
+      "revoked": true
+    },
+    "NYWRUXTV": {
+      "code": "NYWRUXTV",
+      "owner_user_id": "0fa5df9c00b74dccb42953edd250c8a9",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "3996a94c9d4043378bc5223a3e3c30aa",
+      "created_at": 1778124244.4661615,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "bfbed4984af345fa91791c286c945287",
+          "at": 1778124244.480701
+        }
+      ]
+    },
+    "63NBW2VA": {
+      "code": "63NBW2VA",
+      "owner_user_id": "55e38081d2d240ea9358e7b6e079c5a4",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "593aa5465a544ff8a5ad9500d45db18a",
+      "created_at": 1778124565.577803,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "697675d12d7d42db8b0e891c6451ede4",
+          "at": 1778124565.5883198
+        }
+      ]
+    },
+    "4DHJ2N47": {
+      "code": "4DHJ2N47",
+      "owner_user_id": "6cce5487fe1f484e937302a38c2924f0",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "746af656eb8f4e018954941a28dd94c5",
+      "created_at": 1778124567.343825,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "5a6acef3e50b4587bd3166dea5f37eb2",
+          "at": 1778124567.3568568
+        },
+        {
+          "by": "5a6acef3e50b4587bd3166dea5f37eb2",
+          "at": 1778124567.3782861
+        }
+      ]
+    },
+    "XDF8A5WA": {
+      "code": "XDF8A5WA",
+      "owner_user_id": "da5af63b4e65434c8258717edbf83a73",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "b7e8c128953541579529b961d8ac9bb2",
+      "created_at": 1778124568.5853097,
+      "expires_at": null,
+      "revoked": false
+    },
+    "VBX62W4V": {
+      "code": "VBX62W4V",
+      "owner_user_id": "d13393deee8e441a8f2c8aced5219a86",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "aed104bd96ff401e92b33f86aab0d6da",
+      "created_at": 1778124571.4642243,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "06bea29d816c4d65aac8d08d5b9e50fd",
+          "at": 1778124571.477842
+        }
+      ]
+    },
+    "XZUL6T6N": {
+      "code": "XZUL6T6N",
+      "owner_user_id": "04708300441f46d385ceaea417e2bcca",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "76255cee884b4811b7179eaecf548a4d",
+      "created_at": 1778124573.170695,
+      "expires_at": null,
+      "revoked": true
+    },
+    "A98EGWUV": {
+      "code": "A98EGWUV",
+      "owner_user_id": "8c1bb2cdff454531bd08f0886fac0d76",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "7731b115eeb045b584e23954f559d3fa",
+      "created_at": 1778124578.638068,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "06e3159f93f1432482596e328fa21cf6",
+          "at": 1778124578.6519268
+        }
+      ]
+    },
+    "QNR6SGZZ": {
+      "code": "QNR6SGZZ",
+      "owner_user_id": "bd427c6233af4de9afe8167bfb3ebac0",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "8a74b94c892446fbb00a27b006b2d642",
+      "created_at": 1778126688.4883208,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "690af95dcfdd4588927e996ac84e19c4",
+          "at": 1778126688.4964256
+        }
+      ]
+    },
+    "M7ZF4UJY": {
+      "code": "M7ZF4UJY",
+      "owner_user_id": "65940f116ea64e499e4926b11d1f4911",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "5b3b94acc4744eebb9770118788b98aa",
+      "created_at": 1778126689.4420831,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "482ba5c143da4609a3a68430072c5d75",
+          "at": 1778126689.4512985
+        },
+        {
+          "by": "482ba5c143da4609a3a68430072c5d75",
+          "at": 1778126689.4664133
+        }
+      ]
+    },
+    "7X2ZU5LQ": {
+      "code": "7X2ZU5LQ",
+      "owner_user_id": "3747236d48334bd385e3f33e83e49662",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "9854a51d61364160a77c87640ed42bfb",
+      "created_at": 1778126690.1393828,
+      "expires_at": null,
+      "revoked": false
+    },
+    "NVMYJ9DM": {
+      "code": "NVMYJ9DM",
+      "owner_user_id": "021558394dfa4192afc2ad9dcd0af3b0",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "802a88d4c9bb4d27bc7ac838f5e4d485",
+      "created_at": 1778126691.6561594,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "db2b974d09cf4f8ab521963bb6f3758e",
+          "at": 1778126691.6601598
+        }
+      ]
+    },
+    "CJHQJYXH": {
+      "code": "CJHQJYXH",
+      "owner_user_id": "80c623c873e14038b4dc25634cda7a0b",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "775d27ebc35d4ea499ec70b678fe7a12",
+      "created_at": 1778126692.62062,
+      "expires_at": null,
+      "revoked": true
+    },
+    "6XLQXFDX": {
+      "code": "6XLQXFDX",
+      "owner_user_id": "370e7091ab4b485eb4410933594bde3c",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "c8365a682e754a44a2d871fb5de41eac",
+      "created_at": 1778126695.5901322,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "6653ced259154bc281f24b0fe883495f",
+          "at": 1778126695.5987725
+        }
+      ]
+    },
+    "N3RP3W7T": {
+      "code": "N3RP3W7T",
+      "owner_user_id": "d6863fc740ee429782d98e9ca19b17cf",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "7863706fd7714292b070003b091fb995",
+      "created_at": 1778165393.9678702,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "1e8aad7f5dc5405ca39ff9624b9e50c0",
+          "at": 1778165393.98432
+        }
+      ]
+    },
+    "TR3H2YGD": {
+      "code": "TR3H2YGD",
+      "owner_user_id": "f1734465a26d496a86070dcb01fef4ea",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "cc2f86d635f54f1fa4718f5aaef2c348",
+      "created_at": 1778165395.939695,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "fcb89a04efb94514acd4e330d5a32efd",
+          "at": 1778165395.9567175
+        },
+        {
+          "by": "fcb89a04efb94514acd4e330d5a32efd",
+          "at": 1778165395.981764
+        }
+      ]
+    },
+    "53YEDYUW": {
+      "code": "53YEDYUW",
+      "owner_user_id": "3e94c6da0ce04f4488afdd12e48c5221",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "9a9b438c0e5349cb889dd508b60786f6",
+      "created_at": 1778165397.4555385,
+      "expires_at": null,
+      "revoked": false
+    },
+    "AMPQ4ZV3": {
+      "code": "AMPQ4ZV3",
+      "owner_user_id": "6d8a8901da28459bb2c0891fb6bd2711",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "23b4d45d53434f8883008765e44fa2f3",
+      "created_at": 1778165400.7764356,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "11d413df2ce54886be4a3202c42dbd3c",
+          "at": 1778165400.7899644
+        }
+      ]
+    },
+    "BTZ7VAPM": {
+      "code": "BTZ7VAPM",
+      "owner_user_id": "f245935fe738493aaf2cbe756c57dfb4",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "437d36d5b6c54a5d838b21458632d60c",
+      "created_at": 1778165402.96853,
+      "expires_at": null,
+      "revoked": true
+    },
+    "6E4GFZUN": {
+      "code": "6E4GFZUN",
+      "owner_user_id": "9797157c0eae4404bd48026878cca198",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "2a97544d80494baaaba5b7270f7c5076",
+      "created_at": 1778165409.6245804,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "518191ff5834433a8bb1aac22b459a22",
+          "at": 1778165409.640176
+        }
+      ]
+    },
+    "RBC2E4BY": {
+      "code": "RBC2E4BY",
+      "owner_user_id": "970a3bd3a1b34aea9a379fe20b8c315d",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "4c7a0fdecf76406980806322812925ec",
+      "created_at": 1778173045.9164174,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "ed2125b92c4640e98b319b92b59e78e4",
+          "at": 1778173045.9204128
+        }
+      ]
+    },
+    "ZSFSUCQQ": {
+      "code": "ZSFSUCQQ",
+      "owner_user_id": "22293635af444658b68005c078a77df0",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "6f820c249cbe43c5adaa65a573d5b417",
+      "created_at": 1778173047.4793904,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "94c41411e6e849f5a579e0d95063275e",
+          "at": 1778173047.4843662
+        }
+      ]
+    },
+    "XUR8H3V6": {
+      "code": "XUR8H3V6",
+      "owner_user_id": "f3c603efbfca4ce095cc202cb4c4bbf6",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "884641d4f008456ab7500930b989353e",
+      "created_at": 1778173089.364859,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "56af95a003164ca19d3766b6bd41152e",
+          "at": 1778173089.3693068
+        }
+      ]
+    },
+    "7LLGJ8YX": {
+      "code": "7LLGJ8YX",
+      "owner_user_id": "72efa553ee2f46339cef5c401568f3b7",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "4934622722d2452ca9e70cb1ac7432c7",
+      "created_at": 1778173090.939001,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "a979562444bf4bd3ac8c0bd276a4be77",
+          "at": 1778173090.9429984
+        }
+      ]
+    },
+    "7MKQ4D2C": {
+      "code": "7MKQ4D2C",
+      "owner_user_id": "4350e41a75954dfa8049654e1d81d82b",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "192ec79fea6d4ff2bd0bfb4076361832",
+      "created_at": 1778173398.4928818,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "231b563e18be4dd2b7555b096e740fa3",
+          "at": 1778173398.4986427
+        }
+      ]
+    },
+    "3Z9MSQYW": {
+      "code": "3Z9MSQYW",
+      "owner_user_id": "4f6b216533374bb18def6b5420f762ef",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "54a1a8982509406996d6ac07c9e1e74e",
+      "created_at": 1778173399.3579726,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "791518b641194bf7a8200865a55c9465",
+          "at": 1778173399.3629737
+        },
+        {
+          "by": "791518b641194bf7a8200865a55c9465",
+          "at": 1778173399.37329
+        }
+      ]
+    },
+    "AQCRLWHV": {
+      "code": "AQCRLWHV",
+      "owner_user_id": "f6235e9ec5884547aa7bbce2f6ef9208",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "34e9ab12da614365afb38578667572dd",
+      "created_at": 1778173399.9156492,
+      "expires_at": null,
+      "revoked": false
+    },
+    "7RQB9HYF": {
+      "code": "7RQB9HYF",
+      "owner_user_id": "587187fc88894c928e5ee29fc2c2ab34",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "d49cf0f730ee4750a0cbbe806536eb18",
+      "created_at": 1778173401.2718904,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "d6d1900468074998b6ef52f3d7e5c378",
+          "at": 1778173401.27589
+        }
+      ]
+    },
+    "L4SD92Q4": {
+      "code": "L4SD92Q4",
+      "owner_user_id": "47664ad38ec445f68de53444c4d2dd86",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "1010e45d3c0e44f6bd9744b6c18b149a",
+      "created_at": 1778173402.116395,
+      "expires_at": null,
+      "revoked": true
+    },
+    "4ZNWDDLF": {
+      "code": "4ZNWDDLF",
+      "owner_user_id": "d1ff1cf6d97b4b17886f8d6efea83381",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "a4a7affc8a994dd9b451f5d4bba7eb20",
+      "created_at": 1778173404.7771678,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "b492caaa822440cd94bd5c1ca8eb195a",
+          "at": 1778173404.7821732
+        }
+      ]
+    },
+    "UPBFBQWV": {
+      "code": "UPBFBQWV",
+      "owner_user_id": "6d6d358e55314c0eb697ef3e045bc2ac",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "88afa35cb25e485481f533e0cac65a91",
+      "created_at": 1778173409.8057363,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "5ff39e38ce954d30b1feca76b05f5012",
+          "at": 1778173409.810737
+        }
+      ]
+    },
+    "5MT7B223": {
+      "code": "5MT7B223",
+      "owner_user_id": "178a09eb1d1a4aecaa7f975e3e43f240",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "a612f16893ae4a0582d537ea15363ae7",
+      "created_at": 1778173411.345159,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "fa624ec4a44544b48c343417524e8253",
+          "at": 1778173411.351108
+        }
+      ]
+    },
+    "2AMJL5FG": {
+      "code": "2AMJL5FG",
+      "owner_user_id": "35ce778c4c0b4946b7d6589cb7498459",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "da397be63ace4112a682741ff25ad626",
+      "created_at": 1778177232.2725039,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "931175c70e5549d0a4c9ebf439a3c489",
+          "at": 1778177232.279928
+        }
+      ]
+    },
+    "YY9FRWY3": {
+      "code": "YY9FRWY3",
+      "owner_user_id": "18b42e617e054f66b8ffefa984d753f7",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "b30dbdb303ea4378ad57c3d80011553f",
+      "created_at": 1778177233.155655,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "7c825cf8c3cd4003b86c8a73c984dbdc",
+          "at": 1778177233.1609387
+        },
+        {
+          "by": "7c825cf8c3cd4003b86c8a73c984dbdc",
+          "at": 1778177233.1700695
+        }
+      ]
+    },
+    "8DWA5QNQ": {
+      "code": "8DWA5QNQ",
+      "owner_user_id": "23254430ca4f438fa22645db188a4069",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "2ae71c990ff945a892bdf7e670c01261",
+      "created_at": 1778177233.7344055,
+      "expires_at": null,
+      "revoked": false
+    },
+    "UV8JTV7S": {
+      "code": "UV8JTV7S",
+      "owner_user_id": "9172e1fc58c74845bc2f8b6e8696840e",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "ad1b43feed4547e999e041cad5babcde",
+      "created_at": 1778177235.1501422,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "dc7327dad35f4d96acdc6fb4b5ea33a5",
+          "at": 1778177235.156114
+        }
+      ]
+    },
+    "MT4HJWTV": {
+      "code": "MT4HJWTV",
+      "owner_user_id": "e4bb25b8c08a4502a22245613e491597",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "3a51db1512cb43128d41b1d7aaf7578a",
+      "created_at": 1778177236.0702271,
+      "expires_at": null,
+      "revoked": true
+    },
+    "9UFLPHJE": {
+      "code": "9UFLPHJE",
+      "owner_user_id": "081196b96f12463b96a22d3ceb8bf043",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "43699d3d5a8343e6a9306840315b1739",
+      "created_at": 1778177238.9355483,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "de0cb846c3dc4d9d9ee9a126d4ef3ec3",
+          "at": 1778177238.9449718
+        }
+      ]
+    },
+    "4HVWLJKH": {
+      "code": "4HVWLJKH",
+      "owner_user_id": "5802f2dd251b4faeabb88f3f10c1d172",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "84981e4053b24570a5b64bdff1a634bc",
+      "created_at": 1778177244.3803864,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "122207e3368746ccbff87195c29c0568",
+          "at": 1778177244.3859127
+        }
+      ]
+    },
+    "5G8BZGN8": {
+      "code": "5G8BZGN8",
+      "owner_user_id": "d20f31115bf4454fbd1a76a3c5625fd0",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "c0356b3f80244bf8a4215409c59c8330",
+      "created_at": 1778177246.03437,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "de2760f2bc1244df8f3a096c291ee397",
+          "at": 1778177246.04032
+        }
+      ]
+    },
+    "U9XP8M3C": {
+      "code": "U9XP8M3C",
+      "owner_user_id": "17235cfc07e545aba617ba0ac9e98fad",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "24e9212c611040b7b4724483c2c85eab",
+      "created_at": 1778178096.3209026,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "815ca6a028c74f81b4544b876c74db80",
+          "at": 1778178096.3259017
+        }
+      ]
+    },
+    "EB5AGH3M": {
+      "code": "EB5AGH3M",
+      "owner_user_id": "d0ab8489f3b14935b2a84ef551123e4c",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "827c61683dfc4731976095c3e650bb86",
+      "created_at": 1778178097.1810868,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "0dcdad475bac410691d44e79eaa01179",
+          "at": 1778178097.185147
+        },
+        {
+          "by": "0dcdad475bac410691d44e79eaa01179",
+          "at": 1778178097.1949089
+        }
+      ]
+    },
+    "8AEGLX5M": {
+      "code": "8AEGLX5M",
+      "owner_user_id": "190355399bb1462488e01a701185cecd",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "1952de11b6ae49f38013dff001889cb8",
+      "created_at": 1778178097.8788216,
+      "expires_at": null,
+      "revoked": false
+    },
+    "EP5A2H8E": {
+      "code": "EP5A2H8E",
+      "owner_user_id": "1c7f3de285414c51aa7d4adb01535b5c",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "706288cf757d46bb8df07ceb1df6679e",
+      "created_at": 1778178099.568694,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "8f5a28a3109846e183436298e4d4d295",
+          "at": 1778178099.574706
+        }
+      ]
+    },
+    "J847A3NZ": {
+      "code": "J847A3NZ",
+      "owner_user_id": "f798f7920a0142ffb899975bf4beaf79",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "29406cc6cbe14c9ab0d6c28a8c675988",
+      "created_at": 1778178100.556024,
+      "expires_at": null,
+      "revoked": true
+    },
+    "ZRM6CHCY": {
+      "code": "ZRM6CHCY",
+      "owner_user_id": "c3542dc0c29a400190198062c5de2e7e",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "92ae7aa3c39f492dbf85deb6d2fb29b1",
+      "created_at": 1778178103.2197917,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "fd526e99bcf14a249779b7dc526f40b6",
+          "at": 1778178103.2247784
+        }
+      ]
+    },
+    "6UQ4ZNYP": {
+      "code": "6UQ4ZNYP",
+      "owner_user_id": "26eb0c150984451888874f58f35675fd",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "005db2bc055f463aa2c23d8552f11961",
+      "created_at": 1778178108.4827876,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "41241f26d5c0464a8008852311a9a260",
+          "at": 1778178108.4888072
+        }
+      ]
+    },
+    "R7EJD86W": {
+      "code": "R7EJD86W",
+      "owner_user_id": "3726b53fdece470f8451dd3c5db38507",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "e390245f1a0f4e5792f6908f49cb4469",
+      "created_at": 1778178110.190557,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "368b9c7923444517bbae6dd24bc2e364",
+          "at": 1778178110.195555
+        }
+      ]
+    },
+    "C5CU8JN4": {
+      "code": "C5CU8JN4",
+      "owner_user_id": "ba10c8d64ac24a7680d8714f794eb155",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "5dcd969b45504ce2853609fcd7a08b64",
+      "created_at": 1778179343.9368913,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "02e80e0e18464a588c53c5915f8e1902",
+          "at": 1778179343.9462316
+        }
+      ]
+    },
+    "NDU8AQ7B": {
+      "code": "NDU8AQ7B",
+      "owner_user_id": "1bde08ad50cb4ef983beb134f0e46fb2",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "b9e5e72f3d324ed7ab847984f0ae3a7a",
+      "created_at": 1778179344.8420968,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "6408b6d7b8e845d9ae98d4a04da78a23",
+          "at": 1778179344.8470938
+        },
+        {
+          "by": "6408b6d7b8e845d9ae98d4a04da78a23",
+          "at": 1778179344.8579376
+        }
+      ]
+    },
+    "TBWSQB9F": {
+      "code": "TBWSQB9F",
+      "owner_user_id": "6657fc390c9d4eac9663bc4886089f87",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "069aa23e8af9414bad16d050cb9a5559",
+      "created_at": 1778179345.595743,
+      "expires_at": null,
+      "revoked": false
+    },
+    "AGG8SPF5": {
+      "code": "AGG8SPF5",
+      "owner_user_id": "45317ea6c52d4b0a97900d557f4815f4",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "48143d384367481789d306b0708a72a7",
+      "created_at": 1778179346.9865968,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "6f98809cbde2496c9d4a5145243aa868",
+          "at": 1778179346.9927003
+        }
+      ]
+    },
+    "Z6BDFSXM": {
+      "code": "Z6BDFSXM",
+      "owner_user_id": "0314e37a7a1f4ff2b96a3feb91635c18",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "3cd6fbc4e3b94004ba1b002a562946a3",
+      "created_at": 1778179348.0302966,
+      "expires_at": null,
+      "revoked": true
+    },
+    "8PE77QS9": {
+      "code": "8PE77QS9",
+      "owner_user_id": "6c259fb7cfa640be94309b23a030e6e6",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "a1e3414a5d6b44858c118dd36bfd599a",
+      "created_at": 1778179351.1880274,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "d2e2dfeb528641f1b6e903e138abc24c",
+          "at": 1778179351.1933398
+        }
+      ]
+    },
+    "JHDGMKWL": {
+      "code": "JHDGMKWL",
+      "owner_user_id": "295673222a8d4a1a8b68c318653cff58",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "29a8c8dd479548909929ad7a0d3d132a",
+      "created_at": 1778179357.1218119,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "a444db98c89b40b0829def5ea2f3af58",
+          "at": 1778179357.1291573
+        }
+      ]
+    },
+    "EMNP5SZ4": {
+      "code": "EMNP5SZ4",
+      "owner_user_id": "9713d236490b4c9097652c68c4ddc8bb",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "c64b1a96f8dd4382af423773cbcae2b6",
+      "created_at": 1778179358.7110193,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "d06164ea89d347a196d7a309332deccc",
+          "at": 1778179358.7161357
+        }
+      ]
+    },
+    "DVUHRCAJ": {
+      "code": "DVUHRCAJ",
+      "owner_user_id": "6442b95e459f42ab926aa9fbc679b01f",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "97416c062cf54dd4bc3435d344ab269e",
+      "created_at": 1778180273.2076838,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "0d1d5ef5661b4a348fb93844c18daac8",
+          "at": 1778180273.218578
+        }
+      ]
+    },
+    "VNJZJQ9S": {
+      "code": "VNJZJQ9S",
+      "owner_user_id": "0cb07dd506804df9b4a3b993a9b9c495",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "00a3caecadf048e297a13b885c0745c2",
+      "created_at": 1778180274.0212188,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "20eca28b5a1a455eb9078515088a3fb7",
+          "at": 1778180274.0271592
+        },
+        {
+          "by": "20eca28b5a1a455eb9078515088a3fb7",
+          "at": 1778180274.042547
+        }
+      ]
+    },
+    "XUQMLGPS": {
+      "code": "XUQMLGPS",
+      "owner_user_id": "119122023e6e414aa8f3be05389bb09d",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "2ec5c1e887354a6aad39fac704f72dd2",
+      "created_at": 1778180274.8704138,
+      "expires_at": null,
+      "revoked": false
+    },
+    "68DAAXNQ": {
+      "code": "68DAAXNQ",
+      "owner_user_id": "9e2ed4911b3b49b7a853a0acc6d5e255",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "740c7a37cb69405984a661af555b6e9c",
+      "created_at": 1778180276.7105274,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "9c152151f8754dbbb336aa1b6e36cf1a",
+          "at": 1778180276.718511
+        }
+      ]
+    },
+    "WBQ8PHXV": {
+      "code": "WBQ8PHXV",
+      "owner_user_id": "08b2cca9941043c281dbd084c92aa7e1",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "afa96080b41140f895cd4c4944a0ac98",
+      "created_at": 1778180277.8693287,
+      "expires_at": null,
+      "revoked": true
+    },
+    "C4SZN7NV": {
+      "code": "C4SZN7NV",
+      "owner_user_id": "6d19b03f1f524b87acc523db78dc2436",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "fdfd086da2004f37ac8a44ab1fd68871",
+      "created_at": 1778180281.1822221,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "73a852304d5842eb8e4ae1cd3ad2b066",
+          "at": 1778180281.1924093
+        }
+      ]
+    },
+    "MMXB6KCX": {
+      "code": "MMXB6KCX",
+      "owner_user_id": "4981e05a61114c1d8357c7ce47edfa68",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "8f06ab7f23b24cf1ad7da85d13db3671",
+      "created_at": 1778180288.4737215,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "6fa9b7272e2b4c9cbc4ffbda1f084af1",
+          "at": 1778180288.4816635
+        }
+      ]
+    },
+    "9S32ETGB": {
+      "code": "9S32ETGB",
+      "owner_user_id": "54aab0e1aa214acd85d2676f98c9ebf5",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "0adb9fc9bceb458b8ccc51760548910a",
+      "created_at": 1778180290.7401223,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "8e5cd029d5d444279d29fa27e42ee455",
+          "at": 1778180290.7483425
+        }
+      ]
+    },
+    "PB2XZYUG": {
+      "code": "PB2XZYUG",
+      "owner_user_id": "105c8e480d8b48f48090fa724b8e4fde",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "9aa4d27386904b0098d6336dbbf3254f",
+      "created_at": 1778265772.1494544,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "b8315412a50a4c23b490ae9b8a3e2c32",
+          "at": 1778265772.1554556
+        }
+      ]
+    },
+    "JX55UUXL": {
+      "code": "JX55UUXL",
+      "owner_user_id": "108b1b2f1fff41ebaac4d27008b7595c",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "715ada4b66d34098b2ea31a472ebe47a",
+      "created_at": 1778265772.8776257,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "ba9790fbb90e463f8a7e2212a32b0c52",
+          "at": 1778265772.8826299
+        },
+        {
+          "by": "ba9790fbb90e463f8a7e2212a32b0c52",
+          "at": 1778265772.892629
+        }
+      ]
+    },
+    "ETFJYY43": {
+      "code": "ETFJYY43",
+      "owner_user_id": "2532e0ac2162425b87b499f474c789c9",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "d995fbf320ff409b90fbfcd313495c0b",
+      "created_at": 1778265773.4272964,
+      "expires_at": null,
+      "revoked": false
+    },
+    "B7N4RK82": {
+      "code": "B7N4RK82",
+      "owner_user_id": "84d332fa3855462a8eea4520e0d93849",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "f520fc1b74cb4d7fb7f0ef34e64c91c6",
+      "created_at": 1778265774.8421574,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "9098df3d994441bd8133cf33033dd386",
+          "at": 1778265774.8481555
+        }
+      ]
+    },
+    "XQ7GJHYW": {
+      "code": "XQ7GJHYW",
+      "owner_user_id": "0649b277a79449ceb1d5cd1f7ba413d4",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "87db477462b24c7293e5f397a7baf7b1",
+      "created_at": 1778265775.755878,
+      "expires_at": null,
+      "revoked": true
+    },
+    "ATZA9NG3": {
+      "code": "ATZA9NG3",
+      "owner_user_id": "300ccf845e5344259a73e4b8e0384536",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "ce579b46505c4ae28faf280e5194c386",
+      "created_at": 1778265778.2203045,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "75ffa6d5d2404947b79eff8630f995a8",
+          "at": 1778265778.2253182
+        }
+      ]
+    },
+    "SU4BX2B2": {
+      "code": "SU4BX2B2",
+      "owner_user_id": "4b23f3848620444db2a0254f0583876f",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "a55c970368634aa793c285885d8110c2",
+      "created_at": 1778265783.590311,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "b6ce19ca8fc94d0283d836668069afc2",
+          "at": 1778265783.5963109
+        }
+      ]
+    },
+    "235BYNR9": {
+      "code": "235BYNR9",
+      "owner_user_id": "7441e321c0a943ca851a283218b68bf4",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "d2b3b7198633431d9bb1a953651e32b6",
+      "created_at": 1778265785.351466,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "33053e6e04d948f7a00654e81204a4ab",
+          "at": 1778265785.3584635
+        }
+      ]
+    },
+    "C9DTCMCM": {
+      "code": "C9DTCMCM",
+      "owner_user_id": "c39e417ade6c459d88c25db30283be5c",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "b7332f61c6e349a8a40aa887229ef470",
+      "created_at": 1778266831.5105693,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "5e388575b4c44f189afda5b3eb737992",
+          "at": 1778266831.5245771
+        }
+      ]
+    },
+    "KU2XBVBV": {
+      "code": "KU2XBVBV",
+      "owner_user_id": "37debd7ed64b4a7f9833c168c885345a",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "3d92bdbca07742de91fc176a1300b11b",
+      "created_at": 1778266832.6761212,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "d70ee5d5febb4afcb5d7682d3262bc0b",
+          "at": 1778266832.6831183
+        },
+        {
+          "by": "d70ee5d5febb4afcb5d7682d3262bc0b",
+          "at": 1778266832.700121
+        }
+      ]
+    },
+    "WB6FUGM6": {
+      "code": "WB6FUGM6",
+      "owner_user_id": "3f176faab67a42829525249ec3edf955",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "8906b52a63cf4749abc55f7ddee9f21c",
+      "created_at": 1778266833.4674537,
+      "expires_at": null,
+      "revoked": false
+    },
+    "VGFGEXL4": {
+      "code": "VGFGEXL4",
+      "owner_user_id": "da7bd53788cb4c549a15376c48d4f766",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "64ce601c44a74df2aeecadbc26328679",
+      "created_at": 1778266835.532551,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "b465932293404650be116d373c151b7b",
+          "at": 1778266835.540099
+        }
+      ]
+    },
+    "Y7HHPQ29": {
+      "code": "Y7HHPQ29",
+      "owner_user_id": "30a1d644f59c428d8f4cae4ed61546d8",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "22386f7d8e21445880e24e9695799423",
+      "created_at": 1778266836.639585,
+      "expires_at": null,
+      "revoked": true
+    },
+    "69RNNA2S": {
+      "code": "69RNNA2S",
+      "owner_user_id": "ce3e1a0aee234637bb413cda03df4155",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "8e177e91b36440dcb511d62950a3d111",
+      "created_at": 1778266840.0063763,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "8fff89ba57ed46c5ab4a409e4f1a22d8",
+          "at": 1778266840.0188968
+        }
+      ]
+    },
+    "ZJ273GMQ": {
+      "code": "ZJ273GMQ",
+      "owner_user_id": "bbbf642633f441298eafc5defaad5928",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "5307869ab4404371b580d918fa11ded6",
+      "created_at": 1778266847.2903364,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "e7648c1c679c4df1a01a82841d4a1bb2",
+          "at": 1778266847.3009024
+        }
+      ]
+    },
+    "6GXNTJ6C": {
+      "code": "6GXNTJ6C",
+      "owner_user_id": "110d48968a404da2816739bdd3fe11f2",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "3a0b291a19344667b23f7174d9c858d5",
+      "created_at": 1778266849.586496,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "d902205efdd9445096722da9dcfd2514",
+          "at": 1778266849.5955315
+        }
+      ]
+    },
+    "GGXE3JA7": {
+      "code": "GGXE3JA7",
+      "owner_user_id": "c41af3216833417e8abb44b3c04a822d",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "8c84fea7cb82410c92c70deedaa72eeb",
+      "created_at": 1778433116.4714081,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "189b1fd64b5645719bdace007f499242",
+          "at": 1778433116.482035
+        }
+      ]
+    },
+    "3J7M9VWM": {
+      "code": "3J7M9VWM",
+      "owner_user_id": "8f184a4c1f8943ff931fd2f5f536f18b",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 5,
+      "uses_remaining": 3,
+      "used_count": 2,
+      "target_channel_id": "062c72097dc94914b4872697301e313a",
+      "created_at": 1778433117.7754676,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "749a3eb22a3f45db9cbac9be22efbfff",
+          "at": 1778433117.7870965
+        },
+        {
+          "by": "749a3eb22a3f45db9cbac9be22efbfff",
+          "at": 1778433117.8081083
+        }
+      ]
+    },
+    "3K9XGPYM": {
+      "code": "3K9XGPYM",
+      "owner_user_id": "da42332f71cc46569292decee780ba41",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "fa389a6fa27c4066a2dbd9f6bb2c88f6",
+      "created_at": 1778433118.8492584,
+      "expires_at": null,
+      "revoked": false
+    },
+    "WWPA8UX4": {
+      "code": "WWPA8UX4",
+      "owner_user_id": "78f862717d1a4a1a8858fd973fff3c89",
+      "kind": "invite",
+      "note": "",
+      "max_uses": 1,
+      "uses_remaining": 0,
+      "used_count": 1,
+      "target_channel_id": "1794669f47084758891e2a9a11d88931",
+      "created_at": 1778433121.2593198,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "c24036fecd1343a8911f6ee6f0150d5a",
+          "at": 1778433121.2713578
+        }
+      ]
+    },
+    "JTWAYFUG": {
+      "code": "JTWAYFUG",
+      "owner_user_id": "7e1066baba544945acf9bcee7a203966",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 0,
+      "target_channel_id": "258c7485690e42bba3dc58f5461be5e6",
+      "created_at": 1778433122.562742,
+      "expires_at": null,
+      "revoked": true
+    },
+    "4S4Q4L37": {
+      "code": "4S4Q4L37",
+      "owner_user_id": "57196d3d43f04a8d93290b202ed605fc",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "e9b3248e16824e58a4c75547491e0025",
+      "created_at": 1778433126.82521,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "337cfcd978c54ab5993ff945ce6a7eba",
+          "at": 1778433126.8352263
+        }
+      ]
+    },
+    "VVSJMRR3": {
+      "code": "VVSJMRR3",
+      "owner_user_id": "8ad3b4da10904830add7285bb2337f1d",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "8ae92878aa874e699d70579a00a67655",
+      "created_at": 1778433148.5732756,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "6ee9e8b80f714d3caa9226dc9ffbd95d",
+          "at": 1778433148.6158624
+        }
+      ]
+    },
+    "TSRLGUF5": {
+      "code": "TSRLGUF5",
+      "owner_user_id": "7b5b967070fd4996b5a5f81e965d52ec",
+      "kind": "invite",
+      "note": "",
+      "max_uses": null,
+      "uses_remaining": null,
+      "used_count": 1,
+      "target_channel_id": "6f15cea2184042768ebaa978274ea6cd",
+      "created_at": 1778433153.1803691,
+      "expires_at": null,
+      "revoked": false,
+      "redemption_log": [
+        {
+          "by": "a13834929b66455b9b2c9e4122630c52",
+          "at": 1778433153.198386
+        }
+      ]
+    }
+  }
+}

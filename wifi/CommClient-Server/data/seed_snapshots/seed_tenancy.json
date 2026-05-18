@@ -1,0 +1,151 @@
+[
+  {
+    "id": "tenant-5eaed5c26f5f1f40",
+    "name": "Acme Corp",
+    "slug": "acme",
+    "plan": "enterprise",
+    "status": "active",
+    "region": "eu-on-prem-1",
+    "admin_email": "admin@acme.local"
+  },
+  {
+    "id": "tenant-93e3febc665fb526",
+    "name": "Umbrella Industries",
+    "slug": "umbrella",
+    "plan": "pro",
+    "status": "active",
+    "region": "me-on-prem-1",
+    "admin_email": "ops@umbrella.local"
+  },
+  {
+    "id": "tenant-65fa550ecd32918d",
+    "name": "Wayne Enterprises",
+    "slug": "wayne",
+    "plan": "free",
+    "status": "active",
+    "region": "us-on-prem-1",
+    "admin_email": "bruce@wayne.local"
+  },
+  {
+    "workspace": {
+      "tenant_slug": "acme",
+      "name": "Engineering",
+      "slug": "acme-eng"
+    }
+  },
+  {
+    "workspace": {
+      "tenant_slug": "acme",
+      "name": "Operations",
+      "slug": "acme-ops"
+    }
+  },
+  {
+    "workspace": {
+      "tenant_slug": "acme",
+      "name": "Executive",
+      "slug": "acme-exec"
+    }
+  },
+  {
+    "workspace": {
+      "tenant_slug": "umbrella",
+      "name": "Research",
+      "slug": "umbrella-r"
+    }
+  },
+  {
+    "workspace": {
+      "tenant_slug": "umbrella",
+      "name": "Security",
+      "slug": "umbrella-sec"
+    }
+  },
+  {
+    "workspace": {
+      "tenant_slug": "wayne",
+      "name": "Default",
+      "slug": "wayne-default"
+    }
+  },
+  {
+    "user": {
+      "username": "ali.admin",
+      "email": "ali@acme.local",
+      "tenant": "acme",
+      "role": "admin"
+    }
+  },
+  {
+    "user": {
+      "username": "sara.ops",
+      "email": "sara@acme.local",
+      "tenant": "acme",
+      "role": "operator"
+    }
+  },
+  {
+    "user": {
+      "username": "youssef.dev",
+      "email": "youssef@acme.local",
+      "tenant": "acme",
+      "role": "user"
+    }
+  },
+  {
+    "user": {
+      "username": "mona.audit",
+      "email": "mona@acme.local",
+      "tenant": "acme",
+      "role": "auditor"
+    }
+  },
+  {
+    "user": {
+      "username": "khaled.sec",
+      "email": "khaled@umbrella.local",
+      "tenant": "umbrella",
+      "role": "admin"
+    }
+  },
+  {
+    "user": {
+      "username": "noor.research",
+      "email": "noor@umbrella.local",
+      "tenant": "umbrella",
+      "role": "user"
+    }
+  },
+  {
+    "user": {
+      "username": "fatma.ops",
+      "email": "fatma@umbrella.local",
+      "tenant": "umbrella",
+      "role": "operator"
+    }
+  },
+  {
+    "user": {
+      "username": "bruce.wayne",
+      "email": "bruce@wayne.local",
+      "tenant": "wayne",
+      "role": "admin"
+    }
+  },
+  {
+    "user": {
+      "username": "lucius.fox",
+      "email": "lucius@wayne.local",
+      "tenant": "wayne",
+      "role": "operator"
+    }
+  },
+  {
+    "user": {
+      "username": "alfred.p",
+      "email": "alfred@wayne.local",
+      "tenant": "wayne",
+      "role": "user"
+    }
+  }
+]

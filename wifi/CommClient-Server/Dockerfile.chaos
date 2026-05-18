@@ -1,0 +1,55 @@
+# Dockerfile.chaos — minimal helen-server image for the 100-server
+# chaos lab profile (docker-compose.chaos.yml).
+#
+# This image is intentionally small. It is NOT for production:
+#   * Doesn't bundle the SFU worker (chaos test mode rejects media
+#     payloads anyway via the 8KB envelope guard).
+#   * Doesn't bundle PyInstaller frozen binaries — runs Python directly
+#     so iteration on the chaos test code is fast.
+#   * Doesn't include the desktop renderer assets (mounted webdir
+#     paths are just absent — main.py logs a warning and continues).
+#
+# Build
+# -----
+#   docker build -t helen-server:chaos -f Dockerfile.chaos .
+#
+# Then bring up the lab:
+#
+#   python scripts/gen_chaos_compose.py --count 100
+#   docker compose -f docker-compose.chaos.full.yml up
+
+FROM python:3.12-slim
+
+# Faster builds: bytecode + no pip cache + no version checks.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HELEN_ENV=production
+
+WORKDIR /app
+
+# Install Python deps first so layer cache survives source changes.
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy app source (chaos image needs only the backend, not the
+# desktop renderer or SFU worker).
+COPY app /app/app
+COPY run.py /app/run.py
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
+
+# Default config — override via env or compose.
+ENV HOST=0.0.0.0 \
+    PORT=3000 \
+    LOG_LEVEL=INFO
+
+EXPOSE 3000
+
+# Healthcheck hits /api/health (defined in app/api/routes/health.py).
+HEALTHCHECK --interval=10s --timeout=3s --retries=5 --start-period=20s \
+    CMD python -c "import urllib.request, sys; \
+        sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/api/health', timeout=2).status == 200 else 1)"
+
+CMD ["python", "run.py"]

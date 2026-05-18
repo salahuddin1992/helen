@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<!-- Phase 6 / Module AB — Compliance admin module. Self-contained. -->
+<style>
+  :root {
+    --cp-fg:#e4e7eb; --cp-bg:#0e141b; --cp-bg2:#171f27;
+    --cp-border:#222e3a; --cp-accent:#5b9cff; --cp-warn:#ffb347;
+    --cp-danger:#ff5f6d; --cp-ok:#46d39a;
+  }
+  .cp-wrap { color:var(--cp-fg); font-family:system-ui,sans-serif; padding:18px; }
+  .cp-tabs { display:flex; gap:6px; border-bottom:1px solid var(--cp-border); margin-bottom:18px; }
+  .cp-tab { padding:8px 14px; cursor:pointer; border:1px solid transparent;
+            border-bottom:none; border-radius:8px 8px 0 0; }
+  .cp-tab.active { background:var(--cp-bg2); border-color:var(--cp-border); color:var(--cp-accent); }
+  .cp-section { background:var(--cp-bg2); border:1px solid var(--cp-border);
+                border-radius:12px; padding:18px; margin-bottom:18px; }
+  .cp-btn { background:var(--cp-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .cp-btn.secondary { background:#2a3340; color:var(--cp-fg); }
+  .cp-btn.danger { background:var(--cp-danger); color:#fff; }
+  .cp-input, .cp-select { width:100%; background:#0a1018; color:var(--cp-fg);
+                          border:1px solid var(--cp-border); border-radius:8px;
+                          padding:8px 10px; box-sizing:border-box; }
+  .cp-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .cp-tbl th, .cp-tbl td { padding:6px 8px; border-bottom:1px solid var(--cp-border);
+                           text-align:left; }
+  .cp-pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px;
+             background:#2a3340; }
+  .cp-pill.ok { background:#22432e; color:var(--cp-ok); }
+  .cp-pill.warn { background:#4a3e1f; color:var(--cp-warn); }
+  .cp-pill.bad { background:#4a2326; color:var(--cp-danger); }
+  .cp-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px; }
+  .cp-card { background:var(--cp-bg2); border:1px solid var(--cp-border);
+             padding:14px; border-radius:12px; }
+  .cp-card .label { font-size:12px; opacity:.7; }
+  .cp-card .val { font-size:22px; font-weight:600; margin-top:6px; }
+  .cp-grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .cp-heat { display:grid; grid-template-columns:1fr repeat(5, 60px); gap:2px;
+             font-size:12px; }
+  .cp-heat .row { display:contents; }
+  .cp-heat .cell { padding:4px 6px; background:#0a1018; text-align:center; }
+  .cp-heat .cell.h-pii { background:#3b2c1f; color:var(--cp-warn); }
+  .cp-heat .cell.h-phi { background:#3b1f23; color:var(--cp-danger); }
+  .cp-heat .cell.h-financial { background:#1f3b30; color:var(--cp-ok); }
+  .cp-heat .cell.h-credentials { background:#3b1f3a; color:#d899ff; }
+  pre.cp-out { background:#0a1018; padding:10px; border-radius:8px; overflow:auto;
+               font-size:12px; max-height:260px; }
+</style>
+
+<div class="cp-wrap">
+  <div class="cp-tabs">
+    <div class="cp-tab active" data-tab="exports">Exports</div>
+    <div class="cp-tab" data-tab="deletions">Deletions</div>
+    <div class="cp-tab" data-tab="retention">Retention</div>
+    <div class="cp-tab" data-tab="pii">PII Inventory</div>
+    <div class="cp-tab" data-tab="reports">Reports</div>
+    <div class="cp-tab" data-tab="consents">Consents</div>
+  </div>
+
+  <div data-pane="exports">
+    <div class="cp-cards" id="cp-summary-cards"></div>
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">Data export requests</h3>
+      <table class="cp-tbl" id="cp-export-tbl"></table>
+    </div>
+  </div>
+
+  <div data-pane="deletions" style="display:none;">
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">Deletion requests</h3>
+      <table class="cp-tbl" id="cp-deletion-tbl"></table>
+    </div>
+  </div>
+
+  <div data-pane="retention" style="display:none;">
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">Retention policies</h3>
+      <div class="cp-grid3">
+        <div>
+          <label>Entity type</label>
+          <select class="cp-select" id="cp-ret-entity"></select>
+        </div>
+        <div>
+          <label>Retain days</label>
+          <input class="cp-input" id="cp-ret-days" type="number" value="180"/>
+        </div>
+        <div>
+          <label>Action</label>
+          <select class="cp-select" id="cp-ret-action">
+            <option value="delete">delete</option>
+            <option value="anonymize">anonymize</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="cp-btn" id="cp-ret-save">Upsert policy</button>
+        <button class="cp-btn secondary" id="cp-ret-dry">Dry-run pass</button>
+        <button class="cp-btn secondary" id="cp-ret-now">Run pass now</button>
+      </div>
+      <pre class="cp-out" id="cp-ret-out"></pre>
+    </div>
+    <div class="cp-section">
+      <table class="cp-tbl" id="cp-ret-tbl"></table>
+    </div>
+  </div>
+
+  <div data-pane="pii" style="display:none;">
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">PII heatmap</h3>
+      <div id="cp-heat" class="cp-heat"></div>
+      <button class="cp-btn" id="cp-pii-rebuild" style="margin-top:12px;">Rebuild inventory</button>
+    </div>
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">Inventory</h3>
+      <table class="cp-tbl" id="cp-pii-tbl"></table>
+    </div>
+  </div>
+
+  <div data-pane="reports" style="display:none;">
+    <div class="cp-section">
+      <h3 style="margin:0 0 12px;">Generate compliance report</h3>
+      <div class="cp-grid3">
+        <div>
+          <label>Kind</label>
+          <select class="cp-select" id="cp-rep-kind">
+            <option value="soc2">SOC 2 Type II</option>
+            <option value="gdpr">GDPR inventory</option>
+            <option value="hipaa">HIPAA PHI log</option>
+          </select>
+        </div>
+        <div>
+          <label>Period (days)</label>
+          <input class="cp-input" id="cp-rep-days" type="number" value="90"/>
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+          <button class="cp-btn" id="cp-rep-go">Generate</button>
+        </div>
+      </div>
+      <pre class="cp-out" id="cp-rep-out"></pre>
+    </div>
+  </div>
+
+  <div data-pane="consents" style="display:none;">
+    <div class="cp-section">
+      <p>Per-user consents are recorded with version, timestamp, IP and user-agent for audit.</p>
+      <p>Use <code>POST /api/me/consents</code> from the user UI.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(s){ return document.querySelector(s); }
+  function tabs(){
+    document.querySelectorAll('.cp-tab').forEach(t=>{
+      t.onclick = ()=>{
+        document.querySelectorAll('.cp-tab').forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+        document.querySelectorAll('[data-pane]').forEach(p=>p.style.display='none');
+        document.querySelector('[data-pane="'+t.dataset.tab+'"]').style.display='block';
+      };
+    });
+  }
+
+  async function loadSummary(){
+    const s = await apiFetch('/api/admin/compliance/audit-summary?period=30d');
+    $('#cp-summary-cards').innerHTML =
+      card('Exports (30d)', s.exports) +
+      card('Deletions (30d)', s.deletions) +
+      card('Consents (30d)', s.consents) +
+      card('Period', s.period_days+' d');
+    const e = await apiFetch('/api/admin/compliance/exports');
+    $('#cp-export-tbl').innerHTML = '<thead><tr><th>id</th><th>user</th><th>status</th>'
+      + '<th>requested</th><th>size</th></tr></thead><tbody>'
+      + (e.items||[]).map(r=>(
+        '<tr><td>'+r.id.slice(0,8)+'</td><td>'+r.user_id.slice(0,8)+'</td>'
+        +'<td><span class="cp-pill '+(r.status==='ready'?'ok':r.status==='failed'?'bad':'warn')+'">'+r.status+'</span></td>'
+        +'<td>'+(r.requested_at||'-')+'</td>'
+        +'<td>'+(r.size_bytes||0)+'</td></tr>'
+      )).join('') + '</tbody>';
+  }
+
+  async function loadDeletions(){
+    const r = await apiFetch('/api/admin/compliance/deletions');
+    $('#cp-deletion-tbl').innerHTML = '<thead><tr><th>id</th><th>user</th><th>status</th>'
+      + '<th>requested</th><th>scheduled</th><th>rows</th></tr></thead><tbody>'
+      + (r.items||[]).map(d=>(
+        '<tr><td>'+d.id.slice(0,8)+'</td><td>'+d.user_id.slice(0,8)+'</td>'
+        +'<td><span class="cp-pill '+(d.status==='completed'?'ok':d.status==='failed'?'bad':'warn')+'">'+d.status+'</span></td>'
+        +'<td>'+(d.requested_at||'-')+'</td>'
+        +'<td>'+(d.scheduled_for||'-')+'</td>'
+        +'<td>'+(d.rows_affected||'-')+'</td></tr>'
+      )).join('') + '</tbody>';
+  }
+
+  async function loadRetention(){
+    const r = await apiFetch('/api/admin/compliance/retention-policies');
+    $('#cp-ret-entity').innerHTML = (r.known_entity_types||[])
+      .map(t=>'<option value="'+t+'">'+t+'</option>').join('');
+    $('#cp-ret-tbl').innerHTML = '<thead><tr><th>entity</th><th>days</th><th>action</th>'
+      + '<th>enabled</th><th>last run</th><th>affected</th></tr></thead><tbody>'
+      + (r.items||[]).map(p=>(
+        '<tr><td>'+p.entity_type+'</td><td>'+p.retention_days+'</td><td>'+p.action+'</td>'
+        +'<td>'+(p.enabled?'yes':'no')+'</td>'
+        +'<td>'+(p.last_run_at||'-')+'</td>'
+        +'<td>'+(p.last_run_affected||0)+'</td></tr>'
+      )).join('') + '</tbody>';
+  }
+
+  async function loadPII(){
+    const r = await apiFetch('/api/admin/compliance/pii-inventory');
+    const heat = r.heatmap || {};
+    const heads = ['table','pii','phi','financial','credentials','none'];
+    let html = '<div class="row">'+heads.map(h=>'<div class="cell"><strong>'+h+'</strong></div>').join('')+'</div>';
+    Object.keys(heat).sort().forEach(tbl=>{
+      const bucket = heat[tbl] || {};
+      html += '<div class="row"><div class="cell">'+tbl+'</div>';
+      ['pii','phi','financial','credentials','none'].forEach(k=>{
+        const v = bucket[k]||0;
+        const cls = v>0 && k!=='none' ? 'h-'+k : '';
+        html += '<div class="cell '+cls+'">'+v+'</div>';
+      });
+      html += '</div>';
+    });
+    $('#cp-heat').innerHTML = html;
+    $('#cp-pii-tbl').innerHTML = '<thead><tr><th>table</th><th>column</th>'
+      + '<th>classification</th><th>encryption</th><th>masking</th></tr></thead><tbody>'
+      + (r.items||[]).filter(e=>e.classification!=='none').map(e=>(
+        '<tr><td>'+e.table_name+'</td><td>'+e.column_name+'</td>'
+        +'<td>'+e.classification+'</td><td>'+e.encryption_status+'</td>'
+        +'<td>'+(e.masking_rule||'-')+'</td></tr>'
+      )).join('') + '</tbody>';
+  }
+
+  $('#cp-pii-rebuild').onclick = async ()=>{
+    const r = await apiFetch('/api/admin/compliance/pii-inventory/rebuild',{method:'POST'});
+    alert(JSON.stringify(r));
+    loadPII();
+  };
+  $('#cp-ret-save').onclick = async ()=>{
+    const r = await apiFetch('/api/admin/compliance/retention-policies',{
+      method:'POST', body: JSON.stringify({
+        entity_type:$('#cp-ret-entity').value,
+        retention_days: parseInt($('#cp-ret-days').value),
+        action:$('#cp-ret-action').value, enabled:true,
+      }),
+    });
+    $('#cp-ret-out').textContent = JSON.stringify(r,null,2);
+    loadRetention();
+  };
+  $('#cp-ret-dry').onclick = async ()=>{
+    const r = await apiFetch('/api/admin/compliance/retention/run-now?dry_run=true',{method:'POST'});
+    $('#cp-ret-out').textContent = JSON.stringify(r,null,2);
+  };
+  $('#cp-ret-now').onclick = async ()=>{
+    if(!confirm('Apply retention rules now?')) return;
+    const r = await apiFetch('/api/admin/compliance/retention/run-now',{method:'POST'});
+    $('#cp-ret-out').textContent = JSON.stringify(r,null,2);
+    loadRetention();
+  };
+  $('#cp-rep-go').onclick = async ()=>{
+    const kind = $('#cp-rep-kind').value;
+    const days = parseInt($('#cp-rep-days').value)||90;
+    const r = await apiFetch('/api/admin/compliance/reports/'+kind+'?period_days='+days,{method:'POST'});
+    $('#cp-rep-out').textContent = JSON.stringify(r,null,2);
+  };
+
+  function card(label, val){
+    return '<div class="cp-card"><div class="label">'+label+'</div>'
+         + '<div class="val">'+val+'</div></div>';
+  }
+
+  tabs();
+  loadSummary(); loadDeletions(); loadRetention(); loadPII();
+})();
+</script>
+
+</script>
+</body>
+</html>

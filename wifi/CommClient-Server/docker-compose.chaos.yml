@@ -1,0 +1,149 @@
+# 100-server chaos profile — control-plane stress testing only.
+#
+# This compose file is a LAB tool, not a production deployment.
+# It brings up:
+#   * 1× Redis (for presence, locks, registry, broker)
+#   * 100× helen-server replicas (server-001 through server-100)
+#   * Shared volumes for traces + Redis data
+#   * HELEN_ENABLE_100_HOP_TEST_MODE=true on every replica
+#
+# Usage
+# -----
+#   # Build the image once
+#   docker build -t helen-server:chaos -f Dockerfile.chaos .
+#
+#   # Bring up the lab
+#   docker compose -f docker-compose.chaos.yml up
+#
+#   # Inject a failure on server-047 from any other server
+#   curl -X POST http://localhost:30001/api/chaos/inject_failure \
+#     -H "Authorization: Bearer $ADMIN_TOKEN" \
+#     -d '{"target":"peer:server_047","failure_rate":0.3}'
+#
+#   # Force a deterministic 100-hop chain for the next event
+#   curl -X POST http://localhost:30001/api/chaos/force_route \
+#     -H "Authorization: Bearer $ADMIN_TOKEN" \
+#     -d '{"trace_id":"trace_test_01","route":["server_001",...,"server_100"]}'
+#
+#   # Read the trace back
+#   curl http://localhost:30001/api/chaos/traces/trace_test_01
+#
+# What this profile DOES NOT do
+# -----------------------------
+#   * Production routing — chaos mode forces deterministic 100-hop
+#     chains, which is the opposite of what a sane production
+#     deployment does (1–3 hops via shortest path).
+#   * Media transport — payload size guard (8KB) refuses anything
+#     bigger. Use it only for envelopes carrying signaling, not
+#     audio/video/files.
+#   * Permanent state — every restart tears down the Redis volume
+#     unless you persist it.
+
+version: "3.9"
+
+# ── Common config repeated across replicas ────────────────────────
+x-helen-common: &helen-common
+  image: helen-server:chaos
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+  environment: &helen-env
+    HELEN_ENV: production
+    HELEN_REDIS_URL: redis://redis:6379/0
+    FEDERATION_ENABLED: "true"
+    FEDERATION_SECRET: chaos-lab-shared-secret-please-rotate
+    HELEN_ENABLE_100_HOP_TEST_MODE: "true"
+    HELEN_FABRIC_EVENT_ALLOWLIST: "call_*,v2_chat:new_message,chat:typing"
+    HELEN_TRACE_RETENTION_DAYS: "1"
+    JWT_SECRET: chaos-lab-jwt-32-chars-or-more-please
+    LOG_LEVEL: INFO
+  networks:
+    - helen-chaos
+
+services:
+  # ── Shared infrastructure ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly no --save "" --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - helen-chaos
+    ports:
+      - "16379:6379"  # exposed for ad-hoc inspection (redis-cli on host)
+
+  # ── Servers 001–010 (port-mapped for direct admin access) ──────
+  # Mapping rule: external 30000 + N → internal 3000 on server-N.
+  # Servers 011-100 are reachable only inside the helen-chaos
+  # network — that's the point: 100-hop signaling stays in-cluster.
+  server-001:
+    <<: *helen-common
+    container_name: helen_chaos_001
+    environment:
+      <<: *helen-env
+      HELEN_SERVER_ID: server_001
+      HELEN_REGION: chaos-r1
+    ports: ["30001:3000"]
+  server-002:
+    <<: *helen-common
+    container_name: helen_chaos_002
+    environment:
+      <<: *helen-env
+      HELEN_SERVER_ID: server_002
+      HELEN_REGION: chaos-r1
+    ports: ["30002:3000"]
+  server-003:
+    <<: *helen-common
+    container_name: helen_chaos_003
+    environment:
+      <<: *helen-env
+      HELEN_SERVER_ID: server_003
+      HELEN_REGION: chaos-r1
+    ports: ["30003:3000"]
+  server-004:
+    <<: *helen-common
+    container_name: helen_chaos_004
+    environment:
+      <<: *helen-env
+      HELEN_SERVER_ID: server_004
+      HELEN_REGION: chaos-r1
+    ports: ["30004:3000"]
+  server-005:
+    <<: *helen-common
+    container_name: helen_chaos_005
+    environment:
+      <<: *helen-env
+      HELEN_SERVER_ID: server_005
+      HELEN_REGION: chaos-r1
+    ports: ["30005:3000"]
+
+  # Servers 006–100 declared via the helper script that emits this
+  # block in a loop. We list 005 by hand; declaring 100 in YAML
+  # bloats the file to ~2000 lines for no operational gain. Use
+  # `scripts/gen_chaos_compose.py` to materialize the full file
+  # when actually running the lab.
+  #
+  # The helper outputs entries shaped like:
+  #
+  #   server-NNN:
+  #     <<: *helen-common
+  #     container_name: helen_chaos_NNN
+  #     environment:
+  #       <<: *helen-env
+  #       HELEN_SERVER_ID: server_NNN
+  #       HELEN_REGION: chaos-rN  (regions assigned in 4 buckets)
+  #
+  # No port mapping for 011+: chaos chains stay in-network.
+
+networks:
+  helen-chaos:
+    driver: bridge
+
+volumes:
+  helen_traces:
+    driver: local

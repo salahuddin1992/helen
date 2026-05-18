@@ -1,0 +1,267 @@
+---
+# Helen — full LAN rollout playbook.
+#
+# What this does:
+#   1. Pushes Helen-Server tarball to every host in [helen_servers]
+#      and configures systemd, firewall, JWT_SECRET.
+#   2. Pushes Helen-Rendezvous to [helen_rendezvous] (if any) and wires
+#      every server to it via .env.
+#   3. Pushes Helen-Desktop AppImage / .deb to [helen_clients_linux].
+#   4. Pushes Helen Desktop Setup .exe to [helen_clients_windows] and
+#      runs it silently.
+#
+# Run from the controller (your admin laptop, NOT a target host):
+#   ansible-playbook -i inventory.ini site.yml
+#
+# Pre-flight:
+#   - Targets need SSH access from the controller (Windows: OpenSSH).
+#   - The controller needs ansible 2.14+ and the artefact tarballs in
+#     {{ helen_artefacts_dir }}.
+
+- name: Helen-Server rollout
+  hosts: helen_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    helen_server_tarball: "helen-server-linux-1.0.0.tar.gz"
+    helen_server_url: "{{ 'http://' + ansible_default_ipv4.address + ':3000' }}"
+
+  tasks:
+    - name: Ensure helen system user exists
+      user:
+        name: "{{ helen_user }}"
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+
+    - name: Ensure install dir exists
+      file:
+        path: "{{ helen_server_install }}"
+        state: directory
+        owner: "{{ helen_user }}"
+        group: "{{ helen_group }}"
+        mode: "0755"
+
+    - name: Push Helen-Server tarball
+      copy:
+        src: "{{ helen_artefacts_dir }}/{{ helen_server_tarball }}"
+        dest: "/tmp/{{ helen_server_tarball }}"
+        mode: "0644"
+      register: tarball_push
+
+    - name: Extract tarball into install dir
+      unarchive:
+        src: "/tmp/{{ helen_server_tarball }}"
+        dest: "{{ helen_server_install }}"
+        remote_src: true
+        extra_opts: ["--strip-components=1"]
+        owner: "{{ helen_user }}"
+        group: "{{ helen_group }}"
+      when: tarball_push.changed
+      notify: Restart helen-server
+
+    - name: Generate JWT_SECRET if .env missing
+      shell: |
+        umask 077
+        echo "JWT_SECRET=$(openssl rand -hex 32)" > {{ helen_server_install }}/.env
+        echo "PORT=3000" >> {{ helen_server_install }}/.env
+        echo "HTTPS_PORT=3443" >> {{ helen_server_install }}/.env
+        echo "DEBUG=0" >> {{ helen_server_install }}/.env
+      args:
+        creates: "{{ helen_server_install }}/.env"
+
+    - name: Append rendezvous config to .env (if rendezvous host exists)
+      when: groups['helen_rendezvous'] | length > 0
+      lineinfile:
+        path: "{{ helen_server_install }}/.env"
+        line: "{{ item }}"
+        create: true
+      loop:
+        - "HELEN_RENDEZVOUS_URL=http://{{ hostvars[groups['helen_rendezvous'][0]].ansible_default_ipv4.address }}:9090"
+        - "HELEN_RENDEZVOUS_TOKEN={{ helen_rendezvous_token | default('SET_ME') }}"
+
+    - name: Set permissions on .env
+      file:
+        path: "{{ helen_server_install }}/.env"
+        owner: "{{ helen_user }}"
+        group: "{{ helen_group }}"
+        mode: "0600"
+
+    - name: Install systemd unit
+      copy:
+        src: "{{ playbook_dir }}/../linux/systemd/helen-server.service"
+        dest: /etc/systemd/system/helen-server.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart helen-server
+
+    - name: Configure firewall (best-effort)
+      script: "{{ playbook_dir }}/../linux/scripts/setup-firewall.sh server"
+      args:
+        creates: /var/lib/helen-firewall-configured
+      register: fw
+      failed_when: fw.rc != 0 and fw.rc != 1
+
+    - name: Mark firewall as configured
+      file:
+        path: /var/lib/helen-firewall-configured
+        state: touch
+      when: fw is changed
+
+    - name: Enable and start helen-server
+      systemd:
+        name: helen-server
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for health endpoint
+      uri:
+        url: "{{ helen_server_url }}/api/health"
+        status_code: 200
+      register: health
+      retries: 10
+      delay: 3
+      until: health.status == 200
+
+    - name: Report
+      debug:
+        msg: "✅ {{ inventory_hostname }} → {{ helen_server_url }}/api/health: {{ health.json.status }}"
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Restart helen-server
+      systemd:
+        name: helen-server
+        state: restarted
+
+
+- name: Helen-Rendezvous rollout
+  hosts: helen_rendezvous
+  become: true
+  gather_facts: true
+
+  vars:
+    helen_rdv_tarball: "helen-rendezvous-linux-1.0.2.tar.gz"
+
+  tasks:
+    - name: Ensure helen user exists
+      user:
+        name: "{{ helen_user }}"
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+
+    - name: Ensure install dir exists
+      file:
+        path: "{{ helen_rendezvous_install }}"
+        state: directory
+        owner: "{{ helen_user }}"
+        group: "{{ helen_group }}"
+
+    - name: Push tarball
+      copy:
+        src: "{{ helen_artefacts_dir }}/{{ helen_rdv_tarball }}"
+        dest: "/tmp/{{ helen_rdv_tarball }}"
+
+    - name: Extract
+      unarchive:
+        src: "/tmp/{{ helen_rdv_tarball }}"
+        dest: "{{ helen_rendezvous_install }}"
+        remote_src: true
+        extra_opts: ["--strip-components=2"]
+        owner: "{{ helen_user }}"
+        group: "{{ helen_group }}"
+
+    - name: Token (.env)
+      shell: |
+        umask 077
+        echo "HELEN_RENDEZVOUS_TOKEN={{ helen_rendezvous_token }}" > {{ helen_rendezvous_install }}/.env
+        echo "HELEN_RENDEZVOUS_HOST=0.0.0.0" >> {{ helen_rendezvous_install }}/.env
+        echo "HELEN_RENDEZVOUS_PORT=9090" >> {{ helen_rendezvous_install }}/.env
+      args:
+        creates: "{{ helen_rendezvous_install }}/.env"
+
+    - name: systemd unit
+      copy:
+        src: "{{ playbook_dir }}/../linux/systemd/helen-rendezvous.service"
+        dest: /etc/systemd/system/helen-rendezvous.service
+      notify:
+        - Reload systemd
+        - Restart helen-rendezvous
+
+    - name: Firewall
+      script: "{{ playbook_dir }}/../linux/scripts/setup-firewall.sh rendezvous"
+
+    - name: Enable + start
+      systemd:
+        name: helen-rendezvous
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd
+      systemd: { daemon_reload: true }
+    - name: Restart helen-rendezvous
+      systemd: { name: helen-rendezvous, state: restarted }
+
+
+- name: Helen-Desktop rollout (Linux clients)
+  hosts: helen_clients_linux
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Detect package format
+      set_fact:
+        client_pkg: >-
+          {{ 'commclient-desktop_1.0.0_amd64.deb' if ansible_os_family == 'Debian'
+             else 'Helen Desktop-1.0.0.AppImage' }}
+
+    - name: Push package
+      copy:
+        src: "{{ helen_artefacts_dir }}/{{ client_pkg }}"
+        dest: "/tmp/{{ client_pkg }}"
+
+    - name: Install .deb
+      apt:
+        deb: "/tmp/{{ client_pkg }}"
+      when: ansible_os_family == 'Debian'
+
+    - name: Install AppImage
+      copy:
+        src: "/tmp/{{ client_pkg }}"
+        dest: "/usr/local/bin/helen-desktop.AppImage"
+        mode: "0755"
+        remote_src: true
+      when: ansible_os_family != 'Debian'
+
+    - name: Verify
+      debug:
+        msg: "✅ Client installed on {{ inventory_hostname }}: {{ client_pkg }}"
+
+
+- name: Helen-Desktop rollout (Windows clients)
+  hosts: helen_clients_windows
+  gather_facts: true
+
+  tasks:
+    - name: Push installer
+      win_copy:
+        src: "{{ helen_artefacts_dir }}/Helen Desktop Setup 1.0.0.exe"
+        dest: "C:\\Windows\\Temp\\Helen-Desktop-Setup.exe"
+
+    - name: Run installer silently
+      win_command: 'C:\Windows\Temp\Helen-Desktop-Setup.exe /S'
+      args:
+        creates: "C:\\Program Files\\Helen Desktop\\Helen Desktop.exe"
+
+    - name: Verify
+      debug:
+        msg: "✅ Helen Desktop installed on {{ inventory_hostname }}"

@@ -1,0 +1,118 @@
+{
+  "ts": "2026-05-07T03:02:38Z",
+  "version": "3.0.0",
+  "build": "2026.05.06",
+  "findings": [
+    {
+      "id": "AUDIT-001",
+      "severity": "high",
+      "issue": "--dangerously-skip-permissions hardcoded as default",
+      "fix": "moved behind cfg.allow_dangerous_permissions (False default)"
+    },
+    {
+      "id": "AUDIT-002",
+      "severity": "high",
+      "issue": "Engine._proc_wrapper set to None before extension hooks ran",
+      "fix": "added _last_proc_wrapper preserved past the finally block"
+    },
+    {
+      "id": "AUDIT-003",
+      "severity": "high",
+      "issue": "FailureAnalyzer hooked to wrapper that was always None",
+      "fix": "record_outcome_v2 now reads engine._last_proc_wrapper"
+    },
+    {
+      "id": "AUDIT-004",
+      "severity": "high",
+      "issue": "GitAutoCommitter could fire purely from a CLI flag",
+      "fix": "now requires both CLI flag AND cfg.git_auto_commit_enabled"
+    },
+    {
+      "id": "AUDIT-005",
+      "severity": "high",
+      "issue": "HTTP dashboard had no auth and could bind to 0.0.0.0",
+      "fix": "Bearer token + loopback-only bind, both configurable"
+    },
+    {
+      "id": "AUDIT-006",
+      "severity": "high",
+      "issue": "Plugins loaded from disk with no integrity check",
+      "fix": "PluginSignatureGuard refuses unsigned plugins by default"
+    },
+    {
+      "id": "AUDIT-007",
+      "severity": "high",
+      "issue": "Logs and replays could leak API keys / OAuth tokens",
+      "fix": "redact_secrets() applied via _RedactingFormatter on all handlers"
+    },
+    {
+      "id": "AUDIT-008",
+      "severity": "medium",
+      "issue": "no dry-run path → first-time setup risked spending tokens",
+      "fix": "RunnerConfig.dry_run replaces claude with cmd /c echo no-op"
+    },
+    {
+      "id": "AUDIT-009",
+      "severity": "medium",
+      "issue": "no allowlist on file writes / deletes",
+      "fix": "AllowlistGuard + safe_mode default-on"
+    },
+    {
+      "id": "AUDIT-010",
+      "severity": "medium",
+      "issue": "Windows API calls executed unconditionally on POSIX",
+      "fix": "WindowsHelper checks os.name == 'nt' on every entry; preflight surfaces non-Windows clearly"
+    },
+    {
+      "id": "AUDIT-011",
+      "severity": "medium",
+      "issue": "self-prompt asked Claude to modify CLAUDE.md / DELIVERY-MANIFEST.md, contradicting the 'never modify' rule",
+      "fix": "normalize_prompt() rewrites those mentions to autonomous/session-log/* unless explicit opt-in"
+    },
+    {
+      "id": "AUDIT-012",
+      "severity": "low",
+      "issue": "no preflight",
+      "fix": "PreflightChecker validates python, claude, root, git, writability, single-instance, disk, platform, dangerous-mode"
+    },
+    {
+      "id": "AUDIT-013",
+      "severity": "low",
+      "issue": "no automated tests",
+      "fix": "8 pytest files emitted via --write-tests"
+    },
+    {
+      "id": "AUDIT-014",
+      "severity": "info",
+      "issue": "dead code: extra_claude_flags was unused in some paths",
+      "fix": "build_argv now always honours cfg.extra_claude_flags"
+    },
+    {
+      "id": "AUDIT-015",
+      "severity": "info",
+      "issue": "comments said 'never delete' but Section 36 added deletion",
+      "fix": "deletion now requires explicit --allow-conflict-deletion AND always tombstones (reversible) — comments aligned"
+    }
+  ],
+  "test_files": [
+    "test_queue.py",
+    "test_config.py",
+    "test_state.py",
+    "test_security.py",
+    "test_dashboard_auth.py",
+    "test_failure_analyzer.py",
+    "test_safe_mode.py",
+    "test_cli_args.py"
+  ],
+  "production_defaults": {
+    "allow_dangerous_permissions": false,
+    "safe_mode": true,
+    "dry_run": false,
+    "git_auto_commit_enabled": false,
+    "require_signed_plugins": true,
+    "dashboard_require_auth": true,
+    "dashboard_bind_loopback_only": true,
+    "redact_secrets_in_logs": true,
+    "allow_modify_existing_files": false
+  }
+}

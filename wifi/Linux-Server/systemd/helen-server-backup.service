@@ -1,0 +1,13 @@
+[Unit]
+Description=Helen Server — one-shot backup
+After=helen-server.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/helen/server/scripts/backup.sh /var/backups/helen/
+# Keep only the last 14 nightly snapshots
+ExecStartPost=/bin/sh -c 'ls -1t /var/backups/helen/helen-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f'
+Nice=10
+IOSchedulingClass=idle

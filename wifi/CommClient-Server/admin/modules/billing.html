@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8" />
+ <title>Helen — Billing</title>
+ <meta name="viewport" content="width=device-width,initial-scale=1" />
+ <style>
+  :root {
+    --bg:#0d111b; --panel:#161b27; --line:#262d3d; --fg:#e7eaf2;
+    --muted:#7d869b; --accent:#5d8bff; --good:#37c39d; --warn:#f0b133;
+    --bad:#ef5a5a;
+  }
+  * { box-sizing: border-box }
+  body { font-family: system-ui, sans-serif; background: var(--bg);
+         color: var(--fg); margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 16px }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tab { padding: 10px 18px; cursor: pointer; color: var(--muted);
+         border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--fg); border-color: var(--accent); }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 8px 10px;
+           text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px;
+          font-size: 11px; }
+  .pill.active { background: rgba(55,195,157,0.15); color: var(--good) }
+  .pill.trialing { background: rgba(93,139,255,0.15); color: var(--accent) }
+  .pill.past_due { background: rgba(240,177,51,0.15); color: var(--warn) }
+  .pill.paused, .pill.canceled { background: rgba(239,90,90,0.15); color: var(--bad) }
+  .pill.paid { background: rgba(55,195,157,0.15); color: var(--good) }
+  .pill.open, .pill.draft { background: rgba(125,134,155,0.18); color: var(--muted) }
+  .pill.void { background: rgba(239,90,90,0.15); color: var(--bad) }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line);
+         border-radius: 10px; padding: 14px; }
+  .kpi .label { color: var(--muted); font-size: 12px; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .chart { height: 240px; margin-top: 10px; }
+  .btn { background: var(--accent); border: none; color: white;
+         padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  .btn.warn { background: var(--warn); color: #19130a; }
+  .btn.bad { background: var(--bad); }
+  .right { text-align: right; }
+ </style>
+</head>
+<body>
+ <h1>Billing Operations</h1>
+
+ <div class="tabs">
+  <div class="tab active" data-tab="subs">Subscriptions</div>
+  <div class="tab" data-tab="plans">Plans</div>
+  <div class="tab" data-tab="invoices">Invoices</div>
+  <div class="tab" data-tab="coupons">Coupons</div>
+  <div class="tab" data-tab="metrics">Metrics</div>
+ </div>
+
+ <div id="view"></div>
+
+<script>
+const API = (path, init) => fetch("/api/admin/billing"+path, {
+  headers: { "Authorization": "Bearer " + (localStorage.getItem("helen_admin_token") || "") },
+  ...init || {},
+}).then(r => r.ok ? r.json() : r.json().then(e => { throw e }));
+
+function el(html) {
+  const d = document.createElement("div"); d.innerHTML = html.trim();
+  return d.firstElementChild;
+}
+
+async function renderSubs() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await API("/subscriptions");
+  v.innerHTML = `
+    <div class="panel">
+      <table>
+        <thead><tr>
+          <th>Workspace</th><th>Plan</th><th>Status</th><th>Cycle</th>
+          <th>Provider</th><th>Period End</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(s => `
+            <tr>
+              <td><code>${s.workspace_id.slice(0,8)}…</code></td>
+              <td><code>${s.plan_id.slice(0,8)}…</code></td>
+              <td><span class="pill ${s.status}">${s.status}</span></td>
+              <td>${s.billing_cycle}</td>
+              <td>${s.provider}</td>
+              <td>${s.period_end ? new Date(s.period_end).toLocaleDateString() : "—"}</td>
+              <td class="right">
+                <button class="btn warn" onclick="creditSub('${s.id}')">Credit</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function creditSub(id) {
+  const cents = prompt("Credit amount in cents:"); if (!cents) return;
+  await API(`/subscriptions/${id}/credit`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount_cents: Number(cents), reason: "admin" }),
+  });
+  renderSubs();
+}
+
+async function renderPlans() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await API("/plans");
+  v.innerHTML = `
+    <div class="panel">
+      <button class="btn" onclick="bootstrapPlans()">Bootstrap Defaults</button>
+      <table style="margin-top:12px">
+        <thead><tr>
+          <th>Slug</th><th>Name</th><th>Monthly</th><th>Yearly</th>
+          <th>Public</th><th>Trial</th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(p => `
+            <tr>
+              <td><code>${p.slug}</code></td>
+              <td>${p.name}</td>
+              <td>$${(p.price_monthly_cents/100).toFixed(2)}</td>
+              <td>$${(p.price_yearly_cents/100).toFixed(2)}</td>
+              <td>${p.is_public ? "yes" : "no"}</td>
+              <td>${p.trial_days}d</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function bootstrapPlans() {
+  await API("/plans/bootstrap", { method: "POST" });
+  renderPlans();
+}
+
+async function renderInvoices() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await API("/invoices");
+  v.innerHTML = `
+    <div class="panel">
+      <button class="btn" onclick="generateCycle()">Generate Cycle</button>
+      <table style="margin-top:12px">
+        <thead><tr>
+          <th>Number</th><th>Workspace</th><th>Status</th>
+          <th>Total</th><th>Period</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(i => `
+            <tr>
+              <td>${i.number}</td>
+              <td><code>${i.workspace_id.slice(0,8)}…</code></td>
+              <td><span class="pill ${i.status}">${i.status}</span></td>
+              <td>$${(i.total_cents/100).toFixed(2)} ${i.currency}</td>
+              <td>${new Date(i.period_start).toLocaleDateString()} → ${new Date(i.period_end).toLocaleDateString()}</td>
+              <td class="right">
+                ${i.status === "open" ? `<button class="btn bad" onclick="voidInvoice('${i.id}')">Void</button>` : ""}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function voidInvoice(id) {
+  if (!confirm("Void this invoice?")) return;
+  await API(`/invoices/${id}/void`, { method: "POST" });
+  renderInvoices();
+}
+
+async function generateCycle() {
+  const r = await API("/invoices/generate-cycle", { method: "POST" });
+  alert(`Generated ${r.count} invoices`);
+  renderInvoices();
+}
+
+async function renderCoupons() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await API("/coupons");
+  v.innerHTML = `
+    <div class="panel">
+      <table>
+        <thead><tr>
+          <th>Code</th><th>Discount</th><th>Duration</th>
+          <th>Redemptions</th><th>Valid</th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(c => `
+            <tr>
+              <td><code>${c.code}</code></td>
+              <td>${c.percent_off ? c.percent_off + "%" : "$" + (c.amount_off_cents/100).toFixed(2)}</td>
+              <td>${c.duration}</td>
+              <td>${c.redemptions_count}/${c.max_redemptions ?? "∞"}</td>
+              <td>${c.valid ? "yes" : "no"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function renderMetrics() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const m = await API("/mrr");
+  const u = await API("/usage-summary?days=30");
+  v.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">MRR</div><div class="value">$${(m.mrr_cents/100).toFixed(0)}</div></div>
+      <div class="kpi"><div class="label">ARR</div><div class="value">$${(m.arr_cents/100).toFixed(0)}</div></div>
+      <div class="kpi"><div class="label">Active</div><div class="value">${m.active_subscriptions}</div></div>
+      <div class="kpi"><div class="label">Churn 30d</div><div class="value">${m.churn_pct_30d}%</div></div>
+    </div>
+    <div class="panel">
+      <h3>MRR by Plan</h3>
+      <table>
+        <thead><tr><th>Plan</th><th>MRR ($)</th></tr></thead>
+        <tbody>
+          ${Object.entries(m.by_plan).map(([k,v]) => `
+            <tr><td><code>${k}</code></td><td>$${(v/100).toFixed(2)}</td></tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h3>Usage Totals (30d)</h3>
+      <table>
+        <thead><tr><th>Metric</th><th>Total</th></tr></thead>
+        <tbody>
+          ${Object.entries(u.totals).map(([k,v]) => `
+            <tr><td><code>${k}</code></td><td>${v.toLocaleString()}</td></tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+const renderers = { subs: renderSubs, plans: renderPlans, invoices: renderInvoices, coupons: renderCoupons, metrics: renderMetrics };
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  renderers[t.dataset.tab]();
+}));
+
+renderSubs();
+</script>
+</body>
+</html>

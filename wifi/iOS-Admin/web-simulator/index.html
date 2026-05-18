@@ -1,0 +1,588 @@
+<!doctype html>
+<!--
+    Helen Admin Mobile — iPhone 16 Pro Max-sized operator console.
+    Arabic RTL by default; toggled to English via the segmented
+    control in the profile area (future).
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport"
+      content="width=430, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0b1220" />
+<title>Helen Admin</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="device-frame">
+  <div class="device-notch"></div>
+  <div class="device-viewport" id="viewport">
+
+    <div class="dyn-island" aria-hidden="true"></div>
+
+    <div class="status-bar">
+      <span class="status-time" id="statusTime">9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true">
+          <rect x="0" y="8" width="3" height="4" rx="1"></rect>
+          <rect x="5" y="6" width="3" height="6" rx="1"></rect>
+          <rect x="10" y="3" width="3" height="9" rx="1"></rect>
+          <rect x="15" y="0" width="3" height="12" rx="1"></rect>
+        </svg>
+        <svg viewBox="0 0 24 12" width="24" height="12" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="20" height="11" rx="3"
+                fill="none" stroke="currentColor" />
+          <rect x="22" y="4" width="2" height="4" rx="0.5" />
+          <rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor" />
+        </svg>
+      </span>
+    </div>
+
+    <main class="screen-stack" id="screenStack">
+
+      <!-- Auth — admin sign-in. -->
+      <section class="screen" data-screen="auth" hidden>
+        <header class="nav-bar large-title">
+          <h1>تسجيل دخول المشرف</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="hero">
+            <div class="hero-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="56" height="56">
+                <defs>
+                  <linearGradient id="adminGrad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0" stop-color="#7c5cff" />
+                    <stop offset="1" stop-color="#4cc2ff" />
+                  </linearGradient>
+                </defs>
+                <path d="M24 3l18 9v12c0 10-7.5 18.5-18 21-10.5-2.5-18-11-18-21V12l18-9z"
+                      fill="url(#adminGrad)" />
+                <path d="M16 23l6 6 10-12" fill="none" stroke="#fff"
+                      stroke-width="3" stroke-linecap="round"
+                      stroke-linejoin="round" />
+              </svg>
+            </div>
+            <h2 class="hero-title">لوحة تحكم Helen</h2>
+            <p class="hero-sub">سجّل دخولاً بحساب يحمل دور <code>admin</code>.</p>
+          </div>
+
+          <form id="authForm" class="form-card" autocomplete="off">
+            <label class="form-field">
+              <span class="form-label">اسم المستخدم</span>
+              <input id="authUser" type="text" autocapitalize="none"
+                     spellcheck="false" required />
+            </label>
+            <label class="form-field">
+              <span class="form-label">كلمة المرور</span>
+              <input id="authPass" type="password" required />
+            </label>
+            <button type="submit" class="btn-primary">دخول</button>
+          </form>
+          <div class="status-text" id="authStatus"></div>
+          <div class="mono-hint" id="authServerHint">الخادم: —</div>
+        </div>
+      </section>
+
+      <!-- Overview — KPIs + health. -->
+      <section class="screen" data-screen="overview" hidden>
+        <header class="nav-bar large-title">
+          <h1>نظرة عامة</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="overviewRefresh" title="تحديث">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M4 12a8 8 0 0114-5.3L20 5v5h-5l2.7-2.7A6 6 0 106 12"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <div id="overviewHealth" class="glass-card" style="margin:4px 16px 14px; padding:14px 16px;">
+            <span class="pulse-dot" id="healthDot"></span>
+            <span id="healthText" style="font-weight:600;">جاري الفحص…</span>
+            <div class="mono-hint" id="healthDetail" style="margin-top:6px;">—</div>
+          </div>
+
+          <div class="kpi-grid" id="kpiGrid">
+            <div class="kpi-tile" data-kpi="users">
+              <span class="kpi-dot"></span>
+              <div class="kpi-label">المستخدمون</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">إجمالي</div>
+            </div>
+            <div class="kpi-tile" data-kpi="online">
+              <span class="kpi-dot"></span>
+              <div class="kpi-label">متصل الآن</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">عبر Socket.IO</div>
+            </div>
+            <div class="kpi-tile" data-kpi="channels">
+              <span class="kpi-dot"></span>
+              <div class="kpi-label">القنوات</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">عامة + خاصة</div>
+            </div>
+            <div class="kpi-tile" data-kpi="messages">
+              <span class="kpi-dot"></span>
+              <div class="kpi-label">الرسائل</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">الإجمالي</div>
+            </div>
+          </div>
+
+          <div class="section-label">الأداء (آخر 30 ثانية)</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:14px;">
+            <div class="spark-row">
+              <div class="spark-label">CPU</div>
+              <svg class="spark" id="cpuSpark" viewBox="0 0 200 40"
+                   preserveAspectRatio="none">
+                <polyline fill="none" stroke="#4cc2ff" stroke-width="1.5"
+                          points="" />
+              </svg>
+              <div class="spark-val" id="cpuVal">—%</div>
+            </div>
+            <div class="spark-row">
+              <div class="spark-label">الذاكرة</div>
+              <svg class="spark" id="memSpark" viewBox="0 0 200 40"
+                   preserveAspectRatio="none">
+                <polyline fill="none" stroke="#7c5cff" stroke-width="1.5"
+                          points="" />
+              </svg>
+              <div class="spark-val" id="memVal">— MB</div>
+            </div>
+          </div>
+
+          <div class="section-label">الخادم</div>
+          <div class="glass-card" style="margin:0 16px 8px; padding:4px 0;"
+               id="serverMetrics">
+            <div class="metric-row"><span class="metric-key">الاسم</span>
+                 <span class="metric-val" data-m="name">—</span></div>
+            <div class="metric-row"><span class="metric-key">الإصدار</span>
+                 <span class="metric-val" data-m="version">—</span></div>
+            <div class="metric-row"><span class="metric-key">المعرّف</span>
+                 <span class="metric-val" data-m="server_id">—</span></div>
+            <div class="metric-row"><span class="metric-key">المنفذ</span>
+                 <span class="metric-val" data-m="port">—</span></div>
+            <div class="metric-row"><span class="metric-key">المضيف</span>
+                 <span class="metric-val" data-m="hostname">—</span></div>
+            <div class="metric-row"><span class="metric-key">IP الشبكة</span>
+                 <span class="metric-val" data-m="lan_ip">—</span></div>
+            <div class="metric-row"><span class="metric-key">زمن التشغيل</span>
+                 <span class="metric-val" data-m="uptime">—</span></div>
+            <div class="metric-row"><span class="metric-key">حجم قاعدة البيانات</span>
+                 <span class="metric-val" data-m="db_size">—</span></div>
+          </div>
+
+          <!-- SFU + auth-queue health (mirrors the desktop AdminPanel
+               Diagnostics card). Falls back to silence on legacy servers
+               that don't expose /api/admin/sfu/status. -->
+          <div class="glass-card" style="margin:0 16px 8px; padding:10px 12px; font-size:12px;"
+               id="sfuStatus">— SFU: غير معروف</div>
+
+          <div style="margin:0 16px 16px;">
+            <button class="btn-secondary" id="btnEditServerName"
+                    style="width:100%; padding:12px; border-radius:12px;
+                           background: rgba(124,92,255,0.12);
+                           border: 0.5px solid rgba(124,92,255,0.35);
+                           color: #b8a0ff; font-weight: 600; font-size: 14px;">
+              ✎ تعديل اسم الخادم
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users — list + search + actions. -->
+      <section class="screen" data-screen="users" hidden>
+        <header class="nav-bar large-title">
+          <h1>المستخدمون</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="search-wrap" style="margin: 0 16px 12px;">
+            <input id="userSearch" class="search-input" type="search"
+                   placeholder="ابحث بالاسم أو المعرّف…" />
+          </div>
+          <ul class="list" id="userList"></ul>
+          <div class="status-text" id="usersStatus"></div>
+        </div>
+      </section>
+
+      <!-- User detail sheet. -->
+      <section class="screen" data-screen="userDetail" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" id="userDetailBack">رجوع ›</button>
+          <h1 id="userDetailTitle">مستخدم</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="hero" id="userDetailHero"></div>
+          <div class="section-label">معلومات</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:4px 0;"
+               id="userDetailMeta"></div>
+          <div class="section-label">إجراءات</div>
+          <div style="display:flex; gap:10px; margin:0 16px 10px;">
+            <button class="btn-warn"   id="btnKick">فصل الجلسات</button>
+            <button class="btn-danger" id="btnBan">حظر</button>
+          </div>
+          <div style="display:flex; gap:10px; margin:0 16px 10px;">
+            <button class="btn-secondary" id="btnSessions"
+                    style="flex:1; background:rgba(76,194,255,0.12);
+                           border:0.5px solid rgba(76,194,255,0.35);
+                           color:#4cc2ff; border-radius:12px; padding:10px;
+                           font-weight:600; font-size:15px;">الجلسات</button>
+            <button class="btn-secondary" id="btnUnban"
+                    style="flex:1; background:rgba(92,215,165,0.12);
+                           border:0.5px solid rgba(92,215,165,0.35);
+                           color:#5cd7a5; border-radius:12px; padding:10px;
+                           font-weight:600; font-size:15px;">إلغاء الحظر</button>
+          </div>
+          <div style="display:flex; gap:10px; margin:0 16px 16px;">
+            <button class="btn-primary" id="btnPromote"
+                    style="flex:1;">ترقية إلى admin</button>
+          </div>
+          <div class="status-text" id="userDetailStatus"></div>
+        </div>
+      </section>
+
+      <!-- Network — federation + tunnel + diagnostics. -->
+      <section class="screen" data-screen="network" hidden>
+        <header class="nav-bar large-title">
+          <h1>الشبكة</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="networkRefresh" title="تحديث">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M4 12a8 8 0 0114-5.3L20 5v5h-5l2.7-2.7A6 6 0 106 12"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <div class="section-label">النفق (Rendezvous)</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:4px 0;"
+               id="tunnelMetrics">
+            <div class="metric-row"><span class="metric-key">الحالة</span>
+                 <span class="metric-val" data-t="status">—</span></div>
+            <div class="metric-row"><span class="metric-key">الرابط العام</span>
+                 <span class="metric-val" data-t="url">—</span></div>
+            <div class="metric-row"><span class="metric-key">آخر نبضة</span>
+                 <span class="metric-val" data-t="hb">—</span></div>
+          </div>
+
+          <div class="section-label">الجسور الفيدرالية</div>
+          <ul class="list" id="bridgesList">
+            <li class="empty-row" id="bridgesEmpty">لا توجد جسور نشطة.</li>
+          </ul>
+
+          <div class="section-label">التشخيص</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:4px 0;"
+               id="diagMetrics"></div>
+
+          <div class="section-label">إجراءات</div>
+          <div style="display:flex; gap:10px; margin:0 16px 10px;">
+            <button class="btn-primary" id="btnTunnelToggle"
+                    style="flex:1; padding:12px; border-radius:12px;
+                           background:linear-gradient(145deg,#7c5cff,#4cc2ff);
+                           color:#fff; border:0; font-weight:600;">
+              تكوين النفق
+            </button>
+            <button class="btn-warn" id="btnRouterFix"
+                    style="flex:1;">إصلاح الراوتر</button>
+          </div>
+          <div class="status-text" id="networkActionStatus"></div>
+        </div>
+      </section>
+
+      <!-- Backups. -->
+      <section class="screen" data-screen="backups" hidden>
+        <header class="nav-bar large-title">
+          <h1>النسخ الاحتياطية</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="backupRun" title="نسخة الآن">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M12 4v12M12 16l-4-4M12 16l4-4M5 20h14"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <ul class="list" id="backupsList"></ul>
+          <div class="status-text" id="backupsStatus"></div>
+        </div>
+      </section>
+
+      <!-- More — advanced controls hub. -->
+      <section class="screen" data-screen="more" hidden>
+        <header class="nav-bar large-title">
+          <h1>المزيد</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="section-label">مراقبة</div>
+          <ul class="list">
+            <li data-more="clients">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#4cc2ff,#7c5cff);">🔌</div>
+              <div class="row-body">
+                <div class="row-title">العملاء المتصلون</div>
+                <div class="row-sub">قائمة حيّة بجلسات Socket.IO</div>
+              </div>
+              <span class="row-time" id="clientsBadge">—</span>
+            </li>
+            <li data-more="calls">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#5cd7a5,#4cc2ff);">📞</div>
+              <div class="row-body">
+                <div class="row-title">المكالمات النشطة</div>
+                <div class="row-sub">صوت/فيديو جارٍ الآن</div>
+              </div>
+              <span class="row-time" id="callsBadge">—</span>
+            </li>
+            <li data-more="audit">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#f5a524,#ff7a8e);">📜</div>
+              <div class="row-body">
+                <div class="row-title">سجل التدقيق</div>
+                <div class="row-sub">آخر أحداث الأمان والإدارة</div>
+              </div>
+              <span class="row-time">›</span>
+            </li>
+            <li data-more="dlq">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#ff5c7a,#f5a524);">📮</div>
+              <div class="row-body">
+                <div class="row-title">طابور الرسائل الفاشلة</div>
+                <div class="row-sub">DLQ — رسائل لم تُسلَّم</div>
+              </div>
+              <span class="row-time" id="dlqBadge">—</span>
+            </li>
+          </ul>
+
+          <div class="section-label">اتحاد</div>
+          <ul class="list">
+            <li data-more="federation">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#7c5cff,#b8a0ff);">🌐</div>
+              <div class="row-body">
+                <div class="row-title">حالة الفيدرالية</div>
+                <div class="row-sub">مقاييس + تشخيص</div>
+              </div>
+              <span class="row-time">›</span>
+            </li>
+          </ul>
+
+          <div class="section-label">أدوار السيرفر</div>
+          <ul class="list">
+            <li data-more="roles">
+              <div class="avatar-sm" style="background:linear-gradient(135deg,#5e5ce6,#0a84ff);">⚙</div>
+              <div class="row-body">
+                <div class="row-title">تشغيل/إيقاف الأدوار</div>
+                <div class="row-sub">SFU · Relay · Recording · سياسة · عتبات</div>
+              </div>
+              <span class="row-time" id="rolesBadge">—</span>
+            </li>
+          </ul>
+
+          <div class="section-label">الحساب</div>
+          <ul class="list">
+            <li data-more="logout">
+              <div class="avatar-sm" style="background:rgba(255,80,99,0.2); color:#ff7a8e;">⎋</div>
+              <div class="row-body">
+                <div class="row-title" style="color:#ff7a8e;">تسجيل الخروج</div>
+                <div class="row-sub" id="logoutUser">—</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Live clients. -->
+      <section class="screen" data-screen="clients" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>العملاء المتصلون</h1>
+        </header>
+        <div class="scroll-body">
+          <ul class="list" id="clientsList"></ul>
+          <div class="status-text" id="clientsStatus"></div>
+        </div>
+      </section>
+
+      <!-- Active calls. -->
+      <section class="screen" data-screen="calls" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>المكالمات النشطة</h1>
+        </header>
+        <div class="scroll-body">
+          <ul class="list" id="callsList"></ul>
+          <div class="status-text" id="callsStatus"></div>
+        </div>
+      </section>
+
+      <!-- Audit log. -->
+      <section class="screen" data-screen="audit" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>سجل التدقيق</h1>
+        </header>
+        <div class="scroll-body">
+          <ul class="list" id="auditList"></ul>
+          <div class="status-text" id="auditStatus"></div>
+        </div>
+      </section>
+
+      <!-- DLQ. -->
+      <section class="screen" data-screen="dlq" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>طابور الفشل</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="kpi-grid" id="dlqStats" style="margin: 4px 16px 12px;">
+            <div class="kpi-tile" data-kpi="dlq-pending">
+              <div class="kpi-label">معلّق</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">قيد الإعادة</div>
+            </div>
+            <div class="kpi-tile" data-kpi="dlq-replayed">
+              <div class="kpi-label">أُعيدت</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">نجحت</div>
+            </div>
+          </div>
+          <ul class="list" id="dlqList"></ul>
+          <div class="status-text" id="dlqStatus"></div>
+        </div>
+      </section>
+
+      <!-- Server roles — toggle + policy knobs. -->
+      <section class="screen" data-screen="roles" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>أدوار السيرفر</h1>
+        </header>
+        <div class="scroll-body">
+          <p class="hint" style="padding:12px 18px; text-align:center;
+                                 line-height:1.5;">
+            كل دور يمكن تشغيله أو إطفاؤه. التغييرات تدخل حيّز التنفيذ
+            فوراً للجلسات الجديدة.
+          </p>
+          <div class="section-label">أدوار أساسية (ثابتة)</div>
+          <div class="glass-card" id="rolesStructural"></div>
+
+          <div class="section-label">أدوار قابلة للتبديل</div>
+          <div class="glass-card" id="rolesToggle"></div>
+
+          <div class="section-label">سياسة الوسائط</div>
+          <div class="glass-card" id="rolesPolicy"></div>
+
+          <div class="section-label">عتبات التدهور التلقائي</div>
+          <div class="glass-card" id="rolesThresholds"></div>
+
+          <div class="hint" id="rolesStatus" style="padding:12px 18px;"></div>
+        </div>
+      </section>
+
+      <!-- Federation detail. -->
+      <section class="screen" data-screen="federation" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="more">رجوع ›</button>
+          <h1>الفيدرالية</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="section-label">الحالة</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:4px 0;"
+               id="fedStatusMetrics"></div>
+          <div class="section-label">المقاييس</div>
+          <div class="glass-card" style="margin:0 16px 16px; padding:4px 0;"
+               id="fedMetricsPanel"></div>
+          <div class="section-label">أحداث حديثة</div>
+          <ul class="list" id="fedEventsList"></ul>
+        </div>
+      </section>
+
+      <!-- User sessions. -->
+      <section class="screen" data-screen="sessions" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="userDetail">رجوع ›</button>
+          <h1 id="sessionsTitle">الجلسات</h1>
+        </header>
+        <div class="scroll-body">
+          <ul class="list" id="sessionsList"></ul>
+          <div style="margin:12px 16px;">
+            <button class="btn-danger" id="btnRevokeAll"
+                    style="width:100%;">إبطال كل الجلسات</button>
+          </div>
+          <div class="status-text" id="sessionsStatus"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Tab bar — bottom navigation (hidden until signed in). -->
+    <nav class="tab-bar" id="tabBar" hidden>
+      <button class="tab" data-tab="overview" aria-label="نظرة عامة">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M4 13h6V5H4zm0 6h6v-4H4zm8 0h8v-8h-8zm0-14v4h8V5z"
+                fill="currentColor" />
+        </svg>
+        <span>عامة</span>
+      </button>
+      <button class="tab" data-tab="users" aria-label="المستخدمون">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-8 2-8 6v2h16v-2c0-4-4-6-8-6z"
+                fill="currentColor" />
+        </svg>
+        <span>المستخدمون</span>
+      </button>
+      <button class="tab" data-tab="network" aria-label="الشبكة">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 2c1.6 0 3.3 2 3.8 5H8.2C8.7 7 10.4 5 12 5zm-6 7c0-.7.1-1.4.2-2h3.5a19 19 0 000 4H6.2a8 8 0 01-.2-2zm.7 4h3.1c.4 1.7 1 3 1.7 3.9A7 7 0 016.7 16zm5.3 4c-1 0-2.3-1.8-2.8-4h5.6c-.5 2.2-1.8 4-2.8 4zm3-4h3a8 8 0 01-4.7 3.9c.7-1 1.3-2.2 1.7-3.9zm3.8-2h-3.5a19 19 0 000-4h3.5a8 8 0 010 4zm-.7-6h-3.1c-.4-1.7-1-3-1.7-3.9A7 7 0 0117.3 6z"
+                fill="currentColor" />
+        </svg>
+        <span>الشبكة</span>
+      </button>
+      <button class="tab" data-tab="backups" aria-label="النسخ">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M5 6h14v12H5zM5 4h14M8 10h8M8 14h6"
+                fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" />
+        </svg>
+        <span>النسخ</span>
+      </button>
+      <button class="tab" data-tab="more" aria-label="المزيد">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <circle cx="6"  cy="12" r="2" fill="currentColor" />
+          <circle cx="12" cy="12" r="2" fill="currentColor" />
+          <circle cx="18" cy="12" r="2" fill="currentColor" />
+        </svg>
+        <span>المزيد</span>
+      </button>
+    </nav>
+
+    <!-- Modal sheet — server-config / tunnel-config edit. -->
+    <div class="sheet-backdrop" id="sheet" hidden>
+      <div class="sheet">
+        <h3 class="sheet-title" id="sheetTitle">—</h3>
+        <div id="sheetBody"></div>
+        <div class="sheet-buttons">
+          <button class="btn-warn" id="sheetCancel">إلغاء</button>
+          <button class="btn-primary" id="sheetConfirm"
+                  style="background:linear-gradient(145deg,#7c5cff,#4cc2ff);
+                         color:#fff; border:0; border-radius:12px;
+                         padding:10px 14px; font-weight:600;">حفظ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast container. -->
+    <div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+  </div>
+  <div class="device-caption">iPhone 16 Pro Max · 430 × 932 pt · Admin</div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

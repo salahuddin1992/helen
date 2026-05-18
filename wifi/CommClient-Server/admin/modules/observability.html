@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen — Observability</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+.container { padding:20px; display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+.card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 8px 0; }
+.statusbox { display:flex; flex-direction:column; gap:4px; }
+.statusbox .v { font-size:20px; font-weight:600; }
+.statusbox .pill { width:fit-content; padding:2px 8px; border-radius:6px; font-size:11px;
+                   background:rgba(74,222,128,.15); color:var(--good); }
+.statusbox .pill.off { background:rgba(248,113,113,.18); color:var(--bad); }
+.row { grid-column: 1 / -1; }
+table { width:100%; border-collapse: collapse; font-size:13px; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+button { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+         padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; }
+button.primary { background:var(--accent); color:#0b0d10; border:none; }
+button.danger { color:var(--bad); border-color:rgba(248,113,113,.4); }
+input, select { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+                padding:6px 8px; border-radius:6px; font-size:12px; }
+.form-row { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; align-items:end; margin-bottom:10px; }
+.form-row label { display:flex; flex-direction:column; font-size:11px; color:var(--muted); gap:3px; }
+.sev.critical { color:var(--bad); }
+.sev.warning  { color:var(--warn); }
+.sev.info     { color:var(--accent); }
+.tracecode { font-family: ui-monospace, monospace; font-size:12px; color:var(--accent); }
+.links a { color:var(--accent); margin-right:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Observability &mdash; Helen</h1>
+  <div class="links">
+    <a href="/grafana/" target="_blank">Grafana ↗</a>
+    <a href="/jaeger/" target="_blank">Jaeger ↗</a>
+    <a href="/prometheus/" target="_blank">Prometheus ↗</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2>OpenTelemetry</h2>
+    <div class="statusbox">
+      <span class="v" id="otel_state">...</span>
+      <span class="pill" id="otel_pill">checking</span>
+      <span style="color:var(--muted);font-size:11px" id="otel_endpoint"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Prometheus</h2>
+    <div class="statusbox">
+      <span class="v">/metrics</span>
+      <span class="pill">exposed</span>
+      <span style="color:var(--muted);font-size:11px">scrape: configured</span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Loki</h2>
+    <div class="statusbox">
+      <span class="v" id="loki_state">...</span>
+      <span class="pill" id="loki_pill">checking</span>
+      <span style="color:var(--muted);font-size:11px" id="loki_url"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Alerts</h2>
+    <div class="statusbox">
+      <span class="v" id="alerts_count">0</span>
+      <span class="pill" id="alerts_pill">healthy</span>
+      <span style="color:var(--muted);font-size:11px" id="alerts_rules">0 rules</span>
+    </div>
+  </div>
+
+  <div class="card row">
+    <h2>Alert Rules</h2>
+    <form id="rule_form" class="form-row">
+      <label>Name <input name="name" required /></label>
+      <label>Metric <input name="metric" required placeholder="dlq.size" /></label>
+      <label>Op
+        <select name="op">
+          <option>&gt;</option><option>&gt;=</option><option>&lt;</option>
+          <option>&lt;=</option><option>==</option><option>!=</option>
+        </select>
+      </label>
+      <label>Threshold <input name="threshold" type="number" step="any" required /></label>
+      <label>For (s) <input name="for_seconds" type="number" value="60" /></label>
+      <label>Action
+        <select name="action"><option>log</option><option>webhook</option>
+                              <option>email</option><option>signal</option></select>
+      </label>
+      <label>Action target <input name="action_target" placeholder="https://..." /></label>
+    </form>
+    <button class="primary" id="save_rule">Save Rule</button>
+    <table style="margin-top:12px"><thead>
+      <tr><th>Name</th><th>Metric</th><th>Cond</th><th>For</th><th>Action</th>
+          <th>Sev</th><th>On</th><th></th></tr>
+    </thead><tbody id="rules_body"></tbody></table>
+  </div>
+
+  <div class="card row">
+    <h2>Active Alerts</h2>
+    <table><thead>
+      <tr><th>Rule</th><th>Metric</th><th>Severity</th><th>Value</th><th>Fired</th></tr>
+    </thead><tbody id="active_body"></tbody></table>
+  </div>
+
+  <div class="card row">
+    <h2>Trace</h2>
+    <p>Current request trace id: <span class="tracecode" id="trace_id">—</span></p>
+    <p style="color:var(--muted);font-size:12px">
+      Click the link icon next to any error in the audit log to deep-link to Jaeger /
+      Tempo with this trace id pre-filled.
+    </p>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API = '/api/admin/observability';
+
+async function fetchJSON(p, opts) {
+  const r = await fetch(p, {
+    headers: { 'Authorization': 'Bearer ' + TOKEN,
+               'Content-Type': 'application/json' },
+    ...opts
+  });
+  if (!r.ok) throw new Error(r.status + ' ' + await r.text());
+  return r.json();
+}
+
+function setStatus(stateId, pillId, ok, label, extra) {
+  document.getElementById(stateId).textContent = ok ? 'OK' : 'OFF';
+  const pill = document.getElementById(pillId);
+  pill.textContent = label;
+  pill.className = 'pill' + (ok ? '' : ' off');
+  if (extra) document.getElementById(extra.id).textContent = extra.text;
+}
+
+async function loadAll() {
+  try {
+    const s = await fetchJSON(API + '/status');
+    setStatus('otel_state','otel_pill', s.otel.ready, s.otel.ready ? 'tracing' : 'disabled',
+              {id:'otel_endpoint', text: s.otel.endpoint || ''});
+    setStatus('loki_state','loki_pill', s.loki.enabled, s.loki.enabled ? 'shipping' : 'disabled',
+              {id:'loki_url', text: s.loki.url || ''});
+    document.getElementById('alerts_count').textContent = s.alerts.active;
+    document.getElementById('alerts_rules').textContent = s.alerts.rules + ' rules';
+    const pill = document.getElementById('alerts_pill');
+    if (s.alerts.active > 0) { pill.textContent='firing'; pill.className='pill off'; }
+    else                     { pill.textContent='healthy'; pill.className='pill'; }
+
+    const rules = await fetchJSON(API + '/alerts/rules');
+    document.getElementById('rules_body').innerHTML = rules.map(r => `
+      <tr>
+        <td>${r.name}</td><td>${r.metric}</td>
+        <td>${r.op} ${r.threshold}</td>
+        <td>${r.for_seconds}s</td>
+        <td>${r.action}${r.action_target ? ' → ' + r.action_target.slice(0,30) : ''}</td>
+        <td class="sev ${r.severity}">${r.severity}</td>
+        <td>${r.enabled ? 'yes' : 'no'}</td>
+        <td><button class="danger" onclick="delRule('${r.name}')">Delete</button></td>
+      </tr>
+    `).join('');
+
+    const active = await fetchJSON(API + '/alerts/active');
+    document.getElementById('active_body').innerHTML = active.map(a => `
+      <tr>
+        <td>${a.rule}</td><td>${a.metric}</td>
+        <td class="sev ${a.severity}">${a.severity}</td>
+        <td>${a.last_value.toFixed(2)}</td>
+        <td>${new Date(a.fired_at*1000).toLocaleString()}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="color:#8b96a3">No active alerts.</td></tr>';
+
+    const tr = await fetchJSON(API + '/traces/sample');
+    document.getElementById('trace_id').textContent = tr.current_trace_id || '—';
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('save_rule').addEventListener('click', async () => {
+  const form = document.getElementById('rule_form');
+  const body = {};
+  new FormData(form).forEach((v,k) => body[k] = v);
+  body.threshold = parseFloat(body.threshold);
+  body.for_seconds = parseInt(body.for_seconds || 60);
+  body.severity = 'warning';
+  body.enabled = true;
+  if (!body.action_target) delete body.action_target;
+  try { await fetchJSON(API + '/alerts/rules', { method:'POST', body: JSON.stringify(body) });
+        form.reset(); loadAll(); }
+  catch (e) { alert(e.message); }
+});
+
+async function delRule(name) {
+  if (!confirm('Delete rule ' + name + '?')) return;
+  try { await fetchJSON(API + '/alerts/rules/' + encodeURIComponent(name), { method:'DELETE' });
+        loadAll(); }
+  catch (e) { alert(e.message); }
+}
+
+loadAll();
+setInterval(loadAll, 5000);
+</script>
+</body>
+</html>

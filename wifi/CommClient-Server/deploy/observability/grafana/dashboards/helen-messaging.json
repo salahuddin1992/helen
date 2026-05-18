@@ -1,0 +1,60 @@
+{
+  "title": "Helen — Messaging",
+  "uid": "helen-messaging",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["helen","messaging"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "type":"stat","title":"Socket events/s",
+      "gridPos":{"h":4,"w":6,"x":0,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum(rate(helen_socket_events_total[1m]))"}]
+    },
+    {
+      "type":"stat","title":"Bridge deliveries (5m)",
+      "gridPos":{"h":4,"w":6,"x":6,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum(increase(helen_bridges_delivery_total[5m]))"}]
+    },
+    {
+      "type":"stat","title":"AI tokens (1h)",
+      "gridPos":{"h":4,"w":6,"x":12,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum(increase(helen_ai_tokens_used_total[1h]))"}]
+    },
+    {
+      "type":"stat","title":"Webhook p95 (5m)",
+      "gridPos":{"h":4,"w":6,"x":18,"y":0},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(helen_webhook_delivery_latency_seconds_bucket[5m])))"}]
+    },
+    {
+      "type":"timeseries","title":"Socket events by direction",
+      "gridPos":{"h":8,"w":12,"x":0,"y":4},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum by (direction) (rate(helen_socket_events_total[1m]))"}]
+    },
+    {
+      "type":"timeseries","title":"Bridge delivery success vs fail",
+      "gridPos":{"h":8,"w":12,"x":12,"y":4},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"sum by (status) (rate(helen_bridges_delivery_total[5m]))"}]
+    },
+    {
+      "type":"timeseries","title":"DLQ depth",
+      "gridPos":{"h":8,"w":12,"x":0,"y":12},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"helen_dlq_size"}]
+    },
+    {
+      "type":"timeseries","title":"Webhook latency distribution",
+      "gridPos":{"h":8,"w":12,"x":12,"y":12},
+      "datasource":{"type":"prometheus","uid":"prometheus"},
+      "targets":[{"expr":"histogram_quantile(0.5, sum by (le) (rate(helen_webhook_delivery_latency_seconds_bucket[5m])))","legendFormat":"p50"},
+                  {"expr":"histogram_quantile(0.95, sum by (le) (rate(helen_webhook_delivery_latency_seconds_bucket[5m])))","legendFormat":"p95"}]
+    }
+  ]
+}
