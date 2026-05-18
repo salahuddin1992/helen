@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Agents</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1700px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px;font-size:20px}
+  h2{margin:0 0 8px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:12px}
+  @media (max-width:1000px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;
+    display:flex;flex-direction:column;gap:10px}
+
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  input.in,select.in,textarea.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;width:100%
+  }
+  input.in:focus,select.in:focus{outline:none;border-color:var(--accent)}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;
+    font-family:inherit;display:inline-flex;align-items:center;gap:6px
+  }
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081224;border-color:transparent;font-weight:600}
+  .btn.danger{background:#3a1726;border-color:#5c2237;color:#ffb3c2}
+  .btn:hover:not(:disabled){background:#233561}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  .agent-list{display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow:auto}
+  .agent-item{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0f1830;cursor:pointer;
+    display:flex;flex-direction:column;gap:4px}
+  .agent-item:hover{background:#142042;border-color:var(--accent)}
+  .agent-item.active{border-color:var(--accent);background:#142042}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .pill{font-size:10px;padding:2px 8px;border-radius:999px;background:#1b2945;color:var(--muted)}
+  .pill.online{background:#0e2a1a;color:var(--ok);border:1px solid #1c5234}
+  .pill.offline{background:#2a1b1b;color:var(--err);border:1px solid #5a2424}
+  .pill.stale{background:#2a2418;color:var(--warn);border:1px solid #5a4d22}
+  .pill.revoked{background:#1a1a1a;color:#888;border:1px solid #2c2c2c}
+
+  .mono{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+  .detail-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+  .tab{padding:7px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:12px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12px}
+  .kv .k{color:var(--muted)}
+  .kv .v{color:var(--ink);word-break:break-all}
+
+  .palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+  .palette button{background:#0d1736;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;cursor:pointer;font-family:var(--mono);font-size:11px;text-align:start}
+  .palette button:hover{border-color:var(--accent);background:#142042}
+
+  .terminal{background:#06091a;border:1px solid var(--line);border-radius:8px;padding:10px;
+    font-family:var(--mono);font-size:11.5px;line-height:1.45;max-height:50vh;overflow:auto;white-space:pre-wrap;color:#c8d3e6}
+  .terminal .stderr{color:#ffb3c2}
+  .terminal .stdout{color:#c8d3e6}
+  .terminal .meta{color:var(--muted2)}
+
+  .events{background:#06091a;border:1px solid var(--line);border-radius:8px;padding:10px;
+    font-family:var(--mono);font-size:11px;max-height:40vh;overflow:auto;color:var(--muted)}
+  .events .e{padding:2px 0;border-bottom:1px solid #11192d}
+
+  .empty{color:var(--muted);text-align:center;padding:30px 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Helen — Agents</h1>
+  <div class="grid">
+    <!-- Left column: agent list -->
+    <div class="card">
+      <div class="toolbar">
+        <input id="search" class="in" placeholder="ابحث بالاسم..." />
+        <select id="status_filter" class="in" style="width:140px">
+          <option value="">الكل</option>
+          <option value="online">online</option>
+          <option value="offline">offline</option>
+          <option value="stale">stale</option>
+          <option value="revoked">revoked</option>
+        </select>
+        <button class="btn" id="refresh">⟳</button>
+      </div>
+      <h2>Agents</h2>
+      <div class="agent-list" id="agent_list"></div>
+    </div>
+
+    <!-- Right column: detail -->
+    <div class="card" id="detail_card">
+      <div id="detail_empty" class="empty">اختر عميلًا لعرض التفاصيل</div>
+      <div id="detail_body" style="display:none;flex-direction:column;gap:10px">
+        <div class="row">
+          <div>
+            <div style="font-size:16px;font-weight:600" id="dt_host">—</div>
+            <div class="mono" id="dt_id">—</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="pill" id="dt_status">unknown</span>
+            <button class="btn danger" id="btn_revoke">إلغاء الاعتماد</button>
+          </div>
+        </div>
+
+        <div class="detail-tabs">
+          <div class="tab active" data-pane="overview">Overview</div>
+          <div class="tab" data-pane="terminal">Terminal</div>
+          <div class="tab" data-pane="commands">Commands</div>
+          <div class="tab" data-pane="events">Events</div>
+        </div>
+
+        <div id="pane_overview">
+          <h2>System snapshot</h2>
+          <div class="kv" id="snapshot_kv"></div>
+        </div>
+
+        <div id="pane_terminal" style="display:none">
+          <h2>Command palette</h2>
+          <div class="palette" id="palette"></div>
+          <div class="toolbar" style="margin-top:8px">
+            <input id="custom_cmd" class="in" placeholder="إصدار أمر مخصص..." />
+            <button class="btn primary" id="run_custom">تنفيذ</button>
+          </div>
+          <h2 style="margin-top:10px">Output</h2>
+          <div id="terminal" class="terminal"></div>
+        </div>
+
+        <div id="pane_commands" style="display:none">
+          <h2>Command history</h2>
+          <div id="cmd_history"></div>
+        </div>
+
+        <div id="pane_events" style="display:none">
+          <h2>Live events</h2>
+          <div id="events" class="events"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const PALETTE = [
+  ["ipconfig", ["/all"]],
+  ["tasklist", []],
+  ["systeminfo", []],
+  ["netstat", ["-ano"]],
+  ["whoami", ["/all"]],
+  ["hostname", []],
+  ["getmac", ["/v"]],
+  ["nslookup", ["helen-server.local"]],
+];
+
+const state = {
+  agents: [],
+  selected: null,
+  token: localStorage.getItem("helen_admin_token") || "",
+  ws_events: null,
+  current_command_id: null,
+};
+
+function authHeaders() {
+  return state.token ? { Authorization: "Bearer " + state.token } : {};
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
+  });
+  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+  const ct = r.headers.get("content-type") || "";
+  return ct.includes("application/json") ? r.json() : r.text();
+}
+
+function el(id) { return document.getElementById(id); }
+
+async function loadAgents() {
+  const q = el("search").value.trim();
+  const st = el("status_filter").value;
+  const url = `/api/agents?page=1&page_size=100${st ? `&status=${st}` : ""}${q ? `&search=${encodeURIComponent(q)}` : ""}`;
+  const data = await api(url);
+  state.agents = data.items || [];
+  renderAgentList();
+}
+
+function renderAgentList() {
+  const list = el("agent_list");
+  list.innerHTML = "";
+  if (!state.agents.length) {
+    list.innerHTML = `<div class="empty">لا يوجد عملاء حتى الآن</div>`;
+    return;
+  }
+  state.agents.forEach((a) => {
+    const div = document.createElement("div");
+    div.className = "agent-item" + (state.selected === a.id ? " active" : "");
+    div.innerHTML = `
+      <div class="row">
+        <div><strong>${escapeHtml(a.hostname)}</strong></div>
+        <span class="pill ${a.status}">${a.status}</span>
+      </div>
+      <div class="row">
+        <div class="mono">${a.id.slice(0, 12)}…</div>
+        <div class="mono">${a.last_ip || "—"}</div>
+      </div>
+      <div class="mono">${a.os_name || ""} ${a.os_version || ""}</div>
+    `;
+    div.onclick = () => selectAgent(a.id);
+    list.appendChild(div);
+  });
+}
+
+async function selectAgent(id) {
+  state.selected = id;
+  renderAgentList();
+  el("detail_empty").style.display = "none";
+  el("detail_body").style.display = "flex";
+
+  const data = await api(`/api/agents/${id}`);
+  el("dt_host").textContent = data.hostname;
+  el("dt_id").textContent = data.id;
+  const pill = el("dt_status");
+  pill.textContent = data.status;
+  pill.className = "pill " + data.status;
+
+  renderSnapshot(data.snapshot);
+  renderPalette();
+  await loadCommandHistory();
+  attachEventsWS(id);
+}
+
+function renderSnapshot(s) {
+  const kv = el("snapshot_kv");
+  kv.innerHTML = "";
+  if (!s) {
+    kv.innerHTML = `<div class="empty">لا يوجد لقطة محدّثة بعد</div>`;
+    return;
+  }
+  const rows = [
+    ["Captured at", s.captured_at],
+    ["Hostname", s.hostname],
+    ["OS", `${s.os?.name} ${s.os?.long_os_version || s.os?.version || ""}`],
+    ["Kernel", s.os?.kernel],
+    ["CPU", `${s.cpu?.brand} (${s.cpu?.logical_cores} cores @ ${s.cpu?.frequency_mhz} MHz)`],
+    ["CPU usage", `${s.cpu?.usage_percent?.toFixed(1)} %`],
+    ["RAM", `${fmtBytes(s.memory?.used_bytes)} / ${fmtBytes(s.memory?.total_bytes)}`],
+    ["Uptime", `${Math.floor((s.uptime_secs || 0) / 3600)} h`],
+    ["User", s.logged_in_user || "—"],
+    ["Locked", String(s.locked)],
+  ];
+  rows.forEach(([k, v]) => {
+    const r = document.createElement("div");
+    r.className = "k"; r.textContent = k; kv.appendChild(r);
+    const r2 = document.createElement("div");
+    r2.className = "v"; r2.textContent = v ?? "—"; kv.appendChild(r2);
+  });
+  if (s.disks?.length) {
+    const r = document.createElement("div");
+    r.className = "k"; r.textContent = "Disks"; kv.appendChild(r);
+    const v = document.createElement("div");
+    v.className = "v";
+    v.innerHTML = s.disks.map(d =>
+      `${escapeHtml(d.mount_point)} — ${fmtBytes(d.available_bytes)} free / ${fmtBytes(d.total_bytes)}`
+    ).join("<br/>");
+    kv.appendChild(v);
+  }
+  if (s.network?.length) {
+    const r = document.createElement("div");
+    r.className = "k"; r.textContent = "Network"; kv.appendChild(r);
+    const v = document.createElement("div");
+    v.className = "v";
+    v.innerHTML = s.network.map(n =>
+      `${escapeHtml(n.name)} — ${(n.ipv4 || []).join(", ") || "—"}`
+    ).join("<br/>");
+    kv.appendChild(v);
+  }
+}
+
+function renderPalette() {
+  const pal = el("palette");
+  pal.innerHTML = "";
+  PALETTE.forEach(([cmd, args]) => {
+    const b = document.createElement("button");
+    b.textContent = cmd + (args.length ? " " + args.join(" ") : "");
+    b.onclick = () => runCommand(cmd, args);
+    pal.appendChild(b);
+  });
+}
+
+async function runCommand(cmd, args) {
+  if (!state.selected) return;
+  el("terminal").innerHTML += `<div class="meta">$ ${escapeHtml(cmd)} ${escapeHtml(args.join(" "))}</div>`;
+  try {
+    const res = await api(`/api/agents/${state.selected}/command`, {
+      method: "POST",
+      body: JSON.stringify({ command: cmd, args, timeout_secs: 60 }),
+    });
+    state.current_command_id = res.command_id;
+    el("terminal").innerHTML += `<div class="meta">queued ${res.command_id}</div>`;
+  } catch (e) {
+    el("terminal").innerHTML += `<div class="stderr">ERROR: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+el("run_custom").onclick = () => {
+  const txt = el("custom_cmd").value.trim();
+  if (!txt) return;
+  const parts = txt.split(/\s+/);
+  runCommand(parts[0], parts.slice(1));
+};
+
+async function loadCommandHistory() {
+  const rows = await api(`/api/agents/${state.selected}/commands?limit=50`);
+  const c = el("cmd_history");
+  c.innerHTML = rows.map(r => `
+    <div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0;background:#0d1736">
+      <div class="row">
+        <span class="mono">${escapeHtml(r.command)} ${escapeHtml((r.args || []).join(" "))}</span>
+        <span class="pill ${r.status === "completed" ? "online" : (r.status === "failed" ? "offline" : "")}">${r.status}</span>
+      </div>
+      <div class="mono" style="color:var(--muted)">exit=${r.exit_code ?? "—"} duration=${r.duration_ms ?? "?"}ms · ${r.issued_at}</div>
+      ${r.stdout ? `<pre class="terminal" style="margin-top:6px">${escapeHtml(r.stdout)}</pre>` : ""}
+      ${r.stderr ? `<pre class="terminal stderr" style="margin-top:6px;color:#ffb3c2">${escapeHtml(r.stderr)}</pre>` : ""}
+    </div>
+  `).join("");
+}
+
+function attachEventsWS(agent_id) {
+  if (state.ws_events) {
+    try { state.ws_events.close(); } catch {}
+    state.ws_events = null;
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const url = `${proto}//${location.host}/api/agents/${agent_id}/events?access_token=${encodeURIComponent(state.token)}`;
+  const ws = new WebSocket(url);
+  state.ws_events = ws;
+  ws.onmessage = (m) => {
+    let f;
+    try { f = JSON.parse(m.data); } catch { return; }
+    appendEvent(f);
+    if (f.type === "stdout") appendTerminal(f.line, "stdout");
+    if (f.type === "stderr") appendTerminal(f.line, "stderr");
+    if (f.type === "command_finished") {
+      appendTerminal(`-- finished exit=${f.exit_code} status=${f.status} --`, "meta");
+      loadCommandHistory();
+    }
+  };
+  ws.onclose = () => { state.ws_events = null; };
+}
+
+function appendEvent(f) {
+  const e = document.createElement("div");
+  e.className = "e";
+  e.textContent = `[${new Date().toISOString()}] ${JSON.stringify(f)}`;
+  el("events").appendChild(e);
+  el("events").scrollTop = el("events").scrollHeight;
+}
+
+function appendTerminal(line, kind) {
+  const div = document.createElement("div");
+  div.className = kind;
+  div.textContent = line;
+  el("terminal").appendChild(div);
+  el("terminal").scrollTop = el("terminal").scrollHeight;
+}
+
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    ["overview", "terminal", "commands", "events"].forEach(p => {
+      el("pane_" + p).style.display = p === t.dataset.pane ? "" : "none";
+    });
+  };
+});
+
+el("refresh").onclick = loadAgents;
+el("search").oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadAgents, 250); };
+el("status_filter").onchange = loadAgents;
+
+el("btn_revoke").onclick = async () => {
+  if (!state.selected) return;
+  if (!confirm("هل أنت متأكد من إلغاء اعتماد العميل؟")) return;
+  await api(`/api/agents/${state.selected}?reason=admin-ui`, { method: "DELETE" });
+  await loadAgents();
+};
+
+function fmtBytes(n) {
+  if (!n) return "0 B";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(1)} ${u[i]}`;
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+if (!state.token) {
+  const t = prompt("ضع توكن الإدارة:");
+  if (t) { state.token = t; localStorage.setItem("helen_admin_token", t); }
+}
+
+loadAgents().catch(e => alert("تحميل العملاء فشل: " + e.message));
+setInterval(loadAgents, 10000);
+</script>
+</body>
+</html>

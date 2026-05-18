@@ -1,0 +1,83 @@
+# XcodeGen project file for HelenApp.
+# On a Mac with XcodeGen installed:
+#   brew install xcodegen
+#   cd HelenApp && xcodegen generate
+#   open HelenApp.xcodeproj
+#
+# Then in Xcode: select your team for code-signing → Product → Run.
+
+name: HelenApp
+options:
+  bundleIdPrefix: com.helen
+  deploymentTarget:
+    iOS: '15.0'
+  developmentLanguage: en
+  xcodeVersion: '15.0'
+
+settings:
+  base:
+    SWIFT_VERSION: '5.9'
+    IPHONEOS_DEPLOYMENT_TARGET: '15.0'
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ''               # set in Xcode UI
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '1'
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
+    ENABLE_BITCODE: NO
+
+targets:
+  HelenApp:
+    type: application
+    platform: iOS
+    deploymentTarget: '15.0'
+    sources:
+      - path: .
+        excludes:
+          - "project.yml"
+          - "README.md"
+          - "*.xcodeproj"
+          - "build/"
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Helen
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        UILaunchStoryboardName: LaunchScreen
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiredDeviceCapabilities:
+          - armv7
+        UIBackgroundModes:
+          - audio
+          - voip
+          - remote-notification
+        # Permission strings
+        NSMicrophoneUsageDescription:    "Helen needs the microphone for voice and video calls."
+        NSCameraUsageDescription:        "Helen needs the camera for video calls."
+        NSPhotoLibraryUsageDescription:  "Helen accesses photos to share images in chats."
+        NSLocalNetworkUsageDescription:  "Helen discovers Helen-Server instances on your local Wi-Fi network."
+        NSBluetoothAlwaysUsageDescription: "Helen routes call audio through Bluetooth headsets."
+        NSBonjourServices:
+          - _helen-server._tcp
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            local:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.helen.mobile
+            CFBundleURLSchemes:
+              - helen
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.helen.mobile
+        TARGETED_DEVICE_FAMILY: "1,2"  # iPhone + iPad
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

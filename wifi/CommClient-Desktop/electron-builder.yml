@@ -1,0 +1,204 @@
+# ============================================================
+# CommClient Desktop — Electron Builder Configuration
+# ============================================================
+# Build:   npx electron-builder --win --config electron-builder.yml
+# Dir:     npx electron-builder --win --dir --config electron-builder.yml
+# Output:  release/
+# Silent:  CommClient-Setup-x.y.z.exe /S
+# ============================================================
+
+appId: com.helen.desktop
+productName: Helen Desktop
+copyright: "Copyright (C) 2024-2026 Helen Project"
+
+# ── Directories ────────────────────────────────────────────
+directories:
+  output: release
+  buildResources: build
+
+# ── Files to include in the ASAR archive ───────────────────
+files:
+  - "dist-electron/**/*"
+  - "!node_modules"
+  - "!src"
+  - "!*.ts"
+  - "!*.md"
+  - "!*.spec"
+  - "!build"
+  - "!dev-data"
+  - "!.git"
+  - "!.vscode"
+
+# ── Extra resources (outside ASAR, accessible at runtime) ──
+# NOTE: The backend server bundle is referenced from the desktop project so
+# that electron-builder copies it into the installer's resources/server/
+# directory. The path is wrapped in a glob so that if the server hasn't been
+# built yet (dev iteration on the renderer only) the build still succeeds.
+# Use ../wifi/build-all.bat to build server + desktop in the correct order.
+extraResources:
+  # Backend server (PyInstaller output) — built by ../CommClient-Server
+  - from: "../CommClient-Server/dist/Helen-Server"
+    to: "server"
+    filter:
+      - "**/*"
+  # Installer assets (icons, optional VCRedist)
+  - from: "resources/installer"
+    to: "installer"
+    filter:
+      - "**/*"
+
+# ── ASAR configuration ────────────────────────────────────
+asar: true
+asarUnpack:
+  # Unpack native modules if any (for node-gyp built modules)
+  - "**/*.node"
+
+# ── Compression ────────────────────────────────────────────
+# normal = fast install, maximum = smaller installer.  electron-builder
+# 24+ supports both; older builders silently treat unknown values as normal.
+compression: maximum
+
+# ── Windows-specific configuration ────────────────────────
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/installer/icon.ico
+  # Run as the invoking user. The app accesses camera/mic via the
+  # standard Windows mediaCapture stack (getUserMedia → MFplat →
+  # KS), which works fine without elevation on a per-user basis;
+  # Windows asks for the camera/mic permission via the standard
+  # toast on first use. Firewall provisioning is handled by the
+  # installer (once, at install time) — not every launch. Forcing
+  # `requireAdministrator` made every cold start pop a UAC prompt
+  # and added 3–5 s of latency. Gone now.
+  requestedExecutionLevel: asInvoker
+  # File associations (none for LAN-only chat app)
+  # Sign the executable if certificate is available
+  # certificateFile: path/to/cert.pfx
+  # certificatePassword: ""
+  # publisherName: "CommClient Team"
+  # Verifier information for SmartScreen
+  # signDlls: true
+
+# ── NSIS Installer Configuration ──────────────────────────
+nsis:
+  # Installer behavior
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+
+  # Default install directory: %LOCALAPPDATA%\Programs\CommClient
+  # This is the standard per-user location and requires no admin
+
+  # Shortcuts
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: CommClient
+  menuCategory: CommClient
+
+  # Display
+  uninstallDisplayName: CommClient
+  installerIcon: resources/installer/icon.ico
+  uninstallerIcon: resources/installer/uninstall.ico
+  installerHeaderIcon: resources/installer/icon.ico
+
+  # Custom NSIS script — handles:
+  #   - Kill running instance before install/update
+  #   - Create %APPDATA%\CommClient directory tree
+  #   - Register Windows Firewall exceptions
+  #   - Check/install Visual C++ Redistributable
+  #   - Preserve user data on uninstall (with prompt)
+  include: "build/installer.nsh"
+
+  # User data
+  deleteAppDataOnUninstall: false
+
+  # Install/Uninstall registry
+  # NSIS writes to HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall
+  # so Add/Remove Programs shows the app without admin
+
+  # Warnings
+  warningsAsErrors: false
+
+  # Unicode support (required for Arabic installer if extended)
+  unicode: true
+
+  # Installer language (English — custom script handles multilingual)
+  language: 0x0409
+
+  # License (optional — uncomment if you have one)
+  # license: resources/installer/LICENSE.txt
+
+  # Run after install
+  runAfterFinish: true
+
+  # Installer size (displayed in Add/Remove Programs)
+  # estimatedSize: 200000  # auto-calculated
+
+# ── Linux-specific configuration ──────────────────────────
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+  category: Network
+  synopsis: Helen — LAN-first communication platform
+  description: |
+    Helen is a LAN-first chat / voice / video / file-share client that
+    connects to any Helen-Server (Windows, Linux, or container) on the
+    same network. End-to-end encrypted, federation-aware, NAT-traversing.
+  vendor: Helen Project
+  maintainer: Helen Project <noreply@example.com>
+  desktop:
+    Name: Helen
+    Comment: LAN communication platform
+    Categories: Network;InstantMessaging;Chat
+    StartupWMClass: Helen Desktop
+
+# ── macOS-specific configuration ──────────────────────────
+mac:
+  target:
+    - target: dir
+      arch:
+        - x64
+  category: public.app-category.social-networking
+  identity: null  # unsigned — needs Apple Developer ID for distribution
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+# ── Publish configuration ────────────────────────────────
+#
+# Uses the `generic` provider — electron-builder will produce
+# channel-<channel>.yml artifacts beside the installer. These can be
+# uploaded to either:
+#   (a) an internet release server (CI bucket / CDN), OR
+#   (b) the CommClient LAN server's /api/updates/ mirror endpoint.
+#
+# The desktop client at runtime resolves the best source (LAN mirror
+# first, internet fallback) via feedResolver.ts.
+#
+# Override the URL per-build with electron-builder --publish never or
+# with PUBLISH_URL env.
+publish:
+  - provider: generic
+    url: "https://updates.commclient.local/api/updates/"
+    channel: "stable"
+    useMultipleRangeRequest: true
+    publishAutoUpdate: true
+
+# ── Build metadata ────────────────────────────────────────
+buildVersion: "1.0.0"
+
+# ── Remove locales except en/ar to save space ─────────────
+# electronLanguages:
+#   - en
+#   - ar

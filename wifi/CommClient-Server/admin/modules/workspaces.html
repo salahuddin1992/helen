@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<!--
+  Phase 3 / Module M — Workspaces admin module.
+  Self-contained. Loaded by the admin SPA shell via `loadModule('workspaces')`.
+  Requires the global `apiFetch(path, opts)` helper to inject the
+  Authorization header.
+-->
+<style>
+  :root { --ws-fg:#e4e7eb; --ws-bg:#0e141b; --ws-bg2:#171f27; --ws-border:#222e3a;
+          --ws-accent:#5aa9ff; --ws-danger:#ff5f6d; --ws-warn:#ffb347; --ws-ok:#46d39a; }
+  .ws-wrap { color:var(--ws-fg); font-family:system-ui,sans-serif; padding:18px;
+             display:grid; grid-template-columns:340px 1fr; gap:18px; min-height:80vh; }
+  .ws-side { background:var(--ws-bg2); border:1px solid var(--ws-border);
+             border-radius:12px; padding:14px; overflow:auto; max-height:80vh; }
+  .ws-main { background:var(--ws-bg2); border:1px solid var(--ws-border);
+             border-radius:12px; padding:18px; overflow:auto; }
+  .ws-row { padding:10px 12px; border-radius:8px; cursor:pointer;
+            border:1px solid transparent; display:flex; flex-direction:column; gap:4px; }
+  .ws-row:hover { background:#1f2935; }
+  .ws-row.active { background:#1f2b3a; border-color:var(--ws-accent); }
+  .ws-row .nm { font-weight:600; }
+  .ws-row .sl { font-size:12px; opacity:.7; }
+  .ws-pill { display:inline-block; padding:2px 8px; border-radius:99px;
+             font-size:11px; background:#2a3340; }
+  .ws-pill.owner { background:#3b2a55; color:#cdb6ff; }
+  .ws-pill.admin { background:#243a55; color:#9ec8ff; }
+  .ws-pill.member { background:#23402d; color:#94e3b3; }
+  .ws-pill.viewer { background:#403a23; color:#e8d094; }
+  .ws-btn { background:var(--ws-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .ws-btn.secondary { background:#2a3340; color:var(--ws-fg); }
+  .ws-btn.danger { background:var(--ws-danger); color:#fff; }
+  .ws-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .ws-input, .ws-select, .ws-textarea {
+    width:100%; background:#0a1018; color:var(--ws-fg);
+    border:1px solid var(--ws-border); border-radius:8px; padding:8px 10px;
+    box-sizing:border-box; margin-top:4px;
+  }
+  .ws-form-row { margin-bottom:12px; }
+  .ws-form-row label { font-size:12px; opacity:.8; }
+  .ws-tabs { display:flex; gap:8px; border-bottom:1px solid var(--ws-border);
+             margin-bottom:14px; }
+  .ws-tab { padding:8px 14px; cursor:pointer; opacity:.7; }
+  .ws-tab.active { opacity:1; border-bottom:2px solid var(--ws-accent); }
+  table.ws-tbl { width:100%; border-collapse:collapse; font-size:14px; }
+  table.ws-tbl th, table.ws-tbl td {
+    text-align:left; padding:8px 10px; border-bottom:1px solid var(--ws-border);
+  }
+  table.ws-tbl th { font-size:12px; text-transform:uppercase; opacity:.7; }
+  .ws-empty { padding:30px; text-align:center; opacity:.6; }
+  .ws-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px;
+                flex-wrap:wrap; }
+  code.ws-mono { background:#0a1018; padding:2px 6px; border-radius:4px;
+                 font-size:12px; }
+</style>
+
+<div class="ws-wrap" id="ws-root">
+  <div class="ws-side">
+    <div class="ws-toolbar">
+      <input class="ws-input" placeholder="Search…" id="ws-search" />
+    </div>
+    <button class="ws-btn" id="ws-new">+ New Workspace</button>
+    <div id="ws-list" style="margin-top:14px;"></div>
+  </div>
+  <div class="ws-main" id="ws-detail">
+    <div class="ws-empty">Select a workspace to view its details.</div>
+  </div>
+</div>
+
+<!-- Create modal -->
+<div id="ws-create-modal" style="display:none; position:fixed; inset:0;
+     background:rgba(0,0,0,.55); z-index:9000; align-items:center;
+     justify-content:center;">
+  <div style="background:var(--ws-bg2); padding:24px; border-radius:12px;
+              width:480px; max-width:90vw; border:1px solid var(--ws-border);">
+    <h3 style="margin:0 0 14px 0; color:var(--ws-fg);">Create Workspace</h3>
+    <div class="ws-form-row">
+      <label>Name</label>
+      <input class="ws-input" id="ws-c-name" placeholder="Acme Corp" />
+    </div>
+    <div class="ws-form-row">
+      <label>Slug (optional)</label>
+      <input class="ws-input" id="ws-c-slug" placeholder="acme-corp" />
+    </div>
+    <div class="ws-form-row">
+      <label>Description</label>
+      <textarea class="ws-textarea" id="ws-c-desc" rows="3"></textarea>
+    </div>
+    <div class="ws-form-row">
+      <label>Plan</label>
+      <select class="ws-select" id="ws-c-plan">
+        <option value="free">free</option>
+        <option value="team">team</option>
+        <option value="enterprise">enterprise</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="ws-btn secondary" onclick="WSAdmin.closeCreate()">Cancel</button>
+      <button class="ws-btn" onclick="WSAdmin.submitCreate()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const api = (path, opts={}) => {
+    if (typeof apiFetch === 'function') return apiFetch(path, opts);
+    const t = localStorage.getItem('accessToken') || '';
+    return fetch(path, {
+      ...opts,
+      headers: {
+        ...(opts.headers||{}),
+        'Authorization': 'Bearer ' + t,
+        'Content-Type':  opts.body ? 'application/json' : (opts.headers||{})['Content-Type']
+      }
+    });
+  };
+
+  let WORKSPACES = [];
+  let SELECTED = null;
+  let TAB = 'overview';
+
+  async function load() {
+    try {
+      // admin view: list ALL (falls back to "mine" if forbidden)
+      let r = await api('/api/workspaces/_admin/all');
+      if (!r.ok) r = await api('/api/workspaces');
+      WORKSPACES = await r.json();
+      renderList();
+    } catch (e) { console.error(e); }
+  }
+
+  function renderList() {
+    const q = (document.getElementById('ws-search').value||'').toLowerCase();
+    const wrap = document.getElementById('ws-list');
+    const filtered = WORKSPACES.filter(w =>
+      !q || w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q));
+    if (!filtered.length) {
+      wrap.innerHTML = '<div class="ws-empty">No workspaces.</div>';
+      return;
+    }
+    wrap.innerHTML = filtered.map(w => `
+      <div class="ws-row ${SELECTED===w.id?'active':''}" data-id="${w.id}">
+        <div class="nm">${escapeHtml(w.name)}
+          ${w.role ? `<span class="ws-pill ${w.role}">${w.role}</span>` : ''}
+        </div>
+        <div class="sl">${escapeHtml(w.slug)} · ${w.member_count} member(s) · ${escapeHtml(w.plan)}</div>
+      </div>`).join('');
+    wrap.querySelectorAll('.ws-row').forEach(el => {
+      el.addEventListener('click', () => select(el.dataset.id));
+    });
+  }
+
+  async function select(id) {
+    SELECTED = id; TAB = 'overview';
+    renderList();
+    await renderDetail();
+  }
+
+  async function renderDetail() {
+    const wrap = document.getElementById('ws-detail');
+    if (!SELECTED) { wrap.innerHTML = '<div class="ws-empty">Pick a workspace.</div>'; return; }
+    const ws = WORKSPACES.find(w => w.id === SELECTED) || {};
+    wrap.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:start;">
+        <div>
+          <h2 style="margin:0;">${escapeHtml(ws.name||'(?)')}</h2>
+          <div style="opacity:.65; margin-top:4px;">
+            <code class="ws-mono">${escapeHtml(ws.slug||'')}</code> · ${escapeHtml(ws.plan||'')}
+          </div>
+        </div>
+        <button class="ws-btn danger" onclick="WSAdmin.deleteWs()">Delete</button>
+      </div>
+      <div class="ws-tabs" style="margin-top:14px;">
+        <div class="ws-tab ${TAB==='overview'?'active':''}" data-t="overview">Overview</div>
+        <div class="ws-tab ${TAB==='members'?'active':''}" data-t="members">Members</div>
+        <div class="ws-tab ${TAB==='invites'?'active':''}" data-t="invites">Invites</div>
+        <div class="ws-tab ${TAB==='settings'?'active':''}" data-t="settings">Settings</div>
+      </div>
+      <div id="ws-tabbody"></div>
+    `;
+    wrap.querySelectorAll('.ws-tab').forEach(t => {
+      t.addEventListener('click', () => { TAB = t.dataset.t; renderDetail(); });
+    });
+    await renderTab(ws);
+  }
+
+  async function renderTab(ws) {
+    const host = document.getElementById('ws-tabbody');
+    if (TAB === 'overview') {
+      host.innerHTML = `
+        <table class="ws-tbl">
+          <tr><th>ID</th><td><code class="ws-mono">${ws.id||''}</code></td></tr>
+          <tr><th>Owner</th><td><code class="ws-mono">${ws.owner_id||''}</code></td></tr>
+          <tr><th>Plan</th><td>${escapeHtml(ws.plan||'')}</td></tr>
+          <tr><th>Members</th><td>${ws.member_count||0}</td></tr>
+          <tr><th>Active</th><td>${ws.is_active?'Yes':'No'}</td></tr>
+          <tr><th>Created</th><td>${escapeHtml(ws.created_at||'')}</td></tr>
+          <tr><th>Description</th><td>${escapeHtml(ws.description||'—')}</td></tr>
+        </table>`;
+      return;
+    }
+    if (TAB === 'members') {
+      const r = await api(`/api/workspaces/${SELECTED}/members`);
+      const rows = r.ok ? await r.json() : [];
+      host.innerHTML = `
+        <div class="ws-toolbar">
+          <input class="ws-input" id="ws-m-uid" placeholder="user_id" style="max-width:280px;" />
+          <select class="ws-select" id="ws-m-role" style="max-width:130px;">
+            <option>member</option><option>admin</option><option>viewer</option>
+          </select>
+          <button class="ws-btn" onclick="WSAdmin.addMember()">Add</button>
+        </div>
+        <table class="ws-tbl">
+          <tr><th>User</th><th>Role</th><th>Joined</th><th></th></tr>
+          ${rows.map(m => `
+            <tr>
+              <td>${escapeHtml(m.username||m.user_id)}<br>
+                  <small style="opacity:.6;">${escapeHtml(m.user_id)}</small></td>
+              <td><span class="ws-pill ${m.role}">${m.role}</span></td>
+              <td>${escapeHtml(m.joined_at||'')}</td>
+              <td><button class="ws-btn secondary"
+                  onclick="WSAdmin.removeMember('${m.user_id}')">Remove</button></td>
+            </tr>`).join('') || '<tr><td colspan=4 class="ws-empty">No members.</td></tr>'}
+        </table>`;
+      return;
+    }
+    if (TAB === 'invites') {
+      const r = await api(`/api/workspaces/${SELECTED}/invites`);
+      const rows = r.ok ? await r.json() : [];
+      host.innerHTML = `
+        <div class="ws-toolbar">
+          <input class="ws-input" id="ws-i-email" placeholder="email (optional)" style="max-width:240px;" />
+          <select class="ws-select" id="ws-i-role" style="max-width:130px;">
+            <option>member</option><option>admin</option><option>viewer</option>
+          </select>
+          <input class="ws-input" id="ws-i-ttl" type="number" value="72" style="max-width:90px;" />
+          <button class="ws-btn" onclick="WSAdmin.createInvite()">Generate</button>
+        </div>
+        <table class="ws-tbl">
+          <tr><th>Code</th><th>Role</th><th>Email</th><th>Expires</th><th>Used</th><th></th></tr>
+          ${rows.map(i => `
+            <tr>
+              <td><code class="ws-mono">${escapeHtml(i.code)}</code></td>
+              <td><span class="ws-pill ${i.role}">${i.role}</span></td>
+              <td>${escapeHtml(i.email||'—')}</td>
+              <td>${escapeHtml(i.expires_at||'')}</td>
+              <td>${i.used_at ? escapeHtml(i.used_at) : '—'}</td>
+              <td><button class="ws-btn secondary"
+                   onclick="WSAdmin.revokeInvite('${i.id}')">Revoke</button></td>
+            </tr>`).join('') || '<tr><td colspan=6 class="ws-empty">No invites.</td></tr>'}
+        </table>`;
+      return;
+    }
+    if (TAB === 'settings') {
+      host.innerHTML = `
+        <div class="ws-form-row">
+          <label>Name</label>
+          <input class="ws-input" id="ws-s-name" value="${escapeHtml(ws.name||'')}" />
+        </div>
+        <div class="ws-form-row">
+          <label>Description</label>
+          <textarea class="ws-textarea" id="ws-s-desc" rows="3">${escapeHtml(ws.description||'')}</textarea>
+        </div>
+        <div class="ws-form-row">
+          <label>Plan</label>
+          <select class="ws-select" id="ws-s-plan">
+            ${['free','team','enterprise'].map(p =>
+              `<option ${p===ws.plan?'selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div class="ws-form-row">
+          <label>Settings (JSON)</label>
+          <textarea class="ws-textarea" id="ws-s-json" rows="6">${escapeHtml(
+            JSON.stringify(ws.settings||{}, null, 2))}</textarea>
+        </div>
+        <button class="ws-btn" onclick="WSAdmin.saveSettings()">Save</button>`;
+      return;
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,
+      c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  window.WSAdmin = {
+    openCreate() { document.getElementById('ws-create-modal').style.display = 'flex'; },
+    closeCreate() { document.getElementById('ws-create-modal').style.display = 'none'; },
+    async submitCreate() {
+      const body = {
+        name: document.getElementById('ws-c-name').value,
+        slug: document.getElementById('ws-c-slug').value || null,
+        description: document.getElementById('ws-c-desc').value || null,
+        plan: document.getElementById('ws-c-plan').value,
+      };
+      const r = await api('/api/workspaces', { method:'POST', body:JSON.stringify(body) });
+      if (r.ok) { WSAdmin.closeCreate(); await load(); }
+      else alert('Failed: ' + await r.text());
+    },
+    async deleteWs() {
+      if (!confirm('Delete this workspace? This cannot be undone.')) return;
+      const r = await api('/api/workspaces/' + SELECTED, { method:'DELETE' });
+      if (r.ok) { SELECTED = null; await load(); }
+    },
+    async addMember() {
+      const body = {
+        user_id: document.getElementById('ws-m-uid').value.trim(),
+        role: document.getElementById('ws-m-role').value,
+      };
+      if (!body.user_id) return;
+      const r = await api(`/api/workspaces/${SELECTED}/members`,
+        { method:'POST', body:JSON.stringify(body) });
+      if (r.ok) renderDetail(); else alert(await r.text());
+    },
+    async removeMember(uid) {
+      if (!confirm('Remove this member?')) return;
+      await api(`/api/workspaces/${SELECTED}/members/${uid}`, { method:'DELETE' });
+      renderDetail();
+    },
+    async createInvite() {
+      const body = {
+        role: document.getElementById('ws-i-role').value,
+        email: document.getElementById('ws-i-email').value || null,
+        ttl_hours: parseInt(document.getElementById('ws-i-ttl').value||'72', 10),
+      };
+      const r = await api(`/api/workspaces/${SELECTED}/invites`,
+        { method:'POST', body:JSON.stringify(body) });
+      if (r.ok) renderDetail(); else alert(await r.text());
+    },
+    async revokeInvite(id) {
+      await api(`/api/workspaces/${SELECTED}/invites/${id}`, { method:'DELETE' });
+      renderDetail();
+    },
+    async saveSettings() {
+      let settings = {};
+      try { settings = JSON.parse(document.getElementById('ws-s-json').value||'{}'); }
+      catch (e) { return alert('Settings JSON is invalid: ' + e.message); }
+      const body = {
+        name: document.getElementById('ws-s-name').value,
+        description: document.getElementById('ws-s-desc').value,
+        plan: document.getElementById('ws-s-plan').value,
+        settings,
+      };
+      const r = await api(`/api/workspaces/${SELECTED}`,
+        { method:'PATCH', body:JSON.stringify(body) });
+      if (r.ok) await load(); else alert(await r.text());
+    },
+  };
+
+  document.getElementById('ws-new').addEventListener('click', WSAdmin.openCreate);
+  document.getElementById('ws-search').addEventListener('input', renderList);
+  load();
+})();
+</script>
+
+</script>
+</body>
+</html>

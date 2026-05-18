@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — TLS Manager</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1400px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  h2{margin:0 0 10px 0;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:1000px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .card.full{grid-column:span 2}
+  @media (max-width:1000px){.card.full{grid-column:span 1}}
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:5px 12px;margin-top:6px}
+  .kv .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  .kv .v{font-family:var(--mono);font-size:12px;word-break:break-all}
+  .pill{padding:2px 9px;border-radius:999px;background:#1b2945;color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);background:#102a1b;border-color:#1f4b33}
+  .pill.warn{color:var(--warn);background:#2a1f12;border-color:#5c3a18}
+  .pill.err{color:var(--err);background:#2a1118;border-color:#5c2237}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit
+  }
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081224;border-color:transparent;font-weight:600}
+  .btn.warn{background:#3a2a15;border-color:#5c3a18;color:#f5cf85}
+  input.in,textarea.in,select.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:7px;padding:7px 10px;font-family:inherit;font-size:12px;width:100%
+  }
+  textarea.in{font-family:var(--mono);min-height:120px;resize:vertical}
+  label.lab{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;display:block;margin:8px 0 3px 0}
+  .countdown{font-family:var(--mono);font-size:24px;color:var(--accent3)}
+  .chain{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .chain .node{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#0d1736;font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>TLS Certificate Manager
+  <span class="pill" id="acmePill">ACME: …</span>
+  <span class="pill" id="httpsPill">HTTPS: …</span>
+</h1>
+
+<div class="grid">
+  <!-- ── current cert ──────────────────────────────────── -->
+  <div class="card full">
+    <h2>Current certificate
+      <button class="btn" id="btnCopyFp" style="float:left">Copy fingerprint</button>
+    </h2>
+    <div id="certPanel">…</div>
+    <div class="chain" id="chainView"></div>
+  </div>
+
+  <!-- ── regenerate self-signed ────────────────────────── -->
+  <div class="card">
+    <h2>Regenerate self-signed</h2>
+    <label class="lab">Subject Alt Names (comma separated)</label>
+    <input class="in" id="rgSAN" placeholder="helen.local, 192.168.1.10, my-host" />
+    <label class="lab">Common Name (optional)</label>
+    <input class="in" id="rgCN" placeholder="helen.local" />
+    <label class="lab">Valid for (days)</label>
+    <input class="in" id="rgDays" type="number" value="365" />
+    <label class="lab">Key size</label>
+    <select class="in" id="rgKey">
+      <option value="2048" selected>2048</option>
+      <option value="3072">3072</option>
+      <option value="4096">4096</option>
+    </select>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn primary" id="btnRegen">Generate</button>
+    </div>
+  </div>
+
+  <!-- ── upload custom ─────────────────────────────────── -->
+  <div class="card">
+    <h2>Upload custom cert + key</h2>
+    <label class="lab">Certificate (.crt / .pem)</label>
+    <input class="in" type="file" id="upCert" />
+    <label class="lab">Private key (.key / .pem)</label>
+    <input class="in" type="file" id="upKey" />
+    <label class="lab">Note (optional)</label>
+    <input class="in" id="upNote" placeholder="e.g. corporate CA chain" />
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn primary" id="btnUpload">Upload</button>
+    </div>
+  </div>
+
+  <!-- ── ACME ────────────────────────────────────────── -->
+  <div class="card full">
+    <h2>Let's Encrypt (ACME)</h2>
+    <div class="grid">
+      <div>
+        <label class="lab">Domain</label>
+        <input class="in" id="acmeDomain" placeholder="helen.example.com" />
+      </div>
+      <div>
+        <label class="lab">Email</label>
+        <input class="in" id="acmeEmail" placeholder="admin@example.com" />
+      </div>
+      <div>
+        <label class="lab">Challenge mode</label>
+        <select class="in" id="acmeMode">
+          <option value="http01" selected>http-01</option>
+          <option value="dns01">dns-01</option>
+        </select>
+      </div>
+      <div>
+        <label class="lab">Environment</label>
+        <select class="in" id="acmeStaging">
+          <option value="false">production</option>
+          <option value="true" selected>staging</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <button class="btn primary" id="btnAcme">Request certificate</button>
+      <button class="btn" id="btnAcmeStatus">Refresh status</button>
+    </div>
+    <pre id="acmeOut" style="margin-top:10px;background:#020610;border:1px solid var(--line);
+        border-radius:9px;padding:10px;font-family:var(--mono);font-size:11px;color:#cbd9f1;
+        max-height:200px;overflow:auto;white-space:pre-wrap"></pre>
+  </div>
+</div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+async function call(method, path, body, isForm){
+  const opts = { method, headers: { Authorization:"Bearer " + getToken() } };
+  if (body && !isForm){ opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  else if (body && isForm){ opts.body = body; }
+  const r = await fetch(api(path), opts);
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
+  return r.json();
+}
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+let CURRENT = null;
+
+async function loadInfo(){
+  try {
+    const j = await call("GET", "/api/admin/tls/info");
+    CURRENT = j;
+    $("httpsPill").textContent = "HTTPS: " + (j.https_enabled ? "ON" : "OFF");
+    $("httpsPill").className = "pill " + (j.https_enabled ? "ok" : "warn");
+    if (!j.configured){
+      $("certPanel").innerHTML = `<div class="pill warn">No certificate on disk</div>`;
+      return;
+    }
+    const c = j.cert;
+    const expClass = c.expired ? "err" : (c.days_remaining < 30 ? "warn" : "ok");
+    $("certPanel").innerHTML = `
+      <div class="kv">
+        <div class="k">CN</div>           <div class="v">${esc(c.common_name || '—')}</div>
+        <div class="k">Issuer</div>       <div class="v">${esc(c.issuer || '—')}</div>
+        <div class="k">SAN</div>          <div class="v">${esc((c.san||[]).join(", ") || '—')}</div>
+        <div class="k">Not before</div>   <div class="v">${esc(c.not_before)}</div>
+        <div class="k">Not after</div>    <div class="v">${esc(c.not_after)}
+          <span class="pill ${expClass}">${c.expired ? 'expired' : c.days_remaining + ' days left'}</span></div>
+        <div class="k">Key</div>          <div class="v">${esc(c.key_algorithm)} ${c.key_size || ''}</div>
+        <div class="k">Fingerprint</div>  <div class="v" id="fpVal">${esc(c.fingerprint_sha256)}</div>
+        <div class="k">Serial</div>       <div class="v">${esc(c.serial)}</div>
+        <div class="k">Self-signed</div>  <div class="v">${c.self_signed ? '✓' : '✗'}</div>
+        <div class="k">Path</div>         <div class="v">${esc(c.path)}</div>
+      </div>
+      <div class="countdown" style="margin-top:10px">${c.expired ? 'EXPIRED' : c.days_remaining + ' days remaining'}</div>
+    `;
+    $("chainView").innerHTML = `
+      <div class="node">Subject: ${esc(c.common_name || '—')}</div>
+      <div class="node">↑ Issuer: ${esc(c.issuer || '—')}</div>
+      <div class="node">↑ Root: ${c.self_signed ? '(self)' : '(external CA)'}</div>
+    `;
+  } catch(e){ $("certPanel").textContent = "Error: " + e.message; }
+}
+
+$("btnCopyFp").onclick = () => {
+  const t = $("fpVal")?.textContent;
+  if (t) navigator.clipboard.writeText(t).then(()=> alert("Copied"));
+};
+
+$("btnRegen").onclick = async () => {
+  const san = $("rgSAN").value.split(",").map(s => s.trim()).filter(Boolean);
+  if (!san.length){ alert("Provide at least one SAN"); return; }
+  try {
+    await call("POST", "/api/admin/tls/regenerate", {
+      san_list: san,
+      common_name: $("rgCN").value.trim() || null,
+      days: Number($("rgDays").value),
+      key_size: Number($("rgKey").value),
+    });
+    alert("Regenerated. Restart required to apply.");
+    loadInfo();
+  } catch(e){ alert(e.message); }
+};
+
+$("btnUpload").onclick = async () => {
+  const fc = $("upCert").files[0], fk = $("upKey").files[0];
+  if (!fc || !fk){ alert("Pick both files"); return; }
+  const fd = new FormData();
+  fd.append("cert_file", fc); fd.append("key_file", fk);
+  fd.append("note", $("upNote").value);
+  try {
+    await call("POST", "/api/admin/tls/upload", fd, true);
+    alert("Uploaded. Restart required.");
+    loadInfo();
+  } catch(e){ alert(e.message); }
+};
+
+$("btnAcme").onclick = async () => {
+  const body = {
+    domain: $("acmeDomain").value.trim(),
+    email:  $("acmeEmail").value.trim(),
+    mode:   $("acmeMode").value,
+    staging: $("acmeStaging").value === "true",
+  };
+  if (!body.domain || !body.email){ alert("Domain + email required"); return; }
+  try {
+    const j = await call("POST", "/api/admin/tls/acme/request", body);
+    $("acmeOut").textContent = JSON.stringify(j, null, 2);
+    loadInfo();
+  } catch(e){ $("acmeOut").textContent = "Error: " + e.message; }
+};
+
+$("btnAcmeStatus").onclick = async () => {
+  try {
+    const j = await call("GET", "/api/admin/tls/acme/status");
+    $("acmePill").textContent = "ACME: " + (j.available ? j.last_status : "unavailable");
+    $("acmePill").className = "pill " + (j.available ? "ok" : "warn");
+    $("acmeOut").textContent = JSON.stringify(j, null, 2);
+  } catch(e){ $("acmeOut").textContent = e.message; }
+};
+
+loadInfo(); $("btnAcmeStatus").click();
+</script>
+</body>
+</html>

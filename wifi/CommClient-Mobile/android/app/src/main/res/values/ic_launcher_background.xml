@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Helen brand background — deep navy that holds the white logo
+         under both adaptive icon mask shapes (circle / squircle / rounded
+         square). Hex chosen to read identical on both AMOLED and LCD. -->
+    <color name="ic_launcher_background">#0D1117</color>
+</resources>

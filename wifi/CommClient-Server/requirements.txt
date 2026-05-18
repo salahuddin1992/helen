@@ -1,0 +1,62 @@
+# CommClient Server Dependencies
+# ================================
+# Version policy: minimum tested version with an upper ceiling on the
+# next major release. This lets pip pick the newest compatible wheel for
+# whichever Python version is installed (3.8 → 3.13+).
+
+# Web Framework
+fastapi>=0.111.0,<1.0.0
+uvicorn>=0.30.0,<1.0.0
+
+# Socket.IO
+python-socketio>=5.11.0,<6.0.0
+python-engineio>=4.9.0,<5.0.0
+
+# Database
+sqlalchemy>=2.0.30,<3.0.0
+aiosqlite>=0.20.0,<1.0.0
+alembic>=1.13.0,<2.0.0
+# Uncomment for PostgreSQL migration:
+# asyncpg>=0.29.0,<1.0.0
+
+# Auth & Crypto
+pyjwt>=2.8.0,<3.0.0
+bcrypt>=4.1.0,<5.0.0
+cryptography>=42.0.0,<44.0.0
+python-multipart>=0.0.9,<1.0.0
+
+# Validation
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0,<3.0.0
+email-validator>=2.1.0,<3.0.0
+
+# File handling
+aiofiles>=23.2.0,<25.0.0
+pillow>=10.3.0,<12.0.0
+
+# Network / Discovery
+zeroconf>=0.132.0,<1.0.0
+psutil>=5.9.0,<7.0.0
+
+# Logging
+structlog>=24.2.0,<26.0.0
+
+# Utilities
+python-dotenv>=1.0.0,<2.0.0
+uuid6>=2024.1.0
+httptools>=0.6.0,<1.0.0
+
+# Distributed-fabric observability — OpenTelemetry exporter for the
+# route_collector trace data. The exporter (app/services/otel_exporter.py)
+# uses lazy imports, so installing these activates it only when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set; without the env var, the SDK
+# stays loaded but inert. Optional in spirit — single-server LAN
+# deployments don't need them, but installing them is harmless.
+opentelemetry-api>=1.25.0,<2.0.0
+opentelemetry-sdk>=1.25.0,<2.0.0
+opentelemetry-exporter-otlp-proto-http>=1.25.0,<2.0.0
+
+# Dev / Testing
+pytest>=8.0.0,<9.0.0
+pytest-asyncio>=0.23.0,<1.0.0
+httpx>=0.27.0,<1.0.0

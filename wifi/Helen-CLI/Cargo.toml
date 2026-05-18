@@ -1,0 +1,97 @@
+[package]
+name = "helen-cli"
+version = "1.0.0"
+edition = "2021"
+authors = ["Helen Project <helen@local>"]
+description = "Helen CLI — headless client for the Helen/CommClient platform."
+license = "Proprietary"
+publish = false
+build = "build.rs"
+
+[[bin]]
+name = "helen-cli"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+incremental = false
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.38", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
+async-trait = "0.1"
+
+# HTTP / WS
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls-native-roots",
+    "stream",
+    "multipart",
+    "gzip",
+] }
+rust_socketio = { version = "0.4", features = ["async"] }
+url = "2.5"
+
+# Serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# CLI / REPL
+clap = { version = "4.5", features = ["derive", "env"] }
+rustyline = "14.0"
+colored = "2.1"
+indicatif = "0.17"
+comfy-table = "7.1"
+
+# Filesystem / config
+dirs = "5.0"
+
+# Secret storage
+keyring = "3.0"
+
+# Audio (calls)
+cpal = "0.15"
+opus = "0.3"
+ringbuf = "0.4"
+
+# Crypto / encoding
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# Errors
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Misc
+chrono = { version = "0.4", features = ["serde"] }
+bytes = "1.6"
+parking_lot = "0.12"
+once_cell = "1.19"
+rand = "0.8"
+backoff = { version = "0.4", features = ["tokio"] }
+qrcode = "0.14"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[build-dependencies]
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_System_Console",
+] }

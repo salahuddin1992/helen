@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+# helenctl — unified CLI for Helen-Server operators on Linux.
+#
+# Commands (verb-first):
+#   status              service + control-plane state
+#   start|stop|restart  lifecycle
+#   reload              send SIGHUP (config reload if supported)
+#   logs [-f]           show journald logs (tail or follow)
+#   health              quick health probe (0 on green)
+#   check               run pre-flight + config validator
+#   diag                collect a diagnostic bundle (tar.gz)
+#   backup [path]       atomic DB + config + roles + master-code backup
+#   restore <path>      restore from a backup bundle
+#   upgrade <bin-dir>   blue/green binary swap with smoke test + rollback
+#   cert rotate         regenerate self-signed TLS cert (helen.local + LAN IP)
+#   cluster list        show registered nodes
+#   cluster join <url>  register this node with a peer
+#   cluster leave <id>  unregister a peer
+#   role <name> <on|off>  toggle a server role (writes data/server_roles.json)
+#   policy <mode>       force policy_mode (auto|chat_only|audio_only|video_ok|…)
+#   emergency freeze    put control plane into frozen phase
+#   emergency exit      exit emergency/frozen phase
+#   roles               print role matrix
+#   metrics             print latest telemetry snapshot
+#   version             print binary + build info
+#
+# Environment honored: HELEN_BASE (default http://127.0.0.1:3000)
+#                      HELEN_ADMIN_TOKEN (if set, used as Bearer JWT)
+#                      HELEN_SECRET_TOKEN (for /admin-secret/* actions)
+set -euo pipefail
+
+HELEN_BASE="${HELEN_BASE:-http://127.0.0.1:3000}"
+SVC="${SVC:-helen-server}"
+DATADIR="${DATADIR:-/var/lib/helen}"
+ETCDIR="${ETCDIR:-/etc/helen}"
+PREFIX="${PREFIX:-/opt/helen/server}"
+
+CYAN=$'\033[36m'; GREEN=$'\033[32m'; RED=$'\033[31m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; RST=$'\033[0m'
+_info() { printf '%s%s%s\n' "${CYAN}==>" " $*" "${RST}"; }
+_ok()   { printf '%s✓%s %s\n' "${GREEN}" "${RST}" "$*"; }
+_warn() { printf '%s⚠%s %s\n' "${YELLOW}" "${RST}" "$*" >&2; }
+_fail() { printf '%s✗%s %s\n' "${RED}" "${RST}" "$*" >&2; }
+
+need_root() {
+    if [[ $EUID -ne 0 ]]; then _fail "this command needs root (sudo)"; exit 1; fi
+}
+
+_curl() {
+    local hdr=()
+    [[ -n "${HELEN_ADMIN_TOKEN:-}" ]] && hdr+=(-H "Authorization: Bearer ${HELEN_ADMIN_TOKEN}")
+    curl -fsS --max-time 10 "${hdr[@]}" "$@"
+}
+
+_jq_raw() {
+    if command -v jq >/dev/null 2>&1; then jq -r "$@"; else cat; fi
+}
+
+# ── commands ─────────────────────────────────────────────────────
+
+cmd_status() {
+    systemctl status "${SVC}" --no-pager -l 2>/dev/null | head -15 || true
+    echo
+    _info "health probe"
+    if curl -fsS --max-time 3 "${HELEN_BASE}/api/health" >/dev/null 2>&1; then
+        _ok "${HELEN_BASE}/api/health = 200"
+    else
+        _fail "health probe failed"
+    fi
+    echo
+    _info "control plane"
+    _curl "${HELEN_BASE}/api/admin/control-plane/status" 2>/dev/null | \
+        python3 -c "
+import json,sys
+try:
+  d = json.load(sys.stdin)
+  g = d.get('global', {})
+  i = d.get('inputs', {})
+  print(f\"  phase:  {g.get('phase','?')}  (last trigger: {g.get('last_trigger','-')})\")
+  print(f\"  cpu:    {i.get('cpu_p95','?')}%%  rss: {i.get('rss_p95','?')}%%  sockets: {i.get('active_sockets','?')}\")
+  print(f\"  rooms:  {len(d.get('rooms',[]))}  profile: {d.get('profile','?')}\")
+  print(f\"  admit:  {'open' if g.get('admission_open') else 'closed'}\")
+except Exception as e:
+  print('  (unavailable — need admin token)')
+"
+}
+
+cmd_logs() {
+    local args=("-u" "${SVC}")
+    for a in "$@"; do
+        case "$a" in
+            -f|--follow) args+=("-f");;
+            -n) shift; args+=("-n" "${1:-200}");;
+            *) args+=("$a");;
+        esac
+    done
+    exec journalctl "${args[@]}"
+}
+
+cmd_health() {
+    local code
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 3 \
+            "${HELEN_BASE}/api/health" 2>/dev/null || echo 000)"
+    if [[ "${code}" = "200" ]]; then _ok "OK"; exit 0; fi
+    _fail "http=${code}"; exit 1
+}
+
+cmd_check() {
+    _info "pre-flight"
+    "${DIR}/../scripts/preflight.sh" || return 1
+    _info "config validation"
+    if [[ -f "${ETCDIR}/server.env" ]]; then
+        # Basic validation: shell syntax
+        bash -n "${ETCDIR}/server.env" 2>&1 || _fail "server.env has syntax errors"
+        _ok "server.env parses cleanly"
+    else
+        _warn "${ETCDIR}/server.env missing"
+    fi
+    if [[ -f "${DATADIR}/server_roles.json" ]]; then
+        python3 -c "import json; json.load(open('${DATADIR}/server_roles.json'))" 2>&1 \
+            && _ok "server_roles.json parses cleanly" \
+            || _fail "server_roles.json invalid"
+    fi
+}
+
+cmd_diag() {
+    "${DIR}/../scripts/diag-bundle.sh" "$@"
+}
+
+cmd_backup() {
+    "${DIR}/../scripts/backup.sh" "$@"
+}
+
+cmd_restore() {
+    "${DIR}/../scripts/restore.sh" "$@"
+}
+
+cmd_upgrade() {
+    local src="${1:?usage: helenctl upgrade <bin-dir>}"
+    need_root
+    if [[ ! -x "${src}/Helen-Server" ]]; then
+        _fail "${src}/Helen-Server is not executable"; exit 2
+    fi
+    _info "blue/green swap"
+    local backup
+    backup="/opt/helen/server.prev.$(date +%s)"
+    mv "${PREFIX}" "${backup}"
+    cp -a "${src}/." "${PREFIX}/"
+    chown -R helen:helen "${PREFIX}"
+    systemctl restart "${SVC}"
+    sleep 3
+    if cmd_health >/dev/null 2>&1; then
+        _ok "upgrade verified"
+        _info "previous version kept at ${backup} (delete when confident)"
+    else
+        _fail "new version failed health — rolling back"
+        rm -rf "${PREFIX}"
+        mv "${backup}" "${PREFIX}"
+        systemctl restart "${SVC}"
+        exit 3
+    fi
+}
+
+cmd_cert_rotate() {
+    need_root
+    _info "regenerating self-signed cert (helen.local + LAN IPs)"
+    local certfile="${DATADIR}/tls/helen.crt"
+    local keyfile="${DATADIR}/tls/helen.key"
+    install -d -o helen -g helen -m 0750 "${DATADIR}/tls"
+    # Discover LAN IP
+    local lan_ip
+    lan_ip="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true)"
+    cat > /tmp/helen-san.cnf <<EOF
+[ req ]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+x509_extensions = v3_req
+[ dn ]
+CN = helen.local
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt
+[ alt ]
+DNS.1 = helen.local
+DNS.2 = localhost
+IP.1  = 127.0.0.1
+${lan_ip:+IP.2  = ${lan_ip}}
+EOF
+    openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout "${keyfile}" -out "${certfile}" \
+        -days 825 -config /tmp/helen-san.cnf
+    chown helen:helen "${certfile}" "${keyfile}"
+    chmod 0640 "${keyfile}"
+    rm -f /tmp/helen-san.cnf
+    _ok "wrote ${certfile}"
+    _info "restart to pick up new cert: sudo systemctl restart ${SVC}"
+}
+
+cmd_cluster() {
+    local sub="${1:-list}"; shift || true
+    case "${sub}" in
+        list)
+            _curl "${HELEN_BASE}/api/admin/placement/nodes" 2>/dev/null | \
+                python3 -c "
+import json,sys
+try: d = json.load(sys.stdin)
+except: print('(need admin token)'); sys.exit(0)
+for n in d['nodes']:
+    mark = ' [self]' if n['self_node'] else ''
+    c = n['capability']; l = n['load']
+    print(f\"  {n['node_id'][:12]}  {n['host']}:{n['port']}{mark}\")
+    print(f\"    cores={c['cpu_cores']} ram={c['ram_gb']}GB nic={c['nic_gbps']}Gbps  strength={n['strength']}\")
+    print(f\"    cpu={l['cpu_pct']}%% rss={l['rss_pct']}%%  phase={l['phase']}  score={n['score']}\")
+    print()
+"
+            ;;
+        join)
+            local url="${1:?usage: helenctl cluster join <base-url>}"
+            _info "fetching peer capability from ${url}"
+            local peer_id peer_caps peer_roles
+            peer_id="$(curl -fsS "${url}/api/discovery" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("server_id",""))' || true)"
+            [[ -z "${peer_id}" ]] && { _fail "could not resolve peer server_id"; exit 2; }
+            _info "registering peer ${peer_id} at local node"
+            # Shell out to the helper (needs admin token)
+            _curl -X POST "${HELEN_BASE}/api/admin/placement/nodes/register" \
+                -H "Content-Type: application/json" \
+                --data-raw '{
+                    "node_id":"'"${peer_id}"'",
+                    "host":"'"${url#http://}"'","port":3000,
+                    "capability":{"cpu_cores":4,"ram_gb":8,"nic_gbps":1,"disk_ssd":true,"platform":"Linux","version":"1.0"},
+                    "roles":{"signaling":true,"messaging":true,"presence":true,"sfu":true,"relay":true,"recording":false,"file_transfer":true,"metrics":true}
+                }'
+            echo; _ok "registered"
+            ;;
+        leave)
+            local id="${1:?usage: helenctl cluster leave <node-id>}"
+            _curl -X DELETE "${HELEN_BASE}/api/admin/placement/nodes/${id}"
+            echo; _ok "removed"
+            ;;
+        *)
+            _fail "unknown cluster subcommand: ${sub}"
+            exit 2
+            ;;
+    esac
+}
+
+cmd_role() {
+    local name="${1:?usage: helenctl role <name> <on|off>}"
+    local action="${2:?usage: helenctl role <name> <on|off>}"
+    local bool; [[ "${action}" = "on" ]] && bool="true" || bool="false"
+    _curl -X PATCH "${HELEN_BASE}/api/admin/server-roles" \
+        -H "Content-Type: application/json" \
+        --data-raw "{\"updates\":{\"${name}\":{\"enabled\":${bool}}}}" | \
+        python3 -m json.tool | head -5
+}
+
+cmd_policy() {
+    local mode="${1:?usage: helenctl policy <mode>}"
+    _curl -X PATCH "${HELEN_BASE}/api/admin/server-roles" \
+        -H "Content-Type: application/json" \
+        --data-raw "{\"updates\":{\"policy_mode\":{\"value\":\"${mode}\"}}}" \
+        | _jq_raw '.applied'
+    echo; _ok "policy_mode = ${mode}"
+}
+
+cmd_emergency() {
+    local sub="${1:-exit}"
+    case "${sub}" in
+        freeze)
+            _warn "freezing control plane — new rooms will be refused"
+            _curl -X POST "${HELEN_BASE}/api/secret-admin/emergency/freeze" \
+                -H "X-Secret-Admin-Token: ${HELEN_SECRET_TOKEN:-}" \
+                -H "Content-Type: application/json" \
+                -d '{"acknowledged":true}' || _fail "needs secret admin token"
+            ;;
+        exit)
+            _curl -X POST "${HELEN_BASE}/api/admin/control-plane/emergency/exit"
+            _ok "exit signaled"
+            ;;
+        *) _fail "usage: helenctl emergency freeze|exit"; exit 2;;
+    esac
+}
+
+cmd_roles() {
+    _curl "${HELEN_BASE}/api/admin/server-roles" | \
+        python3 -c "
+import json,sys
+d = json.load(sys.stdin)['roles']
+print('role              enabled  locked  desc')
+print('─' * 70)
+for k,v in d.items():
+    if 'enabled' in v:
+        flag = '✓' if v['enabled'] else '·'
+        lock = '🔒' if v.get('locked') else ' '
+        print(f'  {k:<16} {flag:>4}     {lock}     {v.get(\"desc\",\"\")}')
+    elif 'value' in v:
+        print(f'  {k:<16} = {v[\"value\"]}')
+"
+}
+
+cmd_metrics() {
+    cmd_status
+}
+
+cmd_version() {
+    if [[ -x "${PREFIX}/Helen-Server" ]]; then
+        "${PREFIX}/Helen-Server" --version 2>/dev/null || echo "binary: ${PREFIX}/Helen-Server"
+    else
+        echo "Helen-Server binary not found at ${PREFIX}"
+    fi
+    systemctl --version 2>/dev/null | head -1 || true
+}
+
+# ── dispatch ─────────────────────────────────────────────────────
+DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+cmd="${1:-status}"; shift || true
+case "${cmd}" in
+    status)                       cmd_status "$@";;
+    start)     need_root; exec systemctl start   "${SVC}";;
+    stop)      need_root; exec systemctl stop    "${SVC}";;
+    restart)   need_root; exec systemctl restart "${SVC}";;
+    reload)    need_root; exec systemctl reload  "${SVC}";;
+    logs)                         cmd_logs "$@";;
+    health)                       cmd_health;;
+    check)                        cmd_check;;
+    diag)                         cmd_diag "$@";;
+    backup)                       cmd_backup "$@";;
+    restore)                      cmd_restore "$@";;
+    upgrade)   need_root;         cmd_upgrade "$@";;
+    cert)
+        sub="${1:-rotate}"; shift || true
+        case "${sub}" in rotate) cmd_cert_rotate;;
+            *) _fail "usage: helenctl cert rotate"; exit 2;;
+        esac;;
+    cluster)                      cmd_cluster "$@";;
+    role)                         cmd_role "$@";;
+    policy)                       cmd_policy "$@";;
+    emergency)                    cmd_emergency "$@";;
+    roles)                        cmd_roles;;
+    metrics)                      cmd_metrics;;
+    version)                      cmd_version;;
+    help|-h|--help)
+        grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -40;;
+    *) _fail "unknown command: ${cmd}"; exec "$0" help;;
+esac

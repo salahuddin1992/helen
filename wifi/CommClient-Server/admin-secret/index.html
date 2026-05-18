@@ -1,0 +1,384 @@
+<!doctype html>
+<!--
+  Secret Admin Panel — separate auth realm.
+
+  Gated by the master code (generated on first Helen-Server boot and
+  printed to the server console; also stored at
+  data/secret_master_code.txt). Uses the X-Secret-Admin-Token header
+  for all API calls — NOT the regular JWT.
+
+  This page is deliberately plain: any extra dependency becomes attack
+  surface. No third-party JS, no fancy charts.
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen · Secret Admin</title>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #14141a;
+    --panel2: #1c1c24;
+    --line: #2a2a35;
+    --ink: #f0f0f5;
+    --muted: #8a8a95;
+    --accent: #ff9500;   /* Orange — deliberately not the main admin blue */
+    --ok: #30d158;
+    --warn: #ffd60a;
+    --err: #ff3b30;
+    --mono: "SF Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif;
+    font-size: 14px; min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  header.hero {
+    background: linear-gradient(135deg, #2a1505 0%, #331a0b 55%, #1d0f05 100%);
+    border: 1px solid #4a2a10;
+    border-radius: 18px; padding: 18px 22px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  header.hero .badge {
+    width: 54px; height: 54px; border-radius: 14px;
+    background: #1a0f05;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  header.hero h1 { margin: 0; font-size: 20px; }
+  header.hero .sub { color: #c79a6a; font-size: 12px; margin-top: 3px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card h3 { margin: 0 0 12px; font-size: 15px; }
+  .card h3 svg { vertical-align: middle; margin-left: 6px; }
+  .muted { color: var(--muted); font-size: 12px; }
+
+  input, button, select {
+    font-family: inherit; font-size: 14px;
+  }
+  input {
+    background: #0f0f14; border: 1px solid var(--line);
+    color: var(--ink); border-radius: 8px; padding: 9px 12px;
+    width: 100%;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #1a0a00; border: 0;
+    border-radius: 8px; padding: 9px 16px; font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.secondary { background: var(--panel2); color: var(--ink);
+                     border: 1px solid var(--line); }
+  button.danger { background: var(--err); color: #fff; }
+  button.danger:hover { background: #d93028; }
+
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono);
+          font-size: 12px; }
+  th, td { text-align: right; padding: 6px 10px;
+           border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px;
+       text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 10px;
+          font-size: 10px; font-weight: 600;
+          background: var(--panel2); color: var(--muted); }
+  .chip.ok   { background: rgba(48,209,88,0.18); color: var(--ok); }
+  .chip.err  { background: rgba(255,59,48,0.18); color: var(--err); }
+  .chip.warn { background: rgba(255,214,10,0.18); color: var(--warn); }
+
+  .countdown {
+    font-family: var(--mono); color: var(--accent); font-size: 13px;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+
+  #authPanel, #mainPanel { transition: opacity 0.2s; }
+  [hidden] { display: none !important; }
+  pre { background: #0f0f14; border-radius: 8px; padding: 10px;
+        font-family: var(--mono); font-size: 11px; overflow: auto;
+        max-height: 300px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="badge">🔐</div>
+  <div>
+    <h1>Helen · Secret Admin</h1>
+    <div class="sub">لوحة سرية منفصلة — تتطلب master code من console السيرفر.
+                     لا تُسجَّل في سجلات المستخدمين العاديين.</div>
+  </div>
+  <div style="margin-inline-start:auto;" id="sessionStatus"></div>
+</header>
+
+<!-- AUTH PANEL -->
+<div class="card" id="authPanel">
+  <h3>تسجيل الدخول</h3>
+  <p class="muted" style="margin:0 0 14px;">
+    أدخل master code الذي طُبع في console السيرفر عند أول تشغيل.
+    يُحفظ أيضاً في <code>data/secret_master_code.txt</code>.
+    مدة الجلسة ١٥ دقيقة، بعدها تُعاد المصادقة.
+  </p>
+  <div style="display:flex; gap:8px;">
+    <input id="masterCode" type="password" placeholder="master code" />
+    <button id="authBtn">دخول</button>
+  </div>
+  <div id="authStatus" style="margin-top:10px;font-size:13px;"></div>
+</div>
+
+<!-- MAIN PANEL -->
+<div id="mainPanel" hidden>
+
+  <div class="row">
+    <div class="card">
+      <h3>أرقام الدخول النشطة (كل النظام)</h3>
+      <p class="muted" style="margin:0 0 10px;">
+        كل رقم أنشأه مستخدم — مرئي هنا فقط.
+      </p>
+      <button class="secondary" id="reloadCodes">تحديث</button>
+      <div style="max-height:340px;overflow:auto;margin-top:10px;">
+        <table id="codesTable">
+          <thead>
+            <tr>
+              <th>code</th>
+              <th>kind</th>
+              <th>owner</th>
+              <th>uses</th>
+              <th>exp</th>
+              <th>حالة</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>إجراءات طوارئ</h3>
+      <p class="muted" style="margin:0 0 10px;">
+        كل زر يتطلب تأكيد إضافياً ويُسجَّل في audit.
+      </p>
+      <div style="display:grid; gap:10px;">
+        <button class="danger" id="btnFreeze">تجميد control plane فوراً</button>
+        <button class="danger" id="btnKillSessions">إنهاء كل الجلسات</button>
+        <button class="danger" id="btnRotateJwt">تدوير مفتاح JWT</button>
+      </div>
+      <div id="actionStatus" style="margin-top:12px;font-size:13px;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>سجل القرارات الأخير (control plane)</h3>
+    <button class="secondary" id="reloadAudit">تحديث</button>
+    <pre id="auditBox" style="margin-top:10px;">لم يتم التحميل.</pre>
+  </div>
+
+  <div class="card" style="border-color:var(--err);">
+    <h3 style="color:var(--err);">تسجيل الخروج</h3>
+    <p class="muted" style="margin:0 0 10px;">
+      يُبطل الجلسة الحالية. Master code لا يتغيّر.
+    </p>
+    <button class="secondary" id="btnLogout">خروج</button>
+  </div>
+</div>
+
+<script>
+const SECRET_TOKEN_KEY = 'helen.secret.token';
+const API = '';   // same-origin
+let _token = sessionStorage.getItem(SECRET_TOKEN_KEY) || '';
+let _expiresAt = 0;
+let _tickHandle = null;
+
+function $(id){return document.getElementById(id);}
+
+async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (_token) headers['X-Secret-Admin-Token'] = _token;
+  const r = await fetch(API + '/api/secret-admin' + path, {
+    method, headers, body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(()=>({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+function setStatus(el, msg, kind) {
+  el.textContent = msg;
+  el.style.color = kind === 'err' ? 'var(--err)'
+                 : kind === 'ok'  ? 'var(--ok)'
+                 : 'var(--muted)';
+}
+
+async function authenticate() {
+  const code = $('masterCode').value.trim();
+  if (!code) return;
+  setStatus($('authStatus'), 'جارٍ التحقق…');
+  const r = await api('POST', '/auth', { code });
+  if (!r.ok) {
+    setStatus($('authStatus'),
+      (r.data && r.data.detail) || 'رفض المصادقة', 'err');
+    return;
+  }
+  _token = r.data.token;
+  _expiresAt = Date.now() + r.data.expires_in * 1000;
+  sessionStorage.setItem(SECRET_TOKEN_KEY, _token);
+  showMain();
+}
+
+async function showMain() {
+  $('authPanel').hidden = true;
+  $('mainPanel').hidden = false;
+  await refreshSession();
+  await loadCodes();
+  await loadAudit();
+  if (_tickHandle) clearInterval(_tickHandle);
+  _tickHandle = setInterval(refreshSession, 5000);
+}
+
+async function refreshSession() {
+  const r = await api('GET', '/session');
+  if (!r.ok) { logout(); return; }
+  _expiresAt = Date.now() + r.data.time_left_s * 1000;
+  const mins = Math.floor(r.data.time_left_s / 60);
+  const secs = r.data.time_left_s % 60;
+  $('sessionStatus').innerHTML =
+    '<span class="countdown">انقضاء: ' + mins + ':' +
+    String(secs).padStart(2,'0') + '</span>';
+}
+
+function logout() {
+  sessionStorage.removeItem(SECRET_TOKEN_KEY);
+  _token = '';
+  if (_tickHandle) { clearInterval(_tickHandle); _tickHandle = null; }
+  $('authPanel').hidden = false;
+  $('mainPanel').hidden = true;
+  $('sessionStatus').innerHTML = '';
+  setStatus($('authStatus'), 'خرجتَ من الجلسة.');
+}
+
+async function loadCodes() {
+  const r = await api('GET', '/codes');
+  const tb = $('codesTable').querySelector('tbody');
+  tb.innerHTML = '';
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted">فشل التحميل</td></tr>';
+    return;
+  }
+  const rows = (r.data.codes || []);
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted">لا توجد أرقام حالياً.</td></tr>';
+    return;
+  }
+  for (const c of rows) {
+    const tr = document.createElement('tr');
+    const used = (c.used_count || 0);
+    const rem  = (c.uses_remaining == null) ? '∞' : c.uses_remaining;
+    const expIso = c.expires_at
+      ? new Date(c.expires_at * 1000).toISOString().slice(0,16)
+      : '—';
+    const stateChip = c.revoked
+      ? '<span class="chip err">ملغي</span>'
+      : (c.expires_at && c.expires_at * 1000 < Date.now())
+        ? '<span class="chip warn">منتهٍ</span>'
+        : '<span class="chip ok">نشط</span>';
+    tr.innerHTML =
+      '<td>' + escapeHtml(c.code) + '</td>' +
+      '<td>' + escapeHtml(c.kind) + '</td>' +
+      '<td>' + escapeHtml((c.owner_user_id||'').slice(0,12) + '…') + '</td>' +
+      '<td>' + used + '/' + rem + '</td>' +
+      '<td>' + expIso + '</td>' +
+      '<td>' + stateChip + '</td>' +
+      '<td>' + (!c.revoked
+        ? '<button class="danger" data-revoke="' + escapeHtml(c.code) + '">إلغاء</button>'
+        : '—') + '</td>';
+    tb.appendChild(tr);
+  }
+}
+
+async function loadAudit() {
+  const r = await api('GET', '/audit/recent?limit=50');
+  if (!r.ok) {
+    $('auditBox').textContent = 'فشل التحميل: ' + r.status;
+    return;
+  }
+  const lines = (r.data.entries || []).map(e => {
+    const room = e.room_id || e.scope || '-';
+    const supp = e.suppressed ? ' [SUPPRESSED]' : '';
+    return `${(e.ts||'').slice(11,19)}  ${room.substring(0,20).padEnd(20)}  ${
+      String(e.from_state||'-').padEnd(10)} -> ${
+      String(e.to_state||'-').padEnd(12)}  ${e.trigger}${supp}`;
+  }).join('\n');
+  $('auditBox').textContent = lines || 'لا توجد أحداث.';
+}
+
+async function revokeCode(code) {
+  if (!confirm('إلغاء الرقم ' + code + ' نهائياً؟')) return;
+  const r = await api('POST', '/codes/revoke', { code });
+  if (r.ok) { setStatus($('actionStatus'), 'أُلغي الرقم ' + code, 'ok'); loadCodes(); }
+  else setStatus($('actionStatus'), r.data.detail || 'فشل', 'err');
+}
+
+async function freeze() {
+  if (!confirm('تجميد control plane فوراً؟ سيُرفض كل إنشاء غرفة جديدة.')) return;
+  const r = await api('POST', '/emergency/freeze', { acknowledged: true });
+  if (r.ok) setStatus($('actionStatus'), 'جُمِّد: phase=frozen', 'ok');
+  else setStatus($('actionStatus'), r.data.detail || 'فشل', 'err');
+}
+
+async function killSessions() {
+  if (!confirm('إنهاء كل جلسات المستخدمين في النظام؟')) return;
+  const r = await api('POST', '/sessions/kill-all', { acknowledged: true });
+  if (r.ok) setStatus($('actionStatus'),
+    'أُبطلت ' + (r.data.affected||0) + ' جلسة', 'ok');
+  else setStatus($('actionStatus'), r.data.detail || 'فشل', 'err');
+}
+
+async function rotateJwt() {
+  if (!confirm('تدوير مفتاح JWT؟ كل الجلسات الحالية ستُبطَل.')) return;
+  const r = await api('POST', '/jwt/rotate');
+  if (r.ok) setStatus($('actionStatus'),
+    'تمّ تدوير المفتاح: ' + (r.data.new_key_prefix||''), 'ok');
+  else setStatus($('actionStatus'), r.data.detail || 'فشل', 'err');
+}
+
+function escapeHtml(s) {
+  return String(s==null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+$('authBtn').addEventListener('click', authenticate);
+$('masterCode').addEventListener('keypress', e => {
+  if (e.key === 'Enter') authenticate();
+});
+$('reloadCodes').addEventListener('click', loadCodes);
+$('reloadAudit').addEventListener('click', loadAudit);
+$('btnFreeze').addEventListener('click', freeze);
+$('btnKillSessions').addEventListener('click', killSessions);
+$('btnRotateJwt').addEventListener('click', rotateJwt);
+$('btnLogout').addEventListener('click', logout);
+
+$('codesTable').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-revoke]');
+  if (b) revokeCode(b.getAttribute('data-revoke'));
+});
+
+// On reload, if token still good, skip auth panel.
+(async function boot() {
+  if (_token) {
+    const r = await api('GET', '/session');
+    if (r.ok) { showMain(); return; }
+    sessionStorage.removeItem(SECRET_TOKEN_KEY);
+    _token = '';
+  }
+  $('masterCode').focus();
+})();
+</script>
+</body>
+</html>

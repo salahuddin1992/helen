@@ -1,0 +1,42 @@
+# Optional dependencies for Helen-Server's alternate transport backends.
+# Install only the groups you actually deploy. The default Helen-Server
+# build never imports any of these — they're loaded lazily by their
+# respective adapters when the matching env var is set.
+#
+#   HELEN_BROKER_BACKEND=nats          → install nats-py
+#   HELEN_BROKER_BACKEND=mqtt          → install paho-mqtt
+#   HELEN_FEDERATION_BACKEND=grpc      → install grpcio + grpcio-tools
+#   HELEN_VPN_BACKEND=wireguard        → no Python dep; needs `wg`/`wg-quick` CLI
+#   HELEN_MESH_TOPOLOGY=ring           → no extra dep (router-side only)
+#
+# Usage:
+#   pip install -r requirements.txt -r requirements-extras.txt
+#
+# Or pick a single group via comments:
+#   # NATS only:
+#   # pip install nats-py>=2.6.0
+#   # MQTT only:
+#   # pip install paho-mqtt>=2.0.0
+#   # gRPC only:
+#   # pip install grpcio>=1.60.0 grpcio-tools>=1.60.0
+
+# NATS pub/sub
+nats-py>=2.6.0,<3.0.0
+
+# MQTT pub/sub (paho-mqtt 2.x has the new CallbackAPIVersion API
+# that mqtt_adapter.py is written against)
+paho-mqtt>=2.0.0,<3.0.0
+
+# gRPC federation
+grpcio>=1.60.0,<2.0.0
+grpcio-tools>=1.60.0,<2.0.0
+protobuf>=4.25.0,<6.0.0
+
+# ZeroMQ pub/sub + push/pull (HELEN_BROKER_BACKEND=zeromq)
+pyzmq>=25.0.0,<27.0.0
+
+# RabbitMQ AMQP (HELEN_BROKER_BACKEND=rabbitmq)
+aio-pika>=9.4.0,<10.0.0
+
+# SSH tunnel manager (HELEN_SSH_TUNNELS_ENABLED=1)
+paramiko>=3.4.0,<4.0.0

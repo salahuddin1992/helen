@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8" />
+ <title>Helen — Analytics</title>
+ <meta name="viewport" content="width=device-width,initial-scale=1" />
+ <style>
+  :root { --bg:#0d111b; --panel:#161b27; --line:#262d3d; --fg:#e7eaf2;
+          --muted:#7d869b; --accent:#5d8bff; --good:#37c39d;
+          --warn:#f0b133; --bad:#ef5a5a; }
+  * { box-sizing: border-box }
+  body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg);
+         margin:0; padding:24px; }
+  h1 { font-size:22px; margin:0 0 16px }
+  h3 { margin-top:0 }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  .tab { padding:10px 18px; cursor:pointer; color:var(--muted);
+         border-bottom:2px solid transparent; }
+  .tab.active { color:var(--fg); border-color:var(--accent); }
+  .panel { background:var(--panel); border:1px solid var(--line);
+           border-radius:10px; padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .kpi { background:var(--panel); border:1px solid var(--line);
+         border-radius:10px; padding:14px; }
+  .kpi .label { color:var(--muted); font-size:12px }
+  .kpi .value { font-size:24px; font-weight:600; margin-top:4px }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left }
+  th { color:var(--muted); font-weight:500 }
+  .btn { background:var(--accent); border:none; color:#fff; padding:6px 12px;
+         border-radius:6px; cursor:pointer; font-size:13px }
+  .btn.warn { background:var(--warn); color:#19130a; }
+  .btn.bad { background:var(--bad); }
+  pre { background:#0a0e16; padding:10px; border-radius:6px; overflow:auto;
+        font-size:12px; color:var(--muted); max-height:260px }
+  .stream { font-family: ui-monospace, Menlo, monospace; font-size:12px;
+            max-height:380px; overflow:auto; padding:8px;
+            background:#0a0e16; border-radius:6px; color:var(--muted) }
+  .stream div { padding:2px 0; border-bottom:1px dotted #1c2233 }
+  input, textarea, select { background:#0a0e16; border:1px solid var(--line);
+    border-radius:6px; padding:6px 8px; color:var(--fg); font-family:inherit; font-size:13px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .bar { display:flex; height:18px; background:#0a0e16; border-radius:4px; overflow:hidden; }
+  .bar > span { background: var(--accent); height:100%; }
+ </style>
+</head>
+<body>
+ <h1>Analytics &amp; BI</h1>
+ <div class="tabs">
+   <div class="tab active" data-tab="stats">Overview</div>
+   <div class="tab" data-tab="query">Query Builder</div>
+   <div class="tab" data-tab="funnels">Funnels</div>
+   <div class="tab" data-tab="cohorts">Cohorts</div>
+   <div class="tab" data-tab="stream">Live Stream</div>
+   <div class="tab" data-tab="warehouse">Warehouse</div>
+   <div class="tab" data-tab="embeds">Embedded</div>
+ </div>
+ <div id="view"></div>
+
+<script>
+const TOKEN = localStorage.getItem("helen_admin_token") || "";
+const A = (p, init) => fetch(p, {
+  headers:{ "Authorization":"Bearer "+TOKEN, ...(init?.headers||{}) },
+  ...init||{},
+}).then(r => r.ok ? r.json() : r.json().then(e => { throw e }));
+
+async function renderStats() {
+  const v = document.getElementById("view"); v.innerHTML = "Loading…";
+  const s = await A("/api/admin/analytics/stats");
+  const t = await A("/api/analytics/top-events?days=7&limit=20").catch(() => ({items:[]}));
+  v.innerHTML = `
+    <div class="grid">
+      <div class="kpi"><div class="label">Total Events</div><div class="value">${s.total_events.toLocaleString()}</div></div>
+      <div class="kpi"><div class="label">Events / Min</div><div class="value">${s.events_per_minute.toLocaleString()}</div></div>
+      <div class="kpi"><div class="label">Buffer</div><div class="value">${s.buffer_size}</div></div>
+      <div class="kpi"><div class="label">Workspaces</div><div class="value">${s.top_workspaces.length}</div></div>
+    </div>
+    <div class="panel">
+      <h3>Top Events (7d)</h3>
+      <table><thead><tr><th>Event</th><th>Count</th></tr></thead>
+      <tbody>${(t.items||[]).map(e=>`
+        <tr><td><code>${e.event}</code></td><td>${e.count.toLocaleString()}</td></tr>`).join("")}
+      </tbody></table>
+    </div>
+    <div class="panel">
+      <h3>Top Workspaces</h3>
+      <table><thead><tr><th>Workspace</th><th>Events</th></tr></thead>
+      <tbody>${s.top_workspaces.map(w=>`
+        <tr><td><code>${w.workspace_id.slice(0,12)}…</code></td>
+            <td>${w.events.toLocaleString()}</td></tr>`).join("")}
+      </tbody></table>
+    </div>`;
+}
+
+async function renderQuery() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <h3>Run Query (DSL)</h3>
+    <textarea id="dsl" style="width:100%;height:200px">${JSON.stringify({
+      event:"message.sent", group_by:"day", aggregate:"count",
+      from:"2026-04-01T00:00:00Z", to:"2026-06-01T00:00:00Z",
+    }, null, 2)}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="runQuery()">Run</button>
+      <input id="saveName" placeholder="save as (optional)" />
+    </div>
+    <div id="result"></div></div>`;
+}
+
+async function runQuery() {
+  const dsl = JSON.parse(document.getElementById("dsl").value);
+  const save = document.getElementById("saveName").value;
+  const r = await A("/api/analytics/query", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ dsl, save_as: save || undefined }),
+  });
+  const max = Math.max(1, ...(r.items||[]).map(x=>x.value||0));
+  document.getElementById("result").innerHTML = `
+    <table style="margin-top:10px"><thead><tr><th>Bucket</th><th>Value</th><th></th></tr></thead>
+    <tbody>${(r.items||[]).map(it=>`
+      <tr><td>${it.bucket}</td><td>${it.value}</td>
+          <td><div class="bar"><span style="width:${it.value/max*100}%"></span></div></td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function renderFunnels() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <h3>Define Funnel</h3>
+    <input id="fname" placeholder="Funnel name" style="width:300px" />
+    <textarea id="fsteps" style="width:100%;height:140px;margin-top:8px">${JSON.stringify([
+      { event:"page.view", filter:{} },
+      { event:"signup.started", filter:{} },
+      { event:"signup.completed", filter:{} },
+    ], null, 2)}</textarea>
+    <div class="row" style="margin-top:8px">
+      <label>Window (days): <input id="fwin" type="number" value="7" style="width:60px"/></label>
+      <button class="btn" onclick="createFunnel()">Create + Compute</button>
+    </div>
+    <div id="fres"></div></div>`;
+}
+async function createFunnel() {
+  const name = document.getElementById("fname").value || "untitled";
+  const steps = JSON.parse(document.getElementById("fsteps").value);
+  const conversion_window_days = Number(document.getElementById("fwin").value);
+  const r = await A("/api/analytics/funnels", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ name, steps, conversion_window_days }),
+  });
+  const res = await A(`/api/analytics/funnels/${r.id}/results`);
+  const max = Math.max(1, ...(res.steps||[]).map(x=>x.users||0));
+  document.getElementById("fres").innerHTML = `
+    <table style="margin-top:10px"><thead><tr>
+      <th>Step</th><th>Event</th><th>Users</th><th>Conv from prev</th><th>Drop-off</th><th></th>
+    </tr></thead>
+    <tbody>${res.steps.map(s=>`
+      <tr><td>${s.step}</td><td><code>${s.event}</code></td>
+          <td>${s.users}</td><td>${s.conversion_from_prev_pct}%</td>
+          <td>${s.drop_off_pct}%</td>
+          <td><div class="bar"><span style="width:${s.users/max*100}%"></span></div></td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function renderCohorts() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <h3>Define Cohort</h3>
+    <input id="cname" placeholder="Cohort name" style="width:300px" />
+    <textarea id="cdef" style="width:100%;height:120px;margin-top:8px">${JSON.stringify({
+      first_event:"user.signed_up", qualifying_event:"message.sent",
+      bucket:"week", lookback_days:90,
+    }, null, 2)}</textarea>
+    <button class="btn" style="margin-top:8px" onclick="createCohort()">Create + Compute</button>
+    <div id="cres"></div></div>`;
+}
+async function createCohort() {
+  const name = document.getElementById("cname").value || "untitled";
+  const definition = JSON.parse(document.getElementById("cdef").value);
+  const r = await A("/api/analytics/cohorts", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ name, definition }),
+  });
+  const offsets = new Set();
+  r.snapshot.cohorts.forEach(c => Object.keys(c.retention).forEach(o => offsets.add(Number(o))));
+  const arr = Array.from(offsets).sort((a,b)=>a-b);
+  document.getElementById("cres").innerHTML = `
+    <table style="margin-top:10px"><thead><tr><th>Cohort</th><th>Size</th>
+      ${arr.map(o=>`<th>+${o}</th>`).join("")}
+    </tr></thead>
+    <tbody>${r.snapshot.cohorts.map(c=>`
+      <tr><td>${c.cohort.slice(0,10)}</td><td>${c.size}</td>
+        ${arr.map(o => {
+          const cell = c.retention[o];
+          return cell ? `<td>${cell.pct}%</td>` : `<td>—</td>`;
+        }).join("")}
+      </tr>`).join("")}</tbody></table>`;
+}
+
+let _ws;
+function renderStream() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <h3>Live Event Stream</h3>
+    <button class="btn" onclick="startStream()">Start</button>
+    <button class="btn bad" onclick="stopStream()">Stop</button>
+    <div id="stream" class="stream" style="margin-top:10px"></div></div>`;
+}
+function startStream() {
+  stopStream();
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  _ws = new WebSocket(`${proto}//${location.host}/api/admin/analytics/events-stream?token=${encodeURIComponent(TOKEN)}`);
+  const out = document.getElementById("stream");
+  _ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    const line = document.createElement("div");
+    line.textContent = `${d.occurred_at}  ${d.event}  ws=${(d.workspace_id||"").slice(0,8)}  user=${(d.user_id||"").slice(0,8)}`;
+    out.insertBefore(line, out.firstChild);
+    while (out.childNodes.length > 200) out.removeChild(out.lastChild);
+  };
+}
+function stopStream() { try { _ws && _ws.close(); } catch (_e) {} _ws = null; }
+
+function renderWarehouse() {
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <h3>Warehouse Export</h3>
+    <select id="be"><option>bigquery</option><option>snowflake</option><option>s3_parquet</option></select>
+    <textarea id="cfg" style="width:100%;height:140px;margin-top:8px">${JSON.stringify({
+      bucket:"my-bucket", key_prefix:"helen/analytics/",
+    }, null, 2)}</textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="runWh()">Run Once</button>
+      <button class="btn warn" onclick="scheduleWh()">Schedule Daily</button>
+    </div>
+    <pre id="wres"></pre></div>`;
+}
+async function runWh() {
+  const r = await A("/api/admin/analytics/warehouse-exports", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ backend: document.getElementById("be").value,
+                           config: JSON.parse(document.getElementById("cfg").value) }),
+  });
+  document.getElementById("wres").textContent = JSON.stringify(r, null, 2);
+}
+async function scheduleWh() {
+  const r = await A("/api/admin/analytics/warehouse-exports/schedule", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ backend: document.getElementById("be").value,
+                           config: JSON.parse(document.getElementById("cfg").value) }),
+  });
+  document.getElementById("wres").textContent = JSON.stringify(r, null, 2);
+}
+
+async function renderEmbeds() {
+  const v = document.getElementById("view");
+  const dashes = await A("/api/analytics/dashboards").catch(()=>({items:[]}));
+  v.innerHTML = `<div class="panel">
+    <h3>Embedded Reports</h3>
+    <table><thead><tr><th>Dashboard</th><th>Shared</th><th></th></tr></thead>
+    <tbody>${(dashes.items||[]).map(d=>`
+      <tr><td><b>${d.name}</b><div style="color:var(--muted);font-size:11px">${d.slug}</div></td>
+          <td>${d.shared ? "yes" : "no"}</td>
+          <td><button class="btn" onclick="makeEmbed('${d.id}')">Create Embed Link</button></td>
+      </tr>`).join("")}</tbody></table>
+    <pre id="eres"></pre></div>`;
+}
+async function makeEmbed(id) {
+  const r = await A(`/api/analytics/reports/embed/${id}`, { method:"POST" });
+  document.getElementById("eres").textContent = JSON.stringify(r, null, 2);
+}
+
+const renderers = { stats: renderStats, query: renderQuery, funnels: renderFunnels,
+                    cohorts: renderCohorts, stream: renderStream,
+                    warehouse: renderWarehouse, embeds: renderEmbeds };
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  stopStream();
+  renderers[t.dataset.tab]();
+}));
+renderStats();
+</script>
+</body>
+</html>

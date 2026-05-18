@@ -1,0 +1,759 @@
+Ethernet
+Fiber
+Wi-Fi
+Wi-Fi Mesh
+Point-to-Point Wireless Bridge
+Point-to-Multipoint Wireless Bridge
+Direct Ethernet Cable
+Switch-based Local Network
+Router-based Local Network
+Private LTE
+Private 5G
+Intranet
+VLAN
+Ad Hoc Wireless Network
+USB Ethernet Network
+Coaxial Ethernet
+Powerline Networking
+MoCA
+Serial Network
+RS-485 Bus Network
+CAN Bus
+Industrial Ethernet
+SD-WAN داخلي
+MPLS داخلي
+Microwave Link
+Millimeter Wave Link
+Fixed Wireless Access داخلي
+Radio Relay Link
+Satellite محلي خاص
+Air-Gapped Network
+Closed Loop Network
+Peer-to-Peer Local Network
+Client-Server Local Network
+Hybrid Local Network
+Offline Mesh Network
+InfiniBand
+Fibre Channel
+Passive Optical LAN
+GPON
+XGS-PON
+EPON
+Dark Fiber
+CWDM
+DWDM
+Free-Space Optical Link
+Laser Bridge
+Infrared Link
+WiGig 60GHz
+802.11s Mesh
+UWB
+DECT Private Network
+TETRA Private Network
+DMR Private Network
+P25 Private Network
+Microwave Backhaul
+SONET/SDH Private Ring
+FDDI
+Token Ring
+ARCNET
+ATM LAN
+G.hn
+HomePlug AV2
+DOCSIS Private Coax Network
+Passive Backplane Network
+Optical Ring Network
+ISDN
+Frame Relay
+X.25
+Leased Line
+T1
+E1
+DS3
+Metro Ethernet
+Carrier Ethernet داخلي
+Virtual Private LAN Service (VPLS)
+Ethernet over Fiber
+Ethernet over Coax
+Ethernet over MPLS
+Pseudowire
+Synchronous Ethernet
+Time-Sensitive Networking (TSN)
+Audio Video Bridging (AVB)
+Deterministic Network
+Open Radio Access Network خاص
+CBRS Private Network
+NB-IoT Private Network
+LTE-M Private Network
+WirelessHART
+ISA100.11a
+ANT Network
+NFC Peer Network
+Visible Light Communication (VLC)
+Li-Fi
+Troposcatter Link
+HF Radio Link
+VHF/UHF Data Network
+Packet Radio Network
+MANET
+VANET
+BATMAN Mesh
+Babel Mesh
+cjdns Mesh
+Delay-Tolerant Network
+Store-and-Forward Network
+Sneakernet
+IP over Avionics Full-Duplex Switched Ethernet (AFDX)
+ARINC 429 Network
+MIL-STD-1553 Bus
+SpaceWire
+RapidIO
+PCIe Fabric
+NVLink Fabric
+HyperTransport Fabric
+Thunderbolt Peer Network
+FireWire Network
+USB4 Peer Link
+SPI Network
+I2C Bus Network
+I3C Bus Network
+1-Wire Network
+PROFIBUS
+PROFINET
+EtherCAT
+EtherNet/IP
+Modbus TCP
+Modbus RTU Network
+DeviceNet
+ControlNet
+SERCOS
+CC-Link
+CC-Link IE
+INTERBUS
+FOUNDATION Fieldbus
+HART-IP
+KNX
+BACnet
+LonWorks
+DALI Network
+M-Bus
+OPC UA over TSN
+Wireless Sensor Network
+Body Area Network
+Personal Area Network
+Campus Area Network
+Storage Area Network
+Network-on-Chip
+Chiplet Interconnect Fabric
+Optical Backplane Network
+Resilient Packet Ring
+Mesh-under Network
+FCoE
+iSCSI SAN
+NVMe over Fabrics
+RoCE
+Omni-Path
+HIPPI
+Myrinet
+SCI
+Serial RapidIO
+ATM PON
+RPR
+Ethernet Ring Protection Switching
+GOOSE Network
+Sampled Values Network
+IEC 61850 Process Bus
+IEC 61850 Station Bus
+AS-Interface
+IO-Link
+Single Pair Ethernet
+10BASE2
+10BASE5
+10BASE-T1L
+100BASE-TX
+1000BASE-T
+10GBASE-T
+25GbE
+40GbE
+100GbE
+200GbE
+400GbE
+800GbE
+CWMP Management Network
+Out-of-Band Management Network
+Serial Console Server Network
+KVM over IP Network
+Overlay Network
+Underlay Network
+Spine-Leaf Fabric
+Clos Network
+Fat-Tree Network
+Dragonfly Network
+Torus Network
+Hypercube Network
+Ring Topology Network
+Bus Topology Network
+Star Topology Network
+Tree Topology Network
+Full Mesh Network
+Partial Mesh Network
+Dual Ring Network
+Daisy Chain Network
+Hub-and-Spoke Network
+Leaf-Spine Network
+Super Spine Network
+Any-to-Any Fabric
+Non-Blocking Fabric
+Rearrangement Non-Blocking Fabric
+Optical Transport Network (OTN)
+Packet Transport Network (PTN)
+Carrier-Grade NAT-Free Private Fabric
+Segment Routing Network
+MPLS-TP
+PBB-TE
+TRILL
+SPB
+EVPN Fabric
+VXLAN Fabric
+Geneve Overlay
+GRE Tunnel Network
+IPsec Tunnel Mesh
+WireGuard Mesh
+L2TP Private Tunnel
+PPPoE Private Network
+eCPRI Fronthaul
+CPRI Fronthaul
+OBSAI Fronthaul
+HSR Network
+PRP Network
+DDS Middleware Network
+TIPC Cluster Network
+XBee Network
+Z-Wave Network
+Thread Network
+6LoWPAN Network
+RINA Network
+NDN Network
+SCION Network
+Locator/ID Separation Network
+MPLS VPN داخلي
+EVPL
+E-LAN
+E-Line
+E-Tree
+GSE Network
+PCIe over Cable
+Optical Circuit-Switched Network
+Burst-Switched Optical Network
+Hybrid Packet-Optical Network
+BPL
+Ethernet-APL
+PoDL Network
+TTEthernet
+Safe Ethernet
+Powerlink
+VARAN
+FL-net
+MECHATROLINK
+EtherSound
+CobraNet
+Dante Network
+AVnu TSN Network
+AES67 Network
+Ravenna Network
+Q-LAN
+MADI over IP
+HDBaseT
+SDI over IP
+NDI Network
+SMPTE ST 2110 Network
+SDVoE Network
+PON LAN
+Active Optical Network
+WDM-PON
+TWDM-PON
+RF over Fiber
+Analog Optical Link
+Digital Radio Mesh
+Microwave Mesh
+Mesh Wi-Fi Backhaul
+Wireless Distribution System
+CAPWAP Network
+Cloudless Local Fabric
+Zero-Trust Private Fabric
+Service Mesh داخلي
+Message Bus Network
+Event-Driven Network
+Brokerless Peer Mesh
+Multi-Chassis Link Aggregation Fabric
+StackWise Network
+Virtual Chassis Network
+FabricPath
+OpenFlow SDN Network
+P4 Programmable Fabric
+Intent-Based Network
+Control Plane / Data Plane Split Network
+NFV Infrastructure Fabric
+East-West Traffic Fabric
+West-East Access Network
+Southbound Industrial Fabric
+Northbound Integration Network
+Appliance-to-Appliance Link
+Cluster Interconnect Network
+Heartbeat Network
+Replication Network
+Backup Network
+Storage Replication Fabric
+Render Farm Network
+GPU Fabric Network
+HPC Interconnect Network
+Edge Computing Fabric
+Fog Network
+Tactical Data Link Network
+Mission Network
+Emergency Services Private Network
+Dispatch Radio IP Network
+RoIP Network
+Vehicular Mesh Network
+Train Communication Network
+Aircraft Cabin Network
+Shipboard Integrated Network
+Submarine Cable Landing Network
+Oilfield Private Network
+Mining Private Network
+Utility Private Grid Network
+Smart Grid Field Network
+Substation Automation Network
+Factory Cell Network
+Machine-to-Machine Network
+Robot Swarm Network
+AGV Fleet Network
+AMR Warehouse Network
+Drone Mesh Network
+UAV Relay Network
+UAS Ground Control Network
+Balloon Relay Network
+HAPS Network
+Near-Space Platform Network
+CubeSat Private Link
+Inter-Satellite Optical Link
+Ground Segment Private Network
+Telemetry Network
+Telecommand Network
+Tracking Network
+Range Instrumentation Network
+Testbed Network
+Lab Isolated Network
+Sandbox Network
+Honeynet
+Deception Network
+Red Team Isolated Network
+Blue Team Monitoring Network
+Packet Capture Network
+TAP Aggregation Network
+Mirror/SPAN Analysis Network
+Forensic Acquisition Network
+Malware Detonation Network
+Build Farm Network
+CI/CD Runner Network
+Artifact Distribution Network
+Patch Management Network
+WSUS Isolated Network
+PXE Provisioning Network
+Imaging Network
+Boot Network
+Recovery Network
+Break-Glass Admin Network
+Bastion Network
+Jump Host Network
+Secure Enclave Network
+Classified Compartmented Network
+Cross-Domain Guarded Network
+Data Diode Network
+One-Way Transfer Network
+Air-Gap Transfer Staging Network
+Removable Media Scan Network
+Quarantine Network
+Guest Isolation Network
+BYOD Segmented Network
+OT/IT Convergence Network
+DMZ Network
+Extranet Private Partner Network
+Supplier Integration Network
+B2B Interconnect Network
+EDI Network
+Warehouse Control Network
+SCADA Backhaul Network
+PLC Network
+RTU Network
+IED Network
+Protection Relay Network
+Synchrophasor Network
+PMU Network
+Metering Network
+AMI Network
+Head-End Utility Network
+Field Area Network
+Neighborhood Area Network
+Distribution Automation Network
+Pipeline Monitoring Network
+Wellhead Telemetry Network
+Rail Signaling Network
+CBTC Network
+ETCS Communication Network
+Positive Train Control Network
+Port Terminal Network
+Airport Operations Network
+Baggage Handling Network
+Apron Operations Network
+Traffic Signal Control Network
+Tolling Network
+Parking Infrastructure Network
+Smart Building Backbone
+Building Automation Network
+Elevator Control Network
+Access Control Network
+CCTV Surveillance Network
+Intercom IP Network
+Nurse Call Network
+Medical Device Isolated Network
+PACS Imaging Network
+DICOM Network
+Laboratory Instrument Network
+Pharmacy Automation Network
+Classroom Network
+Campus Dorm Network
+Library Systems Network
+Examination Isolated Network
+Broadcast Contribution Network
+Broadcast Distribution Network
+Studio Production Network
+Intercom Media Network
+Live Event Network
+Stadium Private Network
+Venue Operations Network
+POS Payment Segmented Network
+Kiosk Network
+ATM Banking Private Network
+Branch Interconnect Network
+Core Banking Private Fabric
+Trading Floor Low-Latency Network
+Market Data Network
+Settlement Network
+Clearing Network
+Retail Edge Network
+Franchise Store Network
+Cold Chain Monitoring Network
+Fleet Telematics Network
+Dispatch Operations Network
+Taxi Dispatch Network
+Bus Depot Network
+Logistics Hub Network
+Container Yard Network
+Parcel Sortation Network
+Postal Automation Network
+Command Post Network
+Tactical Operations Center Network
+Battlefield Mesh Network
+MANPACK Radio Network
+SDR Mesh Network
+SATCOM Ground Private Network
+ISR Sensor Network
+Border Surveillance Network
+Coastal Monitoring Network
+Public Safety LTE Network
+First Responder Incident Network
+Fire Station Alerting Network
+Police Dispatch Backbone
+Ambulance Telemetry Network
+Disaster Recovery Network
+Continuity of Operations Network
+Emergency Operations Center Network
+Mutual Aid Interconnect Network
+Community Mesh Network
+Neighborhood Watch Network
+Rural Broadband Private Mesh
+Tribal Network
+Remote Site Backhaul
+Island Interconnect Network
+Mountain Relay Network
+Desert Relay Network
+Tunnel Communication Network
+Underground Mine Communication Network
+Borehole Sensor Network
+Seismic Sensor Network
+Environmental Monitoring Network
+Weather Station Network
+Hydrology Sensor Network
+Agriculture Precision Network
+Irrigation Control Network
+Greenhouse Automation Network
+Livestock Tracking Network
+Aquaculture Monitoring Network
+Marine Buoy Network
+Harbor Sensor Network
+Oceanographic Sensor Network
+Research Instrument Network
+Telescope Array Network
+Observatory Control Network
+Particle Lab Timing Network
+Quantum Lab Control Network
+Cryogenic Control Network
+Semiconductor Fab Network
+Photolithography Tool Network
+Cleanroom Equipment Network
+Automotive Assembly Network
+Battery Plant Network
+Foundry Automation Network
+Packaging Line Network
+Food Processing Control Network
+Beverage Plant Network
+Pharmaceutical Plant Network
+Water Treatment Network
+Wastewater Plant Network
+Desalination Plant Network
+Dam Control Network
+Power Plant Control Network
+Wind Farm Network
+Solar Farm Network
+BESS Control Network
+Microgrid Network
+EV Charging Network
+Charging Depot Network
+V2X Network
+Roadside Unit Network
+Depot Maintenance Network
+Workshop Equipment Network
+Digital Twin Data Network
+Edge AI Inference Network
+Sensor Fusion Network
+Time Sync Network
+PTP Network
+NTP Isolated Network
+White Rabbit Network
+Deterministic Control Network
+Ultra-Low-Latency Trading Fabric
+Lossless Ethernet Fabric
+RDMA Cluster Network
+Storage Backplane Network
+Database Replication Network
+Cache Coherency Fabric
+Message Queue Fabric
+Stream Processing Fabric
+Telepresence Network
+Collaboration Room Network
+Secure Voice Network
+Push-to-Talk IP Network
+Roaming-Free Local Mobility Network
+Local Presence Fabric
+Offline Collaboration Network
+Offline Content Sync Network
+Sync-and-Store Network
+Delay/Disruption Tolerant Mesh
+Opportunistic Contact Network
+Ferry-Based Data Network
+Courier Data Transfer Network
+Portable Edge Node Network
+Backpack Node Mesh
+Suitcase Server Network
+Pop-Up Incident Network
+Mobile Command Van Network
+Temporary Field LAN
+Rapid Deployment Mesh
+Expeditionary Network
+Harsh Environment Network
+Ruggedized Edge Network
+Sensor-to-Cloudless Edge Network
+Multi-Tenant Isolated Fabric
+Perimeterless Internal Network
+Identity-Based Internal Network
+Policy-Driven Segmented Network
+Intent-Segmented Fabric
+Application-Aware Fabric
+Service-Chained Internal Network
+Microsegmented Network
+East-West Zero-Trust Fabric
+Secure Overlay Mesh
+Crypto-Isolated Network
+Air-Gap Adjacent Staging Network
+Cross-Site Replication Network
+Geo-Redundant Private Network
+Multi-Site Campus Fabric
+Building-to-Building Private Fiber
+Metro Dark Fiber Ring
+Inter-Building Wireless Backhaul
+Indoor Distributed Antenna Network
+Neutral Host Private Network
+Small Cell Private Network
+Macrocell Private Network
+Picocell Network
+Femtocell Network
+Distributed Radio Network
+Cloud-RAN Private Deployment
+Virtual RAN Private Deployment
+Open Fronthaul Private Network
+Backhaul Aggregation Network
+Midhaul Network
+Fronthaul Network
+Edge Transport Network
+Access Aggregation Network
+Core Fabric Network
+Supercore Backbone
+Regional Edge Fabric
+Local Breakout Network
+Industrial Private Mesh
+Safety Instrumented Network
+Machine Vision Network
+High-Speed Camera Network
+Motion Control Network
+Servo Drive Network
+CNC Control Network
+Process Historian Network
+Alarm Network
+Operator HMI Network
+Engineering Workstation Network
+Maintenance Laptop Isolated Network
+Vendor Remote Access Staging Network
+Local Update Distribution Network
+Patch Validation Network
+Staging Pre-Production Network
+Pilot Deployment Network
+Blue-Green Deployment Network
+Canary Segment Network
+Rollback Recovery Network
+Immutable Infrastructure Network
+Edge Cache Network
+Local CDN Network
+Multicast Distribution Network
+IPTV Network
+Digital Signage Network
+Room Control Network
+Conference AV Network
+Hearing Assistance Audio Network
+Translation Booth Network
+Courtroom Evidence Network
+Prison Secure Network
+Casino Floor Network
+Hotel PMS Segmented Network
+Resort Operations Network
+Cruise Ship Onboard Network
+Theme Park Operations Network
+Museum Exhibit Network
+Archive Preservation Network
+Printing Production Network
+3D Printer Farm Network
+Fab Lab Network
+Maker Space Network
+Robotics Competition Network
+Esports Arena Network
+Game Server LAN
+LAN Party Network
+Offline Multiplayer Network
+Simulation Cluster Network
+VR Free-Roam Network
+AR Collaboration Network
+Motion Capture Studio Network
+Render Storage Fabric
+Media Asset Management Network
+Archive LTO Control Network
+Post-Production Network
+Color Grading Network
+Foley/Audio Studio Network
+Newsroom Production Network
+Election Operations Network
+Census Field Network
+Court Records Isolated Network
+Land Registry Network
+Municipal Operations Network
+Public Works Network
+Waste Collection Fleet Network
+Streetlight Control Network
+Water Meter Mesh
+Gas Meter Mesh
+District Heating Network
+Campus Security Network
+Dorm Access Network
+Recreation Center Network
+Library RFID Network
+Inventory RFID Network
+RTLS Network
+UWB Tracking Network
+BLE Beacon Network
+Asset Tracking Mesh
+Warehouse Tag Network
+Cold Storage Sensor Network
+Freezer Monitoring Network
+Compliance Logging Network
+Audit Collection Network
+Observability Network
+Telemetry Aggregation Network
+Metrics Collection Network
+Log Shipping Network
+Trace Collection Network
+Security Monitoring Network
+SIEM Ingest Network
+Threat Intel Staging Network
+Patch Mirror Network
+Repository Mirror Network
+Package Cache Network
+Local Registry Network
+Container Image Distribution Network
+Kubernetes Pod Network
+Cluster Service Network
+Control Plane Network
+CNI Overlay Network
+Bare-Metal Provisioning Network
+IPMI/BMC Management Network
+Redfish Management Network
+Baseboard Management Fabric
+Chassis Management Network
+Rack Interconnect Network
+Top-of-Rack Network
+End-of-Row Network
+Middle-of-Row Network
+Cable-Free Backplane Fabric
+Disaggregated Infrastructure Fabric
+Composable Infrastructure Network
+Memory Fabric Network
+Persistent Memory Fabric
+Accelerator Fabric
+TPU Cluster Network
+AI Training Fabric
+AI Inference Cluster Network
+Federated Edge Network
+Swarm Edge Network
+Peer Discovery Network
+Local Name Resolution Network
+mDNS Discovery Network
+Service Advertisement Network
+Gossip Mesh Network
+Consensus Cluster Network
+Leader Election Network
+Control Bus Network
+Data Bus Network
+Event Bus Fabric
+Command Bus Fabric
+Request/Reply Mesh
+Pub/Sub Mesh
+Distributed Ledger Private Network
+Permissioned Blockchain Network
+Consortium Network
+Trusted Execution Cluster Network
+Remote Attestation Network
+Secure Bootstrapping Network
+Provisioning Enrollment Network
+Certificate Distribution Network
+Key Management Network
+HSM Cluster Network
+Backup Key Escrow Network
+Archive Replication Network
+Long-Term Preservation Network
+Cold Backup Network
+Warm Standby Network
+Hot Standby Network
+Active-Active Fabric
+Active-Passive Network
+Multi-Primary Replication Network
+Local Failover Ring
+Site Resilience Network
+Autonomous Recovery Network

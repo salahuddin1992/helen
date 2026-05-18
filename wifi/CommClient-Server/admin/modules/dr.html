@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<!--
+  Phase 6 / Module AA — Disaster Recovery admin module.
+  Self-contained. Mounts at /admin/#dr; uses the global apiFetch() helper.
+-->
+<style>
+  :root {
+    --dr-fg:#e4e7eb; --dr-bg:#0e141b; --dr-bg2:#171f27;
+    --dr-border:#222e3a; --dr-accent:#46d39a; --dr-warn:#ffb347;
+    --dr-danger:#ff5f6d;
+  }
+  .dr-wrap { color:var(--dr-fg); font-family:system-ui,sans-serif; padding:18px; }
+  .dr-tabs { display:flex; gap:6px; border-bottom:1px solid var(--dr-border); margin-bottom:18px; }
+  .dr-tab { padding:8px 14px; cursor:pointer; border:1px solid transparent;
+            border-bottom:none; border-radius:8px 8px 0 0; }
+  .dr-tab.active { background:var(--dr-bg2); border-color:var(--dr-border); color:var(--dr-accent); }
+  .dr-section { background:var(--dr-bg2); border:1px solid var(--dr-border);
+                border-radius:12px; padding:18px; margin-bottom:18px; }
+  .dr-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px; }
+  .dr-card { background:var(--dr-bg2); border:1px solid var(--dr-border);
+             padding:14px; border-radius:12px; }
+  .dr-card .label { font-size:12px; opacity:.7; }
+  .dr-card .val { font-size:22px; font-weight:600; margin-top:6px; }
+  .dr-btn { background:var(--dr-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .dr-btn.secondary { background:#2a3340; color:var(--dr-fg); }
+  .dr-btn.danger { background:var(--dr-danger); color:#fff; }
+  .dr-input, .dr-select { width:100%; background:#0a1018; color:var(--dr-fg);
+                          border:1px solid var(--dr-border); border-radius:8px;
+                          padding:8px 10px; box-sizing:border-box; }
+  .dr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .dr-tbl th, .dr-tbl td { padding:6px 8px; border-bottom:1px solid var(--dr-border);
+                           text-align:left; vertical-align:top; }
+  .dr-pill { display:inline-block; padding:2px 8px; border-radius:99px;
+             font-size:11px; background:#2a3340; }
+  .dr-pill.ok { background:#22432e; color:var(--dr-accent); }
+  .dr-pill.bad { background:#4a2326; color:var(--dr-danger); }
+  .dr-pill.warn { background:#4a3e1f; color:var(--dr-warn); }
+  .dr-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .dr-grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .dr-timeline { display:flex; gap:4px; flex-wrap:wrap; align-items:flex-end; height:80px; }
+  .dr-bar { width:14px; background:var(--dr-accent); border-radius:2px; }
+  .dr-bar.bad { background:var(--dr-danger); }
+  .dr-step { padding:14px; border:1px solid var(--dr-border); border-radius:8px;
+             background:#0a1018; }
+  .dr-step.active { border-color:var(--dr-accent); }
+  pre.dr-out { background:#0a1018; padding:10px; border-radius:8px; overflow:auto;
+               font-size:12px; max-height:280px; }
+</style>
+
+<div class="dr-wrap">
+  <div class="dr-tabs">
+    <div class="dr-tab active" data-tab="jobs">Jobs</div>
+    <div class="dr-tab" data-tab="destinations">Destinations</div>
+    <div class="dr-tab" data-tab="restore">Restore Points</div>
+    <div class="dr-tab" data-tab="drills">Drills</div>
+    <div class="dr-tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- ── JOBS ── -->
+  <div data-pane="jobs">
+    <div class="dr-cards" id="dr-job-cards"></div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Backup matrix (last 30)</h3>
+      <div id="dr-timeline" class="dr-timeline"></div>
+    </div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Trigger backup</h3>
+      <div class="dr-grid3">
+        <div>
+          <label>Kind</label>
+          <select id="dr-bk-kind" class="dr-select">
+            <option value="full">full</option>
+            <option value="incremental">incremental</option>
+            <option value="snapshot">snapshot</option>
+          </select>
+        </div>
+        <div>
+          <label>Destination</label>
+          <select id="dr-bk-dest" class="dr-select"><option value="">(local)</option></select>
+        </div>
+        <div>
+          <label>Retention (days)</label>
+          <input id="dr-bk-retention" class="dr-input" type="number" value="30" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="dr-btn" id="dr-bk-run">Run backup</button>
+        <button class="dr-btn secondary" id="dr-bk-rotate">Rotate (prune)</button>
+      </div>
+      <pre class="dr-out" id="dr-bk-out"></pre>
+    </div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Recent jobs</h3>
+      <table class="dr-tbl" id="dr-jobs-tbl"></table>
+    </div>
+  </div>
+
+  <!-- ── DESTINATIONS ── -->
+  <div data-pane="destinations" style="display:none;">
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Add destination</h3>
+      <div class="dr-grid3">
+        <div>
+          <label>Name</label>
+          <input id="dr-dst-name" class="dr-input" placeholder="e.g. offsite-s3"/>
+        </div>
+        <div>
+          <label>Kind</label>
+          <select id="dr-dst-kind" class="dr-select">
+            <option value="local">local</option>
+            <option value="s3">s3</option>
+            <option value="sftp">sftp</option>
+            <option value="azure_blob">azure_blob</option>
+            <option value="gcs">gcs</option>
+          </select>
+        </div>
+        <div>
+          <label>Config JSON</label>
+          <input id="dr-dst-config" class="dr-input"
+                 placeholder='{"bucket":"my-bucket","region":"us-east-1"}'/>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="dr-btn" id="dr-dst-add">Add</button>
+      </div>
+    </div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Configured destinations</h3>
+      <table class="dr-tbl" id="dr-dst-tbl"></table>
+    </div>
+  </div>
+
+  <!-- ── RESTORE ── -->
+  <div data-pane="restore" style="display:none;">
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Restore wizard</h3>
+      <div class="dr-grid3">
+        <div class="dr-step active">
+          <strong>1.</strong> Pick a restore point<br/>
+          <select id="dr-rp-pick" class="dr-select" style="margin-top:6px;"></select>
+        </div>
+        <div class="dr-step">
+          <strong>2.</strong> Dry run<br/>
+          <button class="dr-btn secondary" id="dr-rp-dry" style="margin-top:6px;">Run dry-run</button>
+        </div>
+        <div class="dr-step">
+          <strong>3.</strong> Apply<br/>
+          <input id="dr-rp-token" class="dr-input" placeholder="confirmation token"
+                 style="margin:6px 0;"/>
+          <button class="dr-btn danger" id="dr-rp-apply">Apply restore</button>
+        </div>
+      </div>
+      <pre class="dr-out" id="dr-rp-out"></pre>
+    </div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Restore points</h3>
+      <table class="dr-tbl" id="dr-rp-tbl"></table>
+    </div>
+
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Restore operations</h3>
+      <table class="dr-tbl" id="dr-rop-tbl"></table>
+    </div>
+  </div>
+
+  <!-- ── DRILLS ── -->
+  <div data-pane="drills" style="display:none;">
+    <div class="dr-cards" id="dr-rto-cards"></div>
+    <div class="dr-section">
+      <button class="dr-btn" id="dr-drill-now">Run drill now</button>
+      <pre class="dr-out" id="dr-drill-out"></pre>
+    </div>
+    <div class="dr-section">
+      <h3 style="margin:0 0 12px;">Recent drills</h3>
+      <table class="dr-tbl" id="dr-drills-tbl"></table>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div data-pane="settings" style="display:none;">
+    <div class="dr-section">
+      <p>Backup encryption uses AES-256-GCM streaming with a master key derived from
+         your secret store / env / auto-generated keyfile.</p>
+      <p>Supported destinations (server installation):</p>
+      <pre class="dr-out" id="dr-installed"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(s){ return document.querySelector(s); }
+  function tabs(){
+    document.querySelectorAll('.dr-tab').forEach(t=>{
+      t.onclick = ()=>{
+        document.querySelectorAll('.dr-tab').forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+        document.querySelectorAll('[data-pane]').forEach(p=>p.style.display='none');
+        document.querySelector('[data-pane="'+t.dataset.tab+'"]').style.display='block';
+      };
+    });
+  }
+
+  async function loadJobs(){
+    const r = await apiFetch('/api/admin/dr/jobs?page_size=30');
+    const items = r.items || [];
+    // cards
+    const succ = items.filter(j=>j.status==='succeeded').length;
+    const fail = items.filter(j=>j.status==='failed').length;
+    const totalSize = items.reduce((a,j)=>a+(j.size_bytes||0),0);
+    $('#dr-job-cards').innerHTML =
+      card('Total', items.length) +
+      card('Succeeded', succ) +
+      card('Failed', fail) +
+      card('Size', humanBytes(totalSize));
+    // timeline
+    $('#dr-timeline').innerHTML = items.slice().reverse().map(j=>{
+      const h = Math.min(80, Math.max(4, Math.log10((j.size_bytes||1024)+1)*10));
+      const cls = j.status==='succeeded' ? '' : 'bad';
+      return '<div class="dr-bar '+cls+'" style="height:'+h+'px"'
+           + ' title="'+(j.kind||'')+' '+(j.started_at||'')+'"></div>';
+    }).join('');
+    // table
+    $('#dr-jobs-tbl').innerHTML = '<thead><tr><th>id</th><th>kind</th>'
+      + '<th>status</th><th>started</th><th>size</th><th>sha</th></tr></thead>'
+      + '<tbody>'+items.map(j=>(
+        '<tr><td>'+j.id.slice(0,8)+'</td><td>'+j.kind+'</td>'
+        +'<td><span class="dr-pill '+(j.status==='succeeded'?'ok':'bad')+'">'+j.status+'</span></td>'
+        +'<td>'+(j.started_at||'-')+'</td>'
+        +'<td>'+humanBytes(j.size_bytes||0)+'</td>'
+        +'<td>'+(j.sha256||'').slice(0,12)+'…</td></tr>'
+      )).join('')+'</tbody>';
+  }
+
+  async function loadDestinations(){
+    const r = await apiFetch('/api/admin/dr/destinations');
+    $('#dr-installed').textContent = JSON.stringify(r.installed||{}, null, 2);
+    const sel = $('#dr-bk-dest');
+    sel.innerHTML = '<option value="">(local default)</option>'
+      + (r.items||[]).map(d=>'<option value="'+d.id+'">'+d.name+' ['+d.kind+']</option>').join('');
+    $('#dr-dst-tbl').innerHTML = '<thead><tr><th>name</th><th>kind</th>'
+      + '<th>enabled</th><th>last used</th><th>actions</th></tr></thead>'
+      + '<tbody>'+(r.items||[]).map(d=>(
+        '<tr><td>'+d.name+'</td><td>'+d.kind+'</td>'
+        +'<td>'+(d.enabled?'yes':'no')+'</td>'
+        +'<td>'+(d.last_used||'-')+'</td>'
+        +'<td><button class="dr-btn secondary" data-test="'+d.id+'">Test</button> '
+        +'<button class="dr-btn danger" data-del="'+d.id+'">Delete</button></td></tr>'
+      )).join('')+'</tbody>';
+    $('#dr-dst-tbl').querySelectorAll('[data-test]').forEach(b=>{
+      b.onclick = async ()=>{
+        const res = await apiFetch('/api/admin/dr/destinations/'+b.dataset.test+'/test',
+                                   {method:'POST'});
+        alert(JSON.stringify(res, null, 2));
+      };
+    });
+    $('#dr-dst-tbl').querySelectorAll('[data-del]').forEach(b=>{
+      b.onclick = async ()=>{
+        if(!confirm('Delete destination?'))return;
+        await apiFetch('/api/admin/dr/destinations/'+b.dataset.del, {method:'DELETE'});
+        loadDestinations();
+      };
+    });
+  }
+
+  async function loadRestore(){
+    const r = await apiFetch('/api/admin/dr/restore-points?page_size=50');
+    const items = r.items || [];
+    $('#dr-rp-pick').innerHTML = items.map(p=>
+      '<option value="'+p.id+'">'+(p.created_at||'')+' — '+p.id.slice(0,8)+'</option>'
+    ).join('');
+    $('#dr-rp-tbl').innerHTML = '<thead><tr><th>id</th><th>backup_job</th>'
+      + '<th>schema</th><th>app</th><th>created</th></tr></thead>'
+      + '<tbody>'+items.map(p=>(
+        '<tr><td>'+p.id.slice(0,8)+'</td><td>'+p.backup_job_id.slice(0,8)+'</td>'
+        +'<td>'+(p.schema_version||'-')+'</td><td>'+(p.app_version||'-')+'</td>'
+        +'<td>'+(p.created_at||'-')+'</td></tr>'
+      )).join('')+'</tbody>';
+    const ops = await apiFetch('/api/admin/dr/restore-operations?page_size=20');
+    $('#dr-rop-tbl').innerHTML = '<thead><tr><th>id</th><th>point</th>'
+      + '<th>status</th><th>dry?</th><th>started</th></tr></thead>'
+      + '<tbody>'+(ops.items||[]).map(o=>(
+        '<tr><td>'+o.id.slice(0,8)+'</td><td>'+o.restore_point_id.slice(0,8)+'</td>'
+        +'<td><span class="dr-pill '+(o.status==='succeeded'?'ok':'warn')+'">'+o.status+'</span></td>'
+        +'<td>'+(o.dry_run?'yes':'no')+'</td><td>'+(o.started_at||'-')+'</td></tr>'
+      )).join('')+'</tbody>';
+  }
+
+  async function loadDrills(){
+    const summary = await apiFetch('/api/admin/dr/rto-rpo');
+    $('#dr-rto-cards').innerHTML =
+      card('Avg RTO', (summary.avg_rto||0)+' s') +
+      card('Avg RPO', humanDur(summary.avg_rpo||0)) +
+      card('Success rate', summary.success_rate==null
+            ? '–' : Math.round(summary.success_rate*100)+'%') +
+      card('Runs', summary.count||0);
+    const r = await apiFetch('/api/admin/dr/drills?page_size=30');
+    $('#dr-drills-tbl').innerHTML = '<thead><tr><th>executed</th><th>ok</th>'
+      + '<th>RTO (s)</th><th>RPO (s)</th></tr></thead>'
+      + '<tbody>'+(r.items||[]).map(d=>(
+        '<tr><td>'+(d.executed_at||'-')+'</td>'
+        +'<td><span class="dr-pill '+(d.success?'ok':'bad')+'">'+(d.success?'ok':'fail')+'</span></td>'
+        +'<td>'+d.rto_seconds+'</td><td>'+d.rpo_seconds+'</td></tr>'
+      )).join('')+'</tbody>';
+  }
+
+  $('#dr-bk-run').onclick = async ()=>{
+    const kind = $('#dr-bk-kind').value;
+    const body = {
+      destination_id: $('#dr-bk-dest').value || null,
+      encrypt: true,
+      retention_days: parseInt($('#dr-bk-retention').value)||30,
+    };
+    const url = '/api/admin/dr/backup/'+kind;
+    if(kind==='incremental'){
+      body.base_job_id = prompt('base_job_id?'); if(!body.base_job_id) return;
+    }
+    const r = await apiFetch(url, {method:'POST', body:JSON.stringify(body)});
+    $('#dr-bk-out').textContent = JSON.stringify(r, null, 2);
+    loadJobs();
+  };
+
+  $('#dr-bk-rotate').onclick = async ()=>{
+    const r = await apiFetch('/api/admin/dr/rotate', {method:'POST'});
+    $('#dr-bk-out').textContent = JSON.stringify(r, null, 2);
+    loadJobs();
+  };
+
+  $('#dr-dst-add').onclick = async ()=>{
+    let cfg = {};
+    try{ cfg = JSON.parse($('#dr-dst-config').value || '{}'); }
+    catch(e){ alert('config not valid JSON'); return; }
+    await apiFetch('/api/admin/dr/destinations', {
+      method:'POST',
+      body: JSON.stringify({
+        name:$('#dr-dst-name').value,
+        kind:$('#dr-dst-kind').value,
+        config:cfg, enabled:true,
+      }),
+    });
+    loadDestinations();
+  };
+
+  $('#dr-rp-dry').onclick = async ()=>{
+    const id = $('#dr-rp-pick').value; if(!id) return;
+    const r = await apiFetch('/api/admin/dr/restore/dry-run', {
+      method:'POST', body: JSON.stringify({restore_point_id:id}),
+    });
+    $('#dr-rp-out').textContent = JSON.stringify(r, null, 2);
+    if(r.report && r.report.confirmation_token){
+      $('#dr-rp-token').value = r.report.confirmation_token;
+    }
+  };
+
+  $('#dr-rp-apply').onclick = async ()=>{
+    const id = $('#dr-rp-pick').value; const tok = $('#dr-rp-token').value;
+    if(!id || !tok){ alert('Pick restore point and run dry-run first'); return; }
+    if(!confirm('Apply restore? This OVERWRITES live data.')) return;
+    const r = await apiFetch('/api/admin/dr/restore/apply', {
+      method:'POST',
+      body: JSON.stringify({restore_point_id:id, confirmation_token:tok}),
+    });
+    $('#dr-rp-out').textContent = JSON.stringify(r, null, 2);
+  };
+
+  $('#dr-drill-now').onclick = async ()=>{
+    const r = await apiFetch('/api/admin/dr/drills/run-now', {method:'POST'});
+    $('#dr-drill-out').textContent = JSON.stringify(r, null, 2);
+    loadDrills();
+  };
+
+  function card(label, val){
+    return '<div class="dr-card"><div class="label">'+label+'</div>'
+         + '<div class="val">'+val+'</div></div>';
+  }
+  function humanBytes(n){
+    if(!n) return '0 B';
+    const u=['B','KB','MB','GB','TB']; let i=0;
+    while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+    return n.toFixed(1)+' '+u[i];
+  }
+  function humanDur(s){
+    if(!s) return '0s';
+    if(s<60) return s+'s';
+    if(s<3600) return Math.round(s/60)+'m';
+    if(s<86400) return Math.round(s/3600)+'h';
+    return Math.round(s/86400)+'d';
+  }
+
+  tabs();
+  loadJobs(); loadDestinations(); loadRestore(); loadDrills();
+})();
+</script>
+
+</script>
+</body>
+</html>

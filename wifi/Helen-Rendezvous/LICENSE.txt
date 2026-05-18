@@ -1,0 +1,29 @@
+Helen-Rendezvous — Internal LAN NAT Traversal Coordinator
+==========================================================
+
+License: Proprietary / Internal Use Only
+
+Copyright (C) 2024-2026 Helen Project Team
+All rights reserved.
+
+This software runs as a coordination service for Helen-Server instances
+that are deployed across multiple internal subnets behind NAT or firewalls.
+It is intended for use within private internal networks only — not for
+public internet exposure.
+
+By installing this software, you agree to:
+
+  1. Run it only on hosts within your private internal network.
+  2. Always set HELEN_RENDEZVOUS_TOKEN to a strong shared secret.
+  3. Not distribute, sublicense, or resell.
+  4. Comply with local communication-privacy laws.
+
+Default ports:
+  9090  HTTP API (registration, signaling)
+  9101  Relay backend (Helen-Server side)
+  9102  Relay frontend (peer client side)
+
+Security notes:
+  - No HELEN_RENDEZVOUS_TOKEN = fails closed (rejects all requests).
+  - Tokens should be 32+ characters of cryptographic randomness.
+  - Public_id values rotate on each tunnel registration.

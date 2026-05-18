@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Audit Chain</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  .grid{display:grid;grid-template-columns:280px 1fr 380px;gap:12px}
+  @media (max-width:1100px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+  h2{margin:0 0 8px 0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:6px 11px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit
+  }
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#081224;border-color:transparent;font-weight:600}
+  .btn.ok{background:#0f3b25;border-color:#1f4b33;color:#8de0b0}
+  .btn.err{background:#3a1726;border-color:#5c2237;color:#ffb3c2}
+  input.in,select.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit;width:100%
+  }
+  label.lab{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px;margin-top:6px}
+  .timeline{max-height:75vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  .ev{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#0d1736;cursor:pointer;font-size:12px}
+  .ev:hover{border-color:var(--accent);background:#142042}
+  .ev.active{border-color:var(--accent2);background:#1a1f44}
+  .ev .top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .ev .seq{color:var(--accent);font-family:var(--mono);font-size:11px}
+  .ev .action{font-weight:600}
+  .ev .meta{color:var(--muted);font-size:10px;font-family:var(--mono);margin-top:3px}
+  .pill{padding:1px 8px;border-radius:999px;background:#1b2945;color:var(--muted);font-size:10px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);background:#102a1b;border-color:#1f4b33}
+  .pill.err{color:var(--err);background:#2a1118;border-color:#5c2237}
+  pre.payload{
+    background:#020610;border:1px solid var(--line);border-radius:9px;
+    padding:10px;font-family:var(--mono);font-size:11px;color:#cbd9f1;
+    max-height:50vh;overflow:auto;white-space:pre-wrap;word-break:break-all
+  }
+  .hashline{font-family:var(--mono);font-size:10px;color:var(--muted2);word-break:break-all;margin-top:6px}
+  .hashline b{color:var(--accent3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Audit Chain Viewer
+  <button class="btn primary" id="btnVerify" style="margin-inline-start:8px">Verify chain</button>
+  <span id="verifyState"></span>
+</h1>
+
+<div class="grid">
+  <!-- ── filters ───────────────────────── -->
+  <div class="card">
+    <h2>Filters</h2>
+    <label class="lab">Actor</label>
+    <input class="in" id="fActor" placeholder="user UUID / 'system'" />
+    <label class="lab">Action</label>
+    <input class="in" id="fAction" placeholder="e.g. login, rbac.role_updated" />
+    <label class="lab">Search (payload)</label>
+    <input class="in" id="fQ" placeholder="substring" />
+    <label class="lab">Since (epoch)</label>
+    <input class="in" id="fSince" type="number" />
+    <label class="lab">Until (epoch)</label>
+    <input class="in" id="fUntil" type="number" />
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn primary" id="btnApply">Apply</button>
+      <button class="btn" id="btnReset">Reset</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0" />
+    <h2>Export</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" data-export="jsonl">JSONL</button>
+      <button class="btn" data-export="csv">CSV</button>
+      <button class="btn" data-export="pdf">PDF</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0" />
+    <h2>Stats (14 days)</h2>
+    <div id="statsArea"></div>
+  </div>
+
+  <!-- ── event list ──────────────────────── -->
+  <div class="card">
+    <h2>Timeline <span id="evCount" class="pill">0</span></h2>
+    <div class="timeline" id="timeline"></div>
+    <div style="margin-top:8px;display:flex;justify-content:center">
+      <button class="btn" id="btnMore">Load more</button>
+    </div>
+  </div>
+
+  <!-- ── detail ──────────────────────────── -->
+  <div class="card">
+    <h2>Event detail</h2>
+    <div id="detailArea">Select an event…</div>
+  </div>
+</div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+async function call(method, path){
+  const r = await fetch(api(path), { method,
+    headers: { Authorization:"Bearer " + getToken() }});
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText);
+  return r.json();
+}
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+let CURSOR = null;
+let ITEMS = [];
+
+function buildQS(){
+  const q = new URLSearchParams();
+  ["fActor","fAction","fQ","fSince","fUntil"].forEach(id => {
+    const k = id.slice(1).toLowerCase();
+    const v = $(id).value.trim();
+    if (v) q.set(k === "q" ? "q" : k, v);
+  });
+  q.set("limit", "100");
+  if (CURSOR) q.set("cursor", String(CURSOR));
+  return q.toString();
+}
+
+async function load(reset){
+  if (reset){ CURSOR = null; ITEMS = []; $("timeline").innerHTML = ""; }
+  const j = await call("GET", "/api/admin/audit/events?" + buildQS());
+  j.events.forEach(e => ITEMS.push(e));
+  $("evCount").textContent = ITEMS.length;
+  CURSOR = j.next_cursor;
+  $("btnMore").disabled = !CURSOR;
+  renderTimeline();
+}
+
+function renderTimeline(){
+  $("timeline").innerHTML = ITEMS.map((e,i) => {
+    const ts = new Date(e.timestamp*1000).toLocaleString();
+    return `<div class="ev" data-i="${i}">
+      <div class="top">
+        <span class="seq">#${e.seq}</span>
+        <span class="action">${esc(e.action)}</span>
+        <span class="pill">${esc((e.actor||'').slice(0,12))}…</span>
+      </div>
+      <div class="meta">${esc(ts)} · target=${esc(e.target || '—')}</div>
+    </div>`;
+  }).join("");
+  $("timeline").querySelectorAll(".ev").forEach(el => {
+    el.onclick = () => {
+      $("timeline").querySelectorAll(".ev").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      const e = ITEMS[Number(el.dataset.i)];
+      $("detailArea").innerHTML = `
+        <div class="pill">seq #${e.seq}</div>
+        <div class="pill">${esc(new Date(e.timestamp*1000).toISOString())}</div>
+        <div style="margin-top:8px"><b>actor:</b> <code>${esc(e.actor)}</code></div>
+        <div><b>action:</b> ${esc(e.action)}</div>
+        <div><b>target:</b> ${esc(e.target || '—')}</div>
+        <div style="margin-top:6px"><b>payload:</b></div>
+        <pre class="payload">${esc(JSON.stringify(e.payload, null, 2))}</pre>
+        <div class="hashline"><b>payload_hash</b> ${esc(e.payload_hash)}</div>
+        <div class="hashline"><b>prev_hash</b>    ${esc(e.prev_hash)}</div>
+        <div class="hashline"><b>chain_hash</b>   ${esc(e.chain_hash)}</div>
+      `;
+    };
+  });
+}
+
+$("btnApply").onclick = () => load(true);
+$("btnReset").onclick = () => {
+  ["fActor","fAction","fQ","fSince","fUntil"].forEach(id => $(id).value = "");
+  load(true);
+};
+$("btnMore").onclick = () => load(false);
+
+$("btnVerify").onclick = async () => {
+  $("verifyState").innerHTML = '<span class="pill">verifying…</span>';
+  try {
+    const j = await call("GET", "/api/admin/audit/verify");
+    if (j.ok){
+      $("verifyState").innerHTML = '<span class="pill ok">✔ chain intact</span> ' + esc(j.message);
+    } else {
+      $("verifyState").innerHTML = `<span class="pill err">✘ broken at #${j.broken_at}</span> ${esc(j.message)}`;
+    }
+  } catch(e){ $("verifyState").textContent = "Verify failed: " + e.message; }
+};
+
+document.querySelectorAll("[data-export]").forEach(b => {
+  b.onclick = () => {
+    const fmt = b.dataset.export;
+    const q = new URLSearchParams();
+    q.set("format", fmt);
+    const sinc = $("fSince").value, unt = $("fUntil").value;
+    if (sinc) q.set("since", sinc); if (unt) q.set("until", unt);
+    const url = api("/api/admin/audit/export?" + q.toString());
+    fetch(url, { headers: { Authorization: "Bearer " + getToken() } })
+      .then(r => r.blob())
+      .then(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `helen-audit.${fmt}`;
+        a.click();
+      })
+      .catch(e => alert(e.message));
+  };
+});
+
+async function loadStats(){
+  try {
+    const j = await call("GET", "/api/admin/audit/stats?days=14");
+    $("statsArea").innerHTML = `
+      <div class="pill">total: ${j.total}</div>
+      <div style="margin-top:6px;font-size:11px;color:var(--muted)">Top actions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">
+        ${(j.by_action||[]).slice(0,8).map(([a,c]) =>
+          `<span class="pill">${esc(a)} <b style="color:var(--accent)">${c}</b></span>`).join("")}
+      </div>
+    `;
+  } catch(e){ $("statsArea").textContent = "Stats unavailable."; }
+}
+
+load(true); loadStats();
+</script>
+</body>
+</html>

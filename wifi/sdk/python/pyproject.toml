@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helen-client"
+version = "1.0.0"
+description = "Async Python client for Helen-Server (LAN-only chat / video)"
+readme = "README.md"
+license = { text = "Proprietary / Internal Use" }
+authors = [{ name = "Helen Project" }]
+requires-python = ">=3.9"
+dependencies = [
+    "httpx>=0.27.0,<1.0.0",
+]
+keywords = ["helen", "chat", "lan", "client", "sdk"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Communications :: Chat",
+    "Framework :: AsyncIO",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["helen_client*"]

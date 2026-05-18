@@ -1,0 +1,3230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="referrer" content="no-referrer" />
+<title>Helen-Router — لوحة التحكم المباشرة</title>
+
+<!--
+  Helen-Router Standalone Admin UI
+  ================================
+  Self-contained Single-Page Application served directly from the
+  router on port 8080. Talks to the router's OWN /router/* and
+  /mesh/* endpoints — no Helen-Server hop, no CDN at runtime.
+
+  Operator placement (LAN / air-gapped friendly):
+      Helen-Router/admin/vendor/chart.min.js
+      Helen-Router/admin/vendor/d3.v7.min.js
+
+  Auth model:
+      Operator pastes the router's HELEN_ROUTER_TOKEN in the login
+      screen. The server compares with secrets.compare_digest, echoes
+      it back on success. The SPA stashes it in localStorage under
+      "helen_router_token" and sends it as Bearer on every API call.
+
+  Endpoint surface used (defined in app/main.py):
+      GET    /router/health
+      GET    /router/upstreams
+      GET    /router/topology-strategy
+      POST   /router/register                    (bearer)
+      POST   /router/heartbeat/{server_id}       (bearer)
+      DELETE /router/register/{server_id}        (bearer)
+      GET    /router/network?full=&fingerprint=
+      POST   /router/connect
+      POST   /router/upnp/portmap                (bearer)
+      POST   /mesh/lsa
+      GET    /mesh/topology
+      GET    /mesh/path/{server_id}
+      POST   /mesh/neighbours                    (bearer)
+      DELETE /mesh/neighbours/{router_id}        (bearer)
+
+  Endpoints the SPA OPTIMISTICALLY probes (router may not expose
+  them — UI degrades gracefully, marks the section "endpoint
+  unavailable" without breaking the rest of the dashboard):
+      /router/dns/records, /router/dns/blocklist, /router/dns/query_log,
+      /router/dns/stats, /router/dns/upstreams,
+      /router/ntp/status, /router/ntp/peers, /router/ntp/drift,
+      /router/ntp/sync,
+      /router/upnp/list, /router/upnp/discover,
+      /router/vendor/templates, /router/vendor/push,
+      /router/external/list, /router/external/scan,
+      /router/broker/status, /router/broker/sessions,
+      /router/security/rotate, /router/security/subnets,
+      /router/security/mode,
+      /router/diag/ping, /router/diag/traceroute, /router/diag/dns,
+      /router/diag/portscan, /router/diag/bandwidth,
+      /router/config, /router/config/validate, /router/config/reload,
+      /router/logs/tail, /router/logs/ws,
+      /router/proxy/log, /router/proxy/ratelimit, /router/proxy/acl,
+      /router/metrics/timeseries, /router/info.
+-->
+
+<script src="/admin/vendor/chart.min.js" defer></script>
+<script src="/admin/vendor/d3.v7.min.js" defer></script>
+
+<style>
+/* ── Design tokens (mirrors the server-side admin) ─────────────── */
+:root {
+  --bg:        #0a1020;
+  --panel:     #111a2e;
+  --panel-2:   #0d1626;
+  --panel-3:   #08111f;
+  --border:    #1a2a3a;
+  --border-2:  #243345;
+  --text:      #e0e6ed;
+  --text-dim:  #a0a8b0;
+  --text-mute: #6b7785;
+  --accent:    #00d4ff;
+  --accent-2:  #0099cc;
+  --accent-3:  #66e6ff;
+  --ok:        #4ade80;
+  --warn:      #facc15;
+  --err:       #ff4757;
+  --link:      #3b82f6;
+  --shadow:    0 4px 18px rgba(0,0,0,0.45);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.55);
+  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+  --ui:   "Segoe UI", "Tahoma", "Cairo", system-ui, sans-serif;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button, .btn {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  user-select: none;
+}
+button:hover, .btn:hover { background: var(--panel-2); border-color: var(--accent); }
+button:active, .btn:active { transform: translateY(1px); }
+button:disabled, .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button.primary, .btn.primary { background: var(--accent); color: #001824; border-color: var(--accent); font-weight: 600; }
+button.primary:hover, .btn.primary:hover { background: var(--accent-2); }
+button.danger, .btn.danger { background: var(--err); color: #1a0507; border-color: var(--err); }
+button.danger:hover { background: #c53030; }
+button.warn, .btn.warn { background: var(--warn); color: #2a2000; border-color: var(--warn); }
+button.ok, .btn.ok { background: var(--ok); color: #002a10; border-color: var(--ok); }
+button.ghost { background: transparent; }
+button.small { padding: 3px 8px; font-size: 12px; }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15); }
+textarea { width: 100%; min-height: 120px; font-family: var(--mono); resize: vertical; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+
+label { color: var(--text-dim); font-size: 13px; }
+
+/* ── Layout: sidebar + main ────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-3) 100%);
+  border-inline-end: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar .brand {
+  padding: 4px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.sidebar .brand .name { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
+.sidebar .brand .sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.sidebar nav .nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 18px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-inline-start: 3px solid transparent;
+  user-select: none;
+  font-size: 13px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.sidebar nav .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+.sidebar nav .nav-item.active {
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.06);
+  border-inline-start-color: var(--accent);
+}
+.sidebar nav .nav-item .ico { width: 16px; flex: 0 0 16px; opacity: 0.8; }
+.sidebar nav .nav-item .badge {
+  margin-inline-start: auto;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.sidebar .footer {
+  margin-top: auto;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.sidebar .footer .row { display: flex; align-items: center; gap: 8px; }
+.sidebar .footer .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--panel-2);
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+}
+.sidebar .footer .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+.sidebar .footer .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.sidebar .footer .dot.err { background: var(--err); box-shadow: 0 0 6px var(--err); }
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 18px;
+  box-shadow: var(--shadow);
+}
+.topbar h1 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.topbar h1 .crumb { color: var(--text-dim); margin-inline-start: 8px; font-weight: 400; }
+.topbar .spacer { flex: 1; }
+.topbar .rtt {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.topbar .rtt .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+.topbar .rtt .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.topbar .rtt .dot.err { background: var(--err); box-shadow: 0 0 6px var(--err); }
+.topbar .quick { display: flex; gap: 6px; }
+
+.view {
+  display: none;
+  padding: 18px;
+  flex: 1;
+  min-width: 0;
+}
+.view.active { display: block; }
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+.card h2 { margin: 0 0 10px 0; font-size: 15px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+.card h2 .sub { color: var(--text-dim); font-size: 12px; font-weight: 400; margin-inline-start: auto; }
+.card h3 { margin: 14px 0 6px 0; font-size: 13px; color: var(--text); }
+.card .meta { color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+
+.section-title {
+  margin: 0 0 12px 0; font-size: 13px;
+  color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 1px; font-weight: 600;
+}
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row.gap { gap: 16px; }
+.row.tight { gap: 4px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.right { margin-inline-start: auto; }
+.spacer { flex: 1; }
+
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-5 { grid-template-columns: repeat(5, 1fr); }
+.grid-6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1280px) {
+  .grid-6 { grid-template-columns: repeat(4, 1fr); }
+  .grid-5 { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1024px) {
+  .grid-6, .grid-5, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px)  {
+  .grid-6, .grid-5, .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; }
+}
+
+/* ── KPI cards ─────────────────────────────────────────────────── */
+.kpi {
+  background: linear-gradient(160deg, var(--panel) 0%, var(--panel-2) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi::before {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0;
+  width: 4px; background: var(--accent);
+  opacity: 0.6;
+}
+.kpi.warn::before { background: var(--warn); }
+.kpi.err::before  { background: var(--err); }
+.kpi.ok::before   { background: var(--ok); }
+.kpi .label { color: var(--text-dim); font-size: 12px; }
+.kpi .value { font-size: 24px; font-weight: 700; color: var(--text); font-family: var(--mono); }
+.kpi .trend { font-size: 11px; color: var(--text-dim); }
+.kpi .trend.up { color: var(--ok); }
+.kpi .trend.down { color: var(--err); }
+.kpi .sparkline { height: 26px; opacity: 0.8; }
+
+/* ── Tables ────────────────────────────────────────────────────── */
+table.tbl {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+table.tbl th, table.tbl td {
+  padding: 8px 10px; text-align: start; vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+table.tbl th {
+  color: var(--text-dim); font-weight: 600;
+  background: var(--panel-2); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  position: sticky; top: 0; z-index: 1;
+}
+table.tbl tbody tr:hover { background: rgba(255,255,255,0.02); }
+table.tbl td.mono { font-family: var(--mono); font-size: 12px; }
+table.tbl td.dim { color: var(--text-dim); }
+table.tbl .actions { display: flex; gap: 4px; justify-content: flex-end; }
+table.tbl tr.warn td { background: rgba(250, 204, 21, 0.05); }
+table.tbl tr.err  td { background: rgba(255, 71, 87, 0.07); }
+
+.tbl-wrap {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: 520px;
+}
+
+/* ── Status pills ──────────────────────────────────────────────── */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px;
+  font-size: 11px; font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.pill.ok   { background: rgba(74, 222, 128, 0.12); color: var(--ok);   border-color: rgba(74, 222, 128, 0.25); }
+.pill.warn { background: rgba(250, 204, 21, 0.12); color: var(--warn); border-color: rgba(250, 204, 21, 0.25); }
+.pill.err  { background: rgba(255,  71, 87, 0.12); color: var(--err);  border-color: rgba(255,  71, 87, 0.25); }
+.pill.info { background: rgba(0, 212, 255, 0.12); color: var(--accent); border-color: rgba(0, 212, 255, 0.25); }
+
+/* ── Forms ─────────────────────────────────────────────────────── */
+.form-grid {
+  display: grid; gap: 10px;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  align-items: center;
+}
+.form-grid label { color: var(--text-dim); font-size: 13px; }
+.form-grid .full { grid-column: 1 / -1; }
+
+/* ── Toast / log notifications ─────────────────────────────────── */
+.toast-wrap {
+  position: fixed; top: 14px; left: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  min-width: 240px;
+  max-width: 420px;
+  font-size: 13px;
+  pointer-events: all;
+  animation: toast-in 0.2s ease-out;
+}
+.toast.ok   { border-inline-start: 3px solid var(--ok); }
+.toast.warn { border-inline-start: 3px solid var(--warn); }
+.toast.err  { border-inline-start: 3px solid var(--err); }
+.toast.info { border-inline-start: 3px solid var(--accent); }
+.toast .t-title { font-weight: 600; margin-bottom: 2px; }
+.toast .t-body  { color: var(--text-dim); font-size: 12px; word-break: break-word; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* ── Login overlay ─────────────────────────────────────────────── */
+.login-overlay {
+  position: fixed; inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(0,212,255,0.08), transparent 60%), var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9000;
+}
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 30px;
+  width: 380px;
+  max-width: 92vw;
+  box-shadow: var(--shadow-lg);
+}
+.login-card h1 {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 18px;
+}
+.login-card .lead { color: var(--text-dim); font-size: 13px; margin-bottom: 18px; }
+.login-card input {
+  width: 100%;
+  font-family: var(--mono);
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.login-card .actions { display: flex; gap: 8px; }
+.login-card .actions button { flex: 1; }
+.login-card .hint { font-size: 11px; color: var(--text-mute); margin-top: 12px; }
+.login-card .err {
+  color: var(--err); font-size: 12px;
+  margin-top: 8px;
+  min-height: 16px;
+}
+
+/* ── Charts ────────────────────────────────────────────────────── */
+.chart-wrap {
+  position: relative;
+  height: 220px;
+}
+.chart-wrap.tall { height: 320px; }
+.chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+/* ── Topology diagram ──────────────────────────────────────────── */
+.topo-wrap {
+  background: radial-gradient(circle at 50% 30%, rgba(0, 212, 255, 0.06), transparent 60%), var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  height: 480px;
+  overflow: hidden;
+  position: relative;
+}
+.topo-wrap svg { width: 100%; height: 100%; cursor: grab; }
+.topo-wrap svg:active { cursor: grabbing; }
+.topo-node circle { fill: var(--panel); stroke: var(--accent); stroke-width: 2; transition: r 0.15s; }
+.topo-node.self circle { fill: var(--accent); stroke: var(--accent-3); }
+.topo-node.server circle { stroke: var(--warn); }
+.topo-node.peer circle { stroke: var(--accent); }
+.topo-node.dead circle { stroke: var(--err); }
+.topo-node text { fill: var(--text); font-size: 11px; font-family: var(--mono); }
+.topo-link { stroke: var(--border-2); stroke-opacity: 0.5; }
+.topo-link.active { stroke: var(--accent); stroke-opacity: 0.8; }
+.topo-link.dead { stroke: var(--err); stroke-dasharray: 4,3; }
+
+/* ── Logs view ─────────────────────────────────────────────────── */
+.logs {
+  background: #000;
+  color: #c8d4e0;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  height: 520px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.logs .ln { display: block; padding: 1px 0; }
+.logs .ln.info  { color: #c8d4e0; }
+.logs .ln.warn  { color: var(--warn); }
+.logs .ln.err   { color: var(--err); }
+.logs .ln.debug { color: var(--text-mute); }
+.logs .ln .t { color: var(--text-mute); margin-inline-end: 6px; }
+
+/* ── Misc ──────────────────────────────────────────────────────── */
+.muted { color: var(--text-dim); }
+.mono { font-family: var(--mono); font-size: 12px; }
+.center { text-align: center; }
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  margin-inline-end: 4px;
+  font-family: var(--mono);
+}
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.error-banner {
+  background: rgba(255, 71, 87, 0.08);
+  border: 1px solid var(--err);
+  color: var(--err);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.warn-banner {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* ── Modal ─────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 8000;
+}
+.modal-backdrop.show { display: flex; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  width: 560px;
+  max-width: 92vw;
+  max-height: 86vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal h2 { margin: 0 0 12px; color: var(--accent); font-size: 16px; }
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* ── Tooltip ───────────────────────────────────────────────────── */
+.tip { position: relative; cursor: help; border-bottom: 1px dotted var(--text-dim); }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px); right: 0;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+.tip:hover::after { opacity: 1; }
+
+/* ── Scrollbar polish ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-2); }
+
+/* ── Loading shimmer ───────────────────────────────────────────── */
+.loading {
+  background: linear-gradient(90deg, var(--panel-2), var(--panel), var(--panel-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+  color: transparent !important;
+}
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LOGIN OVERLAY
+     The SPA stays hidden until login completes. localStorage key
+     "helen_router_token" gates the experience.
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <h1>Helen-Router</h1>
+    <div class="lead">أدخل رمز الدخول للوصول إلى لوحة التحكم</div>
+    <input
+      id="login-token"
+      type="password"
+      placeholder="HELEN_ROUTER_TOKEN (hex, 64 chars)"
+      autocomplete="off"
+      autofocus
+    />
+    <div class="actions">
+      <button class="primary" id="login-btn">دخول</button>
+      <button class="ghost" id="login-paste-btn" title="لصق من الحافظة">لصق</button>
+    </div>
+    <div class="err" id="login-err"></div>
+    <div class="hint">
+      يستخدم نفس الـ HELEN_ROUTER_TOKEN المعرّف في بيئة الراوتر.
+      الجلسة تُخزَّن محلياً في localStorage حتى تسجيل الخروج.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MAIN LAYOUT
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="layout" id="layout" style="display:none;">
+
+  <!-- ── Sidebar ───────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="name">Helen-Router</div>
+      <div class="sub">Standalone Admin · v1.0</div>
+    </div>
+    <nav id="nav">
+      <div class="nav-item active" data-view="overview"><span class="ico">◉</span><span>نظرة عامة</span></div>
+      <div class="nav-item" data-view="mesh"><span class="ico">⌬</span><span>الشبكة المتداخلة</span><span class="badge" id="badge-mesh">…</span></div>
+      <div class="nav-item" data-view="registry"><span class="ico">▤</span><span>سجل الخدمات</span><span class="badge" id="badge-registry">…</span></div>
+      <div class="nav-item" data-view="proxy"><span class="ico">↹</span><span>الوكيل العكسي</span></div>
+      <div class="nav-item" data-view="dns"><span class="ico">@</span><span>DNS</span></div>
+      <div class="nav-item" data-view="ntp"><span class="ico">⌚</span><span>NTP</span></div>
+      <div class="nav-item" data-view="upnp"><span class="ico">⇋</span><span>UPnP</span></div>
+      <div class="nav-item" data-view="vendor"><span class="ico">⚙</span><span>محولات الموردين</span></div>
+      <div class="nav-item" data-view="external"><span class="ico">⌖</span><span>أجهزة خارجية</span></div>
+      <div class="nav-item" data-view="broker"><span class="ico">⇄</span><span>الوسيط</span></div>
+      <div class="nav-item" data-view="security"><span class="ico">⚿</span><span>الأمن</span></div>
+      <div class="nav-item" data-view="diag"><span class="ico">⚒</span><span>تشخيصات</span></div>
+      <div class="nav-item" data-view="config"><span class="ico">≡</span><span>الإعدادات</span></div>
+      <div class="nav-item" data-view="logs"><span class="ico">≣</span><span>السجلات</span></div>
+      <div class="nav-item" data-view="about"><span class="ico">ⓘ</span><span>حول</span></div>
+    </nav>
+    <div class="footer">
+      <div class="row">
+        <span class="pill"><span class="dot" id="conn-dot"></span><span id="conn-rtt">… ms</span></span>
+        <span class="muted" id="router-ver">v?</span>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="small ghost" id="btn-refresh-all" title="تحديث الكل">↻</button>
+        <button class="small ghost" id="btn-logout" title="تسجيل خروج">خروج</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main area ─────────────────────────────────────────────── -->
+  <div class="main">
+
+    <header class="topbar">
+      <h1 id="page-title">نظرة عامة <span class="crumb" id="page-crumb"></span></h1>
+      <div class="spacer"></div>
+      <span class="rtt"><span class="dot ok" id="rtt-dot"></span><span id="rtt-label">سيتم القياس…</span></span>
+      <div class="quick">
+        <button class="small" id="btn-refresh" title="تحديث القسم الحالي">↻ تحديث</button>
+      </div>
+    </header>
+
+    <!-- ── Overview ───────────────────────────────────────────── -->
+    <section class="view active" id="view-overview">
+      <div class="grid grid-6">
+        <div class="kpi" id="kpi-uptime">
+          <div class="label">مدة التشغيل</div>
+          <div class="value" id="kpi-uptime-v">—</div>
+          <div class="trend" id="kpi-uptime-t">—</div>
+        </div>
+        <div class="kpi" id="kpi-version">
+          <div class="label">الإصدار</div>
+          <div class="value" id="kpi-version-v">—</div>
+          <div class="trend" id="kpi-version-t">—</div>
+        </div>
+        <div class="kpi" id="kpi-mesh">
+          <div class="label">عقد الشبكة</div>
+          <div class="value" id="kpi-mesh-v">—</div>
+          <div class="trend" id="kpi-mesh-t">—</div>
+        </div>
+        <div class="kpi" id="kpi-sessions">
+          <div class="label">الجلسات النشطة</div>
+          <div class="value" id="kpi-sessions-v">—</div>
+          <div class="trend" id="kpi-sessions-t">—</div>
+        </div>
+        <div class="kpi" id="kpi-rps">
+          <div class="label">طلبات/ثانية</div>
+          <div class="value" id="kpi-rps-v">—</div>
+          <div class="trend" id="kpi-rps-t">—</div>
+        </div>
+        <div class="kpi" id="kpi-mem">
+          <div class="label">الذاكرة / المعالج</div>
+          <div class="value" id="kpi-mem-v">—</div>
+          <div class="trend" id="kpi-mem-t">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2>الأداء خلال 24 ساعة <span class="sub">طلبات/ثانية + استعلامات DNS + عملاء NTP</span></h2>
+        <div class="chart-wrap tall"><canvas id="chart-24h"></canvas></div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>الخدمات المسجّلة <span class="sub" id="overview-reg-count">…</span></h2>
+          <div class="tbl-wrap" style="max-height:240px;">
+            <table class="tbl" id="overview-reg-tbl">
+              <thead><tr><th>المعرّف</th><th>العنوان</th><th>RTT</th><th>الحالة</th></tr></thead>
+              <tbody><tr><td colspan="4" class="dim center">جارٍ التحميل…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>أحداث حديثة <span class="sub">log tail</span></h2>
+          <div class="logs" id="overview-log-tail" style="height:240px;">
+            <span class="ln debug"><span class="t">--:--:--</span>بانتظار اتصال السجل…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Mesh ───────────────────────────────────────────────── -->
+    <section class="view" id="view-mesh">
+      <div class="card">
+        <h2>حالة الشبكة المتداخلة
+          <span class="sub" id="mesh-strategy-sub">…</span>
+        </h2>
+        <div class="row gap">
+          <div class="kpi" style="flex:1; min-width:140px;">
+            <div class="label">مُعرّف هذا الراوتر</div>
+            <div class="value mono" id="mesh-self-id">—</div>
+          </div>
+          <div class="kpi" style="flex:1; min-width:140px;">
+            <div class="label">الجيران الحيون</div>
+            <div class="value" id="mesh-alive-count">—</div>
+          </div>
+          <div class="kpi" style="flex:1; min-width:140px;">
+            <div class="label">LSAs معروفة</div>
+            <div class="value" id="mesh-lsa-count">—</div>
+          </div>
+          <div class="kpi" style="flex:1; min-width:140px;">
+            <div class="label">خوادم مباشرة</div>
+            <div class="value" id="mesh-direct-count">—</div>
+          </div>
+          <div style="flex:0 0 auto;">
+            <button id="btn-mesh-reroute" class="warn">إعادة احتساب المسارات</button>
+            <button id="btn-mesh-add">إضافة جار</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>الجيران</h2>
+          <div class="tbl-wrap">
+            <table class="tbl" id="mesh-neighbours-tbl">
+              <thead><tr>
+                <th>المعرّف</th><th>العنوان</th><th>الحالة</th><th>RTT</th><th>آخر ظهور</th><th></th>
+              </tr></thead>
+              <tbody><tr><td colspan="6" class="dim center">جارٍ التحميل…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>جدول Dijkstra <span class="sub">routes</span></h2>
+          <div class="tbl-wrap">
+            <table class="tbl" id="mesh-routes-tbl">
+              <thead><tr>
+                <th>الخادم</th><th>القفزة التالية</th><th>التكلفة</th><th>عرض المسار</th>
+              </tr></thead>
+              <tbody><tr><td colspan="4" class="dim center">جارٍ التحميل…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>مخطط الطوبولوجيا</h2>
+        <div class="topo-wrap" id="topo-wrap">
+          <svg id="topo-svg" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Service Registry ───────────────────────────────────── -->
+    <section class="view" id="view-registry">
+      <div class="card">
+        <h2>سجل الخدمات <span class="sub">Helen-Server upstreams</span></h2>
+        <div class="row">
+          <button id="btn-reg-add" class="primary">+ إضافة خادم</button>
+          <button id="btn-reg-refresh">↻ تحديث</button>
+          <div class="spacer"></div>
+          <input id="reg-filter" placeholder="بحث بالمعرّف أو URL…" />
+        </div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table class="tbl" id="registry-tbl">
+            <thead><tr>
+              <th>المعرّف</th><th>العنوان</th><th>القدرات</th>
+              <th>RTT</th><th>آخر ظهور</th><th>الحالة</th><th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="7" class="dim center">جارٍ التحميل…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Reverse Proxy ──────────────────────────────────────── -->
+    <section class="view" id="view-proxy">
+      <div class="grid grid-3">
+        <div class="kpi"><div class="label">الطلبات الكلية</div><div class="value" id="proxy-total">—</div></div>
+        <div class="kpi"><div class="label">معدّل النجاح</div><div class="value" id="proxy-success">—</div></div>
+        <div class="kpi"><div class="label">متوسط الزمن</div><div class="value" id="proxy-avg">— ms</div></div>
+      </div>
+      <div class="card">
+        <h2>سجل الطلبات</h2>
+        <div class="row">
+          <input id="proxy-log-filter" placeholder="بحث بالمسار / الـ IP / الكود…" />
+          <select id="proxy-log-status">
+            <option value="">كل الأكواد</option>
+            <option value="2">2xx</option>
+            <option value="3">3xx</option>
+            <option value="4">4xx</option>
+            <option value="5">5xx</option>
+          </select>
+          <button id="btn-proxy-log-refresh">↻ تحديث</button>
+          <button id="btn-proxy-log-clear">مسح العرض</button>
+        </div>
+        <div class="tbl-wrap" style="margin-top:8px;">
+          <table class="tbl" id="proxy-log-tbl">
+            <thead><tr>
+              <th>الوقت</th><th>IP</th><th>الطريقة</th><th>المسار</th>
+              <th>الكود</th><th>الزمن</th><th>المقصد</th>
+            </tr></thead>
+            <tbody><tr><td colspan="7" class="dim center">جارٍ التحميل…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:8px; justify-content:space-between;">
+          <span class="muted" id="proxy-log-page-info">—</span>
+          <div class="row tight">
+            <button id="proxy-log-prev">السابق</button>
+            <button id="proxy-log-next">التالي</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>قواعد تحديد المعدّل</h2>
+          <div class="row">
+            <input id="rl-path" placeholder="المسار (مثل /api/)" style="flex:1;" />
+            <input id="rl-limit" type="number" placeholder="طلب/ثانية" style="width:120px;" />
+            <button id="btn-rl-add" class="primary">إضافة</button>
+          </div>
+          <div class="tbl-wrap" style="margin-top:8px; max-height:260px;">
+            <table class="tbl" id="rl-tbl">
+              <thead><tr><th>المسار</th><th>الحد</th><th>الفترة</th><th></th></tr></thead>
+              <tbody><tr><td colspan="4" class="dim center">لا توجد قواعد.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>قوائم السماح / المنع (CIDR)</h2>
+          <div class="row gap">
+            <div style="flex:1;">
+              <label>السماح</label>
+              <textarea id="acl-allow" rows="6" placeholder="10.0.0.0/8&#10;192.168.0.0/16"></textarea>
+            </div>
+            <div style="flex:1;">
+              <label>المنع</label>
+              <textarea id="acl-deny" rows="6" placeholder="10.5.6.0/24"></textarea>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" id="btn-acl-save">حفظ</button>
+            <button id="btn-acl-reload">إعادة تحميل من السيرفر</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DNS ────────────────────────────────────────────────── -->
+    <section class="view" id="view-dns">
+      <div class="grid grid-4">
+        <div class="kpi"><div class="label">إجمالي السجلات</div><div class="value" id="dns-total-records">—</div></div>
+        <div class="kpi"><div class="label">استعلامات/دقيقة</div><div class="value" id="dns-qps">—</div></div>
+        <div class="kpi"><div class="label">نسبة الكاش</div><div class="value" id="dns-cache-hit">—</div></div>
+        <div class="kpi"><div class="label">المحظورات</div><div class="value" id="dns-block-count">—</div></div>
+      </div>
+
+      <div class="card">
+        <h2>السجلات</h2>
+        <div class="row">
+          <select id="dns-rec-type">
+            <option value="A">A</option>
+            <option value="AAAA">AAAA</option>
+            <option value="CNAME">CNAME</option>
+            <option value="MX">MX</option>
+            <option value="SRV">SRV</option>
+            <option value="TXT">TXT</option>
+            <option value="PTR">PTR</option>
+          </select>
+          <input id="dns-rec-name" placeholder="الاسم (مثال: helen.lan)" style="flex:1;" />
+          <input id="dns-rec-value" placeholder="القيمة" style="flex:1;" />
+          <input id="dns-rec-ttl" type="number" placeholder="TTL" value="300" style="width:100px;" />
+          <button id="btn-dns-add" class="primary">إضافة</button>
+        </div>
+        <div class="tbl-wrap" style="margin-top:8px; max-height:340px;">
+          <table class="tbl" id="dns-rec-tbl">
+            <thead><tr><th>النوع</th><th>الاسم</th><th>القيمة</th><th>TTL</th><th></th></tr></thead>
+            <tbody><tr><td colspan="5" class="dim center">جارٍ التحميل…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>قائمة الحظر</h2>
+          <textarea id="dns-blocklist" rows="10" placeholder="domain.example.com&#10;ad.tracker.net"></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" id="btn-dns-block-save">حفظ</button>
+            <button id="btn-dns-block-reload">إعادة تحميل</button>
+            <span class="muted" id="dns-block-saved">—</span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>الـ Upstreams</h2>
+          <div class="tbl-wrap">
+            <table class="tbl" id="dns-upstream-tbl">
+              <thead><tr><th>العنوان</th><th>البروتوكول</th><th>RTT</th><th></th></tr></thead>
+              <tbody><tr><td colspan="4" class="dim center">جارٍ التحميل…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <input id="dns-up-addr" placeholder="1.1.1.1:53" />
+            <select id="dns-up-proto">
+              <option value="udp">UDP</option>
+              <option value="tcp">TCP</option>
+              <option value="dot">DoT</option>
+              <option value="doh">DoH</option>
+            </select>
+            <button class="primary" id="btn-dns-up-add">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>سجل الاستعلامات</h2>
+        <div class="tbl-wrap" style="max-height:300px;">
+          <table class="tbl" id="dns-querylog-tbl">
+            <thead><tr><th>الوقت</th><th>العميل</th><th>النوع</th><th>الاسم</th><th>النتيجة</th><th>المصدر</th></tr></thead>
+            <tbody><tr><td colspan="6" class="dim center">جارٍ التحميل…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── NTP ────────────────────────────────────────────────── -->
+    <section class="view" id="view-ntp">
+      <div class="grid grid-4">
+        <div class="kpi"><div class="label">الحالة</div><div class="value" id="ntp-status">—</div></div>
+        <div class="kpi"><div class="label">الانحراف (ms)</div><div class="value" id="ntp-offset">—</div></div>
+        <div class="kpi"><div class="label">العملاء النشطون</div><div class="value" id="ntp-clients">—</div></div>
+        <div class="kpi"><div class="label">آخر مزامنة</div><div class="value" id="ntp-last-sync">—</div></div>
+      </div>
+      <div class="card">
+        <h2>الأقران</h2>
+        <div class="tbl-wrap"><table class="tbl" id="ntp-peers-tbl">
+          <thead><tr><th>المضيف</th><th>الـ Stratum</th><th>RTT</th><th>الانحراف</th><th>الحالة</th></tr></thead>
+          <tbody><tr><td colspan="5" class="dim center">جارٍ التحميل…</td></tr></tbody>
+        </table></div>
+        <div class="row" style="margin-top:8px;">
+          <input id="ntp-peer-add" placeholder="pool.ntp.org" style="flex:1;" />
+          <button class="primary" id="btn-ntp-add">+ إضافة قرين</button>
+          <button class="warn" id="btn-ntp-force-sync">إجبار مزامنة فورية</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>منحنى الانحراف</h2>
+        <div class="chart-wrap"><canvas id="chart-ntp-drift"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ── UPnP ──────────────────────────────────────────────── -->
+    <section class="view" id="view-upnp">
+      <div class="card">
+        <h2>الـ Port Mappings الحالية</h2>
+        <div class="row">
+          <button id="btn-upnp-discover" class="primary">مسح أجهزة IGD</button>
+          <button id="btn-upnp-refresh">↻ تحديث القائمة</button>
+        </div>
+        <div class="tbl-wrap" style="margin-top:8px;">
+          <table class="tbl" id="upnp-tbl">
+            <thead><tr>
+              <th>الوصف</th><th>المنفذ الخارجي</th><th>الداخلي</th>
+              <th>IP الداخلي</th><th>البروتوكول</th><th>الـ TTL</th><th></th>
+            </tr></thead>
+            <tbody><tr><td colspan="7" class="dim center">لا توجد بيانات.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>إضافة Mapping يدوي</h2>
+        <div class="grid grid-3" style="gap:8px;">
+          <div><label>UPnP URL</label><input id="upnp-url" placeholder="http://igd-host:5000/..." /></div>
+          <div><label>المنفذ الخارجي</label><input id="upnp-ext" type="number" value="3000" /></div>
+          <div><label>المنفذ الداخلي</label><input id="upnp-int" type="number" value="3000" /></div>
+          <div><label>IP الداخلي</label><input id="upnp-ip" placeholder="10.0.0.5" /></div>
+          <div><label>البروتوكول</label>
+            <select id="upnp-proto"><option>TCP</option><option>UDP</option></select>
+          </div>
+          <div><label>المدة</label><input id="upnp-ttl" type="number" value="3600" /></div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="btn-upnp-add" class="primary">إضافة</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Vendor adapters ───────────────────────────────────── -->
+    <section class="view" id="view-vendor">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>المورّدون المدعومون</h2>
+          <div class="row">
+            <select id="vendor-pick">
+              <option value="mikrotik">Mikrotik RouterOS</option>
+              <option value="ubiquiti">Ubiquiti EdgeOS / UniFi</option>
+              <option value="openwrt">OpenWrt UCI</option>
+              <option value="pfsense">pfSense</option>
+              <option value="cisco">Cisco IOS</option>
+            </select>
+            <button id="btn-vendor-load">عرض القوالب</button>
+          </div>
+          <div class="tbl-wrap" style="margin-top:8px;">
+            <table class="tbl" id="vendor-tpl-tbl">
+              <thead><tr><th>القالب</th><th>الوصف</th><th></th></tr></thead>
+              <tbody><tr><td colspan="3" class="dim center">اختر مورّداً.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>محرر القالب</h2>
+          <textarea id="vendor-tpl-text" rows="14" placeholder="القالب يظهر هنا. عدّل وادفع للجهاز."></textarea>
+          <div class="row" style="margin-top:8px;">
+            <input id="vendor-target" placeholder="عنوان الجهاز (مثال: 10.0.0.1)" style="flex:1;" />
+            <input id="vendor-user" placeholder="المستخدم" style="width:140px;" />
+            <input id="vendor-pass" placeholder="كلمة المرور" type="password" style="width:160px;" />
+            <button id="btn-vendor-push" class="primary">دفع</button>
+          </div>
+          <div class="muted" id="vendor-push-result" style="margin-top:8px;">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── External routers ──────────────────────────────────── -->
+    <section class="view" id="view-external">
+      <div class="card">
+        <h2>اكتشاف أجهزة LAN</h2>
+        <div class="row">
+          <button id="btn-ext-scan" class="primary">مسح سريع</button>
+          <button id="btn-ext-full">مسح كامل (ICMP + بصمات)</button>
+          <span class="muted" id="ext-scan-status">—</span>
+        </div>
+        <div class="tbl-wrap" style="margin-top:8px;">
+          <table class="tbl" id="ext-tbl">
+            <thead><tr>
+              <th>IP</th><th>MAC</th><th>المضيف</th><th>المورّد</th>
+              <th>الموديل</th><th>بوابة؟</th><th>اكتُشف عبر</th><th>القدرات</th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="dim center">شغّل المسح للبدء.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Connection broker ─────────────────────────────────── -->
+    <section class="view" id="view-broker">
+      <div class="grid grid-4">
+        <div class="kpi"><div class="label">جلسات نشطة</div><div class="value" id="broker-active">—</div></div>
+        <div class="kpi"><div class="label">جلسات معلّقة</div><div class="value" id="broker-pending">—</div></div>
+        <div class="kpi"><div class="label">معدّل النجاح</div><div class="value" id="broker-success">—</div></div>
+        <div class="kpi"><div class="label">Hole-punch/دقيقة</div><div class="value" id="broker-hp">—</div></div>
+      </div>
+      <div class="card">
+        <h2>الجلسات</h2>
+        <div class="tbl-wrap"><table class="tbl" id="broker-sessions-tbl">
+          <thead><tr>
+            <th>الجلسة</th><th>العميل</th><th>الخادم</th><th>القدرة</th>
+            <th>الحالة</th><th>المدة</th><th></th>
+          </tr></thead>
+          <tbody><tr><td colspan="7" class="dim center">جارٍ التحميل…</td></tr></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- ── Security ──────────────────────────────────────────── -->
+    <section class="view" id="view-security">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>تدوير الرمز</h2>
+          <div class="muted">تدوير HELEN_ROUTER_TOKEN يُجبر كل العملاء والسيرفرات على إعادة المصادقة.</div>
+          <div class="row" style="margin-top:8px;">
+            <input id="sec-new-token" placeholder="رمز جديد (سيُولَّد إذا فارغ)" style="flex:1;" />
+            <button class="warn" id="btn-sec-rotate">تدوير</button>
+          </div>
+          <div class="muted" id="sec-rotate-result" style="margin-top:8px;">—</div>
+        </div>
+        <div class="card">
+          <h2>الشبكات المسموحة (CIDR)</h2>
+          <textarea id="sec-subnets" rows="6" placeholder="10.0.0.0/8&#10;172.16.0.0/12&#10;192.168.0.0/16"></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" id="btn-sec-subnets-save">حفظ</button>
+            <button id="btn-sec-subnets-reload">إعادة تحميل</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>وضع التطبيق</h2>
+        <div class="row gap">
+          <label><input type="radio" name="sec-mode" value="strict"> صارم (رفض كل ما لا يطابق)</label>
+          <label><input type="radio" name="sec-mode" value="audit"> تدقيق (سجل بدون رفض)</label>
+          <label><input type="radio" name="sec-mode" value="off"> معطّل (للتطوير فقط)</label>
+          <div class="spacer"></div>
+          <button id="btn-sec-mode-save" class="primary">حفظ الوضع</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Diagnostics ──────────────────────────────────────── -->
+    <section class="view" id="view-diag">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Ping</h2>
+          <div class="row">
+            <input id="diag-ping-host" placeholder="10.0.0.1" style="flex:1;" />
+            <input id="diag-ping-n" type="number" value="4" style="width:80px;" />
+            <button class="primary" id="btn-diag-ping">تنفيذ</button>
+          </div>
+          <pre class="logs" id="diag-ping-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+        <div class="card">
+          <h2>Traceroute</h2>
+          <div class="row">
+            <input id="diag-tr-host" placeholder="8.8.8.8" style="flex:1;" />
+            <button class="primary" id="btn-diag-tr">تنفيذ</button>
+          </div>
+          <pre class="logs" id="diag-tr-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+        <div class="card">
+          <h2>DNS Lookup</h2>
+          <div class="row">
+            <input id="diag-dns-name" placeholder="example.com" style="flex:1;" />
+            <select id="diag-dns-type">
+              <option>A</option><option>AAAA</option><option>CNAME</option>
+              <option>MX</option><option>TXT</option><option>SRV</option>
+            </select>
+            <button class="primary" id="btn-diag-dns">تنفيذ</button>
+          </div>
+          <pre class="logs" id="diag-dns-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+        <div class="card">
+          <h2>Port Scan</h2>
+          <div class="row">
+            <input id="diag-ps-host" placeholder="10.0.0.5" style="flex:1;" />
+            <input id="diag-ps-ports" placeholder="22,80,443,3000" style="flex:1;" />
+            <button class="primary" id="btn-diag-ps">تنفيذ</button>
+          </div>
+          <pre class="logs" id="diag-ps-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+        <div class="card">
+          <h2>Bandwidth Test</h2>
+          <div class="row">
+            <input id="diag-bw-target" placeholder="server-id أو URL" style="flex:1;" />
+            <input id="diag-bw-secs" type="number" value="5" style="width:80px;" />
+            <button class="primary" id="btn-diag-bw">قياس</button>
+          </div>
+          <pre class="logs" id="diag-bw-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+        <div class="card">
+          <h2>اختبار الاتصال الذكي</h2>
+          <div class="muted">يستخدم نقطة /router/connect لاختيار أقرب خادم تلقائياً.</div>
+          <div class="row">
+            <select id="diag-cap">
+              <option value="rest">rest</option>
+              <option value="socketio">socketio</option>
+              <option value="webrtc">webrtc</option>
+              <option value="vault">vault</option>
+            </select>
+            <button class="primary" id="btn-diag-connect">اختبار</button>
+          </div>
+          <pre class="logs" id="diag-connect-out" style="height:160px; margin-top:8px;"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Configuration ─────────────────────────────────────── -->
+    <section class="view" id="view-config">
+      <div class="card">
+        <h2>محرّر الإعدادات</h2>
+        <div class="row">
+          <label>الصيغة:</label>
+          <select id="cfg-format">
+            <option value="yaml">YAML</option>
+            <option value="json">JSON</option>
+          </select>
+          <div class="spacer"></div>
+          <button id="btn-cfg-validate">التحقق</button>
+          <button id="btn-cfg-save" class="primary">حفظ</button>
+          <button id="btn-cfg-reload" class="warn">إعادة تحميل (Hot reload)</button>
+        </div>
+        <textarea id="cfg-text" rows="22"></textarea>
+        <div id="cfg-result" class="muted" style="margin-top:8px;">—</div>
+      </div>
+    </section>
+
+    <!-- ── Logs ──────────────────────────────────────────────── -->
+    <section class="view" id="view-logs">
+      <div class="card">
+        <h2>السجلات المباشرة</h2>
+        <div class="row">
+          <select id="logs-level">
+            <option value="">كل المستويات</option>
+            <option value="debug">debug</option>
+            <option value="info">info</option>
+            <option value="warn">warn</option>
+            <option value="error">error</option>
+          </select>
+          <input id="logs-filter" placeholder="بحث نصّي…" style="flex:1;" />
+          <button id="btn-logs-pause">إيقاف</button>
+          <button id="btn-logs-clear">مسح العرض</button>
+          <button id="btn-logs-download">تنزيل</button>
+        </div>
+        <div class="logs" id="logs-view"></div>
+      </div>
+    </section>
+
+    <!-- ── About ─────────────────────────────────────────────── -->
+    <section class="view" id="view-about">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>عن Helen-Router</h2>
+          <p>
+            Helen-Router عبارة عن بوابة LAN إلزامية تعمل كـ reverse-proxy +
+            service-registry بين عملاء Helen وخوادم Helen-Server. تجمع نقطة
+            الوصول الواحدة عناصر التحكم في الوصول، التدقيق، تحديد المعدّل،
+            وإنهاء TLS.
+          </p>
+          <table class="tbl">
+            <tr><th>الإصدار</th><td id="about-version" class="mono">—</td></tr>
+            <tr><th>Build Hash</th><td id="about-build" class="mono">—</td></tr>
+            <tr><th>Python</th><td id="about-python" class="mono">—</td></tr>
+            <tr><th>FastAPI</th><td id="about-fastapi" class="mono">—</td></tr>
+            <tr><th>تشغيل منذ</th><td id="about-started" class="mono">—</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h2>روابط</h2>
+          <ul>
+            <li><a href="/router/health" target="_blank">/router/health</a></li>
+            <li><a href="/router/upstreams" target="_blank">/router/upstreams</a></li>
+            <li><a href="/router/network" target="_blank">/router/network</a></li>
+            <li><a href="/mesh/topology" target="_blank">/mesh/topology</a></li>
+            <li><a href="/router/topology-strategy" target="_blank">/router/topology-strategy</a></li>
+          </ul>
+          <h3>اختصارات لوحة المفاتيح</h3>
+          <table class="tbl">
+            <tr><td><span class="tag">G</span> ثم <span class="tag">O</span></td><td>الانتقال إلى نظرة عامة</td></tr>
+            <tr><td><span class="tag">G</span> ثم <span class="tag">M</span></td><td>الشبكة المتداخلة</td></tr>
+            <tr><td><span class="tag">G</span> ثم <span class="tag">R</span></td><td>سجل الخدمات</td></tr>
+            <tr><td><span class="tag">G</span> ثم <span class="tag">L</span></td><td>السجلات</td></tr>
+            <tr><td><span class="tag">R</span></td><td>تحديث القسم الحالي</td></tr>
+            <tr><td><span class="tag">/</span></td><td>تركيز البحث (إن وُجد)</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- Add-neighbour modal -->
+<div class="modal-backdrop" id="modal-add-neighbour">
+  <div class="modal">
+    <h2>إضافة جار للشبكة المتداخلة</h2>
+    <div class="form-grid">
+      <label>المعرّف</label><input id="mn-id" placeholder="router-edge-2" />
+      <label>العنوان</label><input id="mn-url" placeholder="http://10.0.0.6:8080" />
+    </div>
+    <div class="actions">
+      <button id="mn-cancel">إلغاء</button>
+      <button id="mn-save" class="primary">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add-server modal -->
+<div class="modal-backdrop" id="modal-add-server">
+  <div class="modal">
+    <h2>تسجيل خادم جديد</h2>
+    <div class="form-grid">
+      <label>المعرّف</label><input id="reg-new-id" placeholder="helen-srv-1" />
+      <label>URL</label><input id="reg-new-url" placeholder="http://10.0.0.5:3000" />
+      <label>القدرات (CSV)</label><input id="reg-new-caps" placeholder="rest,socketio,vault" />
+    </div>
+    <div class="actions">
+      <button id="reg-cancel">إلغاء</button>
+      <button id="reg-save" class="primary">تسجيل</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   Helen-Router SPA — single-file standalone admin
+   ════════════════════════════════════════════════════════════════════
+   Architecture
+   ------------
+   * State held in a single `state` object.
+   * Sections lazy-render on first activation; subsequent re-entries
+     refresh in the background while keeping the current view alive.
+   * apiFetch() — single network funnel with bearer auth + retry +
+     exponential backoff. 401/403 → forces logout.
+   * No external CDN at runtime. Chart.js + D3 are optional; the SPA
+     functions without them (chart cards switch to text fallbacks).
+   ════════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+/* ── Token storage ────────────────────────────────────────────── */
+const TOKEN_KEY = 'helen_router_token';
+
+const TokenStore = {
+  get() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } },
+  set(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch {} },
+  clear() { try { localStorage.removeItem(TOKEN_KEY); } catch {} },
+};
+
+/* ── Locale helpers (Arabic-aware) ────────────────────────────── */
+const LOCALE = 'ar-EG';
+function fmtNum(n, opts) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  try { return Number(n).toLocaleString(LOCALE, opts || {}); }
+  catch { return String(n); }
+}
+function fmtMs(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  if (n < 1) return fmtNum(n, { maximumFractionDigits: 2 }) + ' ms';
+  if (n < 100) return fmtNum(n, { maximumFractionDigits: 1 }) + ' ms';
+  if (n < 1000) return fmtNum(Math.round(n)) + ' ms';
+  return fmtNum(n / 1000, { maximumFractionDigits: 2 }) + ' s';
+}
+function fmtBytes(b) {
+  if (b === null || b === undefined) return '—';
+  if (b < 1024) return fmtNum(b) + ' B';
+  if (b < 1024 * 1024) return fmtNum(b / 1024, { maximumFractionDigits: 1 }) + ' KiB';
+  if (b < 1024 * 1024 * 1024) return fmtNum(b / (1024 * 1024), { maximumFractionDigits: 1 }) + ' MiB';
+  return fmtNum(b / (1024 ** 3), { maximumFractionDigits: 2 }) + ' GiB';
+}
+function fmtDuration(seconds) {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return '—';
+  const s = Math.floor(seconds);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (days > 0) return `${fmtNum(days)}ي ${hours}س ${minutes}د`;
+  if (hours > 0) return `${hours}س ${minutes}د ${secs}ث`;
+  if (minutes > 0) return `${minutes}د ${secs}ث`;
+  return `${secs}ث`;
+}
+function fmtRelative(epochSec) {
+  if (!epochSec) return '—';
+  const diff = Math.max(0, Date.now() / 1000 - epochSec);
+  if (diff < 60) return `قبل ${Math.floor(diff)} ث`;
+  if (diff < 3600) return `قبل ${Math.floor(diff / 60)} د`;
+  if (diff < 86400) return `قبل ${Math.floor(diff / 3600)} س`;
+  return `قبل ${Math.floor(diff / 86400)} ي`;
+}
+function fmtTime(epochSec) {
+  if (!epochSec) return '—';
+  const d = new Date(epochSec * 1000);
+  try { return d.toLocaleTimeString(LOCALE); } catch { return d.toISOString(); }
+}
+function fmtDateTime(epochSec) {
+  if (!epochSec) return '—';
+  const d = new Date(epochSec * 1000);
+  try { return d.toLocaleString(LOCALE); } catch { return d.toISOString(); }
+}
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ── Toasts ───────────────────────────────────────────────────── */
+function toast(title, body, level) {
+  level = level || 'info';
+  const wrap = document.getElementById('toasts');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + level;
+  el.innerHTML =
+    `<div class="t-title">${escapeHtml(title)}</div>` +
+    (body ? `<div class="t-body">${escapeHtml(body)}</div>` : '');
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.4s';
+    setTimeout(() => el.remove(), 400);
+  }, level === 'err' ? 8000 : 4500);
+}
+
+/* ── Network: apiFetch with retry + exponential backoff ──────── */
+let _seq = 0;
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const id = ++_seq;
+  const method = (opts.method || 'GET').toUpperCase();
+  const url = path.startsWith('http') ? path : path;
+  const token = TokenStore.get();
+  const headers = Object.assign({}, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (opts.json !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.json);
+  }
+
+  const maxRetries = opts.retries === undefined ? 2 : opts.retries;
+  const baseDelay = opts.baseDelay || 250;
+  let attempt = 0;
+  let lastErr = null;
+
+  while (attempt <= maxRetries) {
+    try {
+      const t0 = performance.now();
+      const ctrl = new AbortController();
+      const timeoutMs = opts.timeout || 12000;
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: opts.body,
+        signal: ctrl.signal,
+        credentials: 'same-origin',
+      });
+      clearTimeout(timer);
+      const dt = performance.now() - t0;
+      state.lastRtt = dt;
+      if (res.status === 401 || res.status === 403) {
+        // Token rejected — force logout. Only do this for protected
+        // calls; the /admin/_health probe stays open.
+        if (path !== '/admin/_health') {
+          logoutAndPrompt('انتهت صلاحية الرمز.');
+        }
+        throw new Error('unauthorized');
+      }
+      if (!res.ok) {
+        if ([502, 503, 504].includes(res.status) && attempt < maxRetries) {
+          attempt++;
+          await sleep(baseDelay * Math.pow(2, attempt));
+          continue;
+        }
+        const text = await safeText(res);
+        const err = new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+        err.status = res.status;
+        err.body = text;
+        throw err;
+      }
+      if (opts.raw) return res;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return await res.json();
+      return await res.text();
+    } catch (e) {
+      lastErr = e;
+      if (e.name === 'AbortError' || /NetworkError/.test(e.message || '')) {
+        if (attempt < maxRetries) {
+          attempt++;
+          await sleep(baseDelay * Math.pow(2, attempt));
+          continue;
+        }
+      }
+      if (attempt < maxRetries && (e.status === undefined || e.status >= 500)) {
+        attempt++;
+        await sleep(baseDelay * Math.pow(2, attempt));
+        continue;
+      }
+      throw lastErr;
+    }
+  }
+  throw lastErr;
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+async function safeText(res) { try { return await res.text(); } catch { return ''; } }
+
+/* ── Auth flow ────────────────────────────────────────────────── */
+async function attemptLogin(token) {
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  if (!token) {
+    errEl.textContent = 'يجب إدخال الرمز.';
+    return false;
+  }
+  try {
+    const res = await fetch('/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      errEl.textContent = j.error === 'invalid_token'
+        ? 'رمز غير صحيح.'
+        : (j.error === 'router_token_unset'
+            ? 'الراوتر لم يُعرَّف فيه HELEN_ROUTER_TOKEN — اضبطه أولاً.'
+            : ('فشل: ' + (j.error || res.statusText)));
+      return false;
+    }
+    const j = await res.json();
+    if (!j.ok || !j.token) {
+      errEl.textContent = 'استجابة غير متوقعة.';
+      return false;
+    }
+    TokenStore.set(j.token);
+    return true;
+  } catch (e) {
+    errEl.textContent = 'تعذر الاتصال: ' + (e.message || e);
+    return false;
+  }
+}
+
+function logoutAndPrompt(reason) {
+  TokenStore.clear();
+  document.getElementById('layout').style.display = 'none';
+  const overlay = document.getElementById('login-overlay');
+  overlay.style.display = 'flex';
+  if (reason) {
+    document.getElementById('login-err').textContent = reason;
+  }
+}
+
+async function bootstrap() {
+  const token = TokenStore.get();
+  if (!token) {
+    showLogin();
+    return;
+  }
+  // Validate by hitting a protected endpoint — /router/upstreams
+  // requires no bearer, but trying a registry write would. We can
+  // simply try health (no auth) to confirm the router is reachable,
+  // and then enter the panel. Token validity is checked lazily on
+  // first protected call (it'll bounce the user back if invalid).
+  try {
+    await apiFetch('/router/health', { retries: 0, timeout: 5000 });
+    enterPanel();
+  } catch (e) {
+    showLogin('الراوتر لا يستجيب: ' + (e.message || e));
+  }
+}
+
+function showLogin(msg) {
+  document.getElementById('layout').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+  if (msg) document.getElementById('login-err').textContent = msg;
+  setTimeout(() => {
+    const el = document.getElementById('login-token');
+    if (el) el.focus();
+  }, 30);
+}
+
+function enterPanel() {
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('layout').style.display = 'grid';
+  initPanel();
+}
+
+/* ── Global state ─────────────────────────────────────────────── */
+const state = {
+  currentView: 'overview',
+  lastRtt: null,
+  routerInfo: null,
+  upstreams: [],
+  mesh: null,
+  bootedAt: Date.now() / 1000,
+  proxy: { page: 1, total: 0, perPage: 50 },
+  charts: {},
+  timers: {},
+  logsPaused: false,
+  logsBuffer: [],
+  ws: { logs: null, metrics: null },
+  vendorTpls: {},
+};
+
+/* ── Section registration ─────────────────────────────────────── */
+const SECTIONS = {
+  overview: { title: 'نظرة عامة',   onEnter: renderOverview, refresh: refreshOverview, refreshMs: 10000 },
+  mesh:     { title: 'الشبكة المتداخلة', onEnter: renderMesh,   refresh: refreshMesh,   refreshMs: 8000 },
+  registry: { title: 'سجل الخدمات',     onEnter: renderRegistry, refresh: refreshRegistry, refreshMs: 8000 },
+  proxy:    { title: 'الوكيل العكسي',   onEnter: renderProxy,  refresh: refreshProxy, refreshMs: 12000 },
+  dns:      { title: 'DNS',            onEnter: renderDns,    refresh: refreshDns, refreshMs: 12000 },
+  ntp:      { title: 'NTP',            onEnter: renderNtp,    refresh: refreshNtp, refreshMs: 12000 },
+  upnp:     { title: 'UPnP',           onEnter: renderUpnp,   refresh: refreshUpnp, refreshMs: 20000 },
+  vendor:   { title: 'محولات الموردين', onEnter: renderVendor, refresh: () => {} },
+  external: { title: 'أجهزة خارجية',   onEnter: renderExternal, refresh: () => {} },
+  broker:   { title: 'الوسيط',          onEnter: renderBroker, refresh: refreshBroker, refreshMs: 10000 },
+  security: { title: 'الأمن',           onEnter: renderSecurity, refresh: refreshSecurity, refreshMs: 30000 },
+  diag:     { title: 'تشخيصات',         onEnter: renderDiag,   refresh: () => {} },
+  config:   { title: 'الإعدادات',       onEnter: renderConfig, refresh: refreshConfig, refreshMs: 60000 },
+  logs:     { title: 'السجلات',         onEnter: renderLogs,   refresh: () => {} },
+  about:    { title: 'حول',            onEnter: renderAbout,  refresh: refreshAbout, refreshMs: 60000 },
+};
+
+function switchView(name) {
+  if (!SECTIONS[name]) return;
+  // Stop any per-section interval timer
+  if (state.timers.section) {
+    clearInterval(state.timers.section);
+    state.timers.section = null;
+  }
+
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === name);
+  });
+  document.querySelectorAll('.view').forEach(el => {
+    el.classList.toggle('active', el.id === 'view-' + name);
+  });
+  state.currentView = name;
+  document.getElementById('page-title').firstChild.textContent =
+    SECTIONS[name].title + ' ';
+  document.getElementById('page-crumb').textContent =
+    '/admin/#' + name;
+  history.replaceState(null, '', '#' + name);
+
+  // Render & schedule
+  try { SECTIONS[name].onEnter(); } catch (e) { console.error(e); toast('خطأ', e.message || String(e), 'err'); }
+  if (SECTIONS[name].refreshMs) {
+    state.timers.section = setInterval(() => {
+      try { SECTIONS[name].refresh(); } catch (e) { console.error(e); }
+    }, SECTIONS[name].refreshMs);
+  }
+}
+
+function initPanel() {
+  // Nav
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => switchView(el.dataset.view));
+  });
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    fetch('/admin/logout', { method: 'POST' }).catch(() => {});
+    TokenStore.clear();
+    location.reload();
+  });
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    const cur = SECTIONS[state.currentView];
+    if (cur && cur.refresh) cur.refresh();
+  });
+  document.getElementById('btn-refresh-all').addEventListener('click', () => {
+    runGlobalRefresh();
+  });
+
+  // RTT/heartbeat
+  startHeartbeat();
+  bindShortcuts();
+
+  // Initial view (from hash or default)
+  const hash = (location.hash || '').replace('#', '');
+  switchView(SECTIONS[hash] ? hash : 'overview');
+
+  // Kick a global one-shot fetch so sidebar badges are populated
+  // immediately even before the user navigates.
+  setTimeout(runGlobalRefresh, 100);
+}
+
+function bindShortcuts() {
+  let last = null;
+  let lastT = 0;
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select')) return;
+    const k = e.key.toLowerCase();
+    if (k === 'r') {
+      const cur = SECTIONS[state.currentView];
+      if (cur && cur.refresh) cur.refresh();
+      return;
+    }
+    if (k === '/') {
+      const f = document.querySelector('.view.active input[type="text"], .view.active input:not([type])');
+      if (f) { f.focus(); e.preventDefault(); }
+      return;
+    }
+    if (k === 'g') { last = 'g'; lastT = Date.now(); return; }
+    if (last === 'g' && Date.now() - lastT < 1200) {
+      const map = { o: 'overview', m: 'mesh', r: 'registry', p: 'proxy',
+                    d: 'dns', n: 'ntp', u: 'upnp', v: 'vendor',
+                    e: 'external', b: 'broker', s: 'security',
+                    l: 'logs', c: 'config', a: 'about' };
+      if (map[k]) { switchView(map[k]); last = null; }
+    }
+  });
+}
+
+/* ── Heartbeat ────────────────────────────────────────────────── */
+let heartbeatTimer = null;
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  const tick = async () => {
+    try {
+      const r = await apiFetch('/router/health', { retries: 0, timeout: 4000 });
+      if (r && r.status === 'ok') {
+        markConn(true, state.lastRtt);
+        state.routerInfo = state.routerInfo || {};
+        state.routerInfo.version = r.version;
+        state.routerInfo.upstreams = r.upstreams;
+        document.getElementById('router-ver').textContent = 'v' + (r.version || '?');
+      } else {
+        markConn(false, state.lastRtt);
+      }
+    } catch (e) {
+      markConn(false, null);
+    }
+  };
+  tick();
+  heartbeatTimer = setInterval(tick, 5000);
+}
+function markConn(ok, rtt) {
+  const dot1 = document.getElementById('conn-dot');
+  const dot2 = document.getElementById('rtt-dot');
+  const lab1 = document.getElementById('conn-rtt');
+  const lab2 = document.getElementById('rtt-label');
+  [dot1, dot2].forEach(d => {
+    if (!d) return;
+    d.classList.remove('ok', 'err');
+    d.classList.add(ok ? 'ok' : 'err');
+  });
+  const txt = ok && rtt ? fmtMs(rtt) : (ok ? 'متصل' : 'مفصول');
+  [lab1, lab2].forEach(l => { if (l) l.textContent = txt; });
+}
+
+/* ── Global refresh ───────────────────────────────────────────── */
+async function runGlobalRefresh() {
+  try {
+    const [health, ups, mesh] = await Promise.all([
+      apiFetch('/router/health').catch(() => null),
+      apiFetch('/router/upstreams').catch(() => null),
+      apiFetch('/mesh/topology').catch(() => null),
+    ]);
+    state.routerInfo = health || state.routerInfo;
+    state.upstreams = (ups && ups.upstreams) || [];
+    state.mesh = mesh || null;
+
+    document.getElementById('badge-registry').textContent = state.upstreams.length;
+    document.getElementById('badge-mesh').textContent =
+      mesh && mesh.enabled ? ((mesh.neighbours || []).length) : '—';
+
+    if (state.currentView && SECTIONS[state.currentView].refresh) {
+      SECTIONS[state.currentView].refresh();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: OVERVIEW
+   ════════════════════════════════════════════════════════════════════ */
+function renderOverview() {
+  refreshOverview();
+  ensureChart24h();
+}
+async function refreshOverview() {
+  // Try several endpoints in parallel. Each one degrades to a placeholder.
+  const [health, ups, mesh, infoX, ts] = await Promise.all([
+    apiFetch('/router/health').catch(() => null),
+    apiFetch('/router/upstreams').catch(() => null),
+    apiFetch('/mesh/topology').catch(() => null),
+    apiFetch('/router/info').catch(() => null),
+    apiFetch('/router/metrics/timeseries?range=24h').catch(() => null),
+  ]);
+
+  // KPIs
+  const uptime = (infoX && infoX.uptime_s) || (health && health.uptime_s) || null;
+  setVal('kpi-uptime-v', uptime ? fmtDuration(uptime) : '—');
+  setVal('kpi-uptime-t', infoX && infoX.started_at
+        ? 'منذ ' + fmtDateTime(infoX.started_at) : '');
+
+  setVal('kpi-version-v', (health && health.version) || (infoX && infoX.version) || '—');
+  setVal('kpi-version-t', infoX && infoX.build ? 'build ' + infoX.build.substring(0, 7) : '');
+
+  const meshN = mesh && mesh.enabled ? (mesh.neighbours || []).length : 0;
+  setVal('kpi-mesh-v', fmtNum(meshN));
+  setVal('kpi-mesh-t', mesh && mesh.enabled ? 'منشّطة' : 'معطّلة');
+
+  const sessions = (infoX && infoX.active_sessions) ||
+                   (state.upstreams ? state.upstreams.length : 0);
+  setVal('kpi-sessions-v', fmtNum(sessions));
+  setVal('kpi-sessions-t', '—');
+
+  const rps = (infoX && infoX.req_per_sec) || null;
+  setVal('kpi-rps-v', rps !== null ? fmtNum(rps, { maximumFractionDigits: 1 }) : '—');
+  setVal('kpi-rps-t', rps !== null ? 'متوسط آخر دقيقة' : '');
+
+  const mem = infoX && infoX.mem_mb;
+  const cpu = infoX && infoX.cpu_pct;
+  setVal('kpi-mem-v',
+         (mem !== undefined && cpu !== undefined)
+           ? `${fmtNum(mem)}MB · ${fmtNum(cpu, { maximumFractionDigits: 0 })}%`
+           : '—');
+  setVal('kpi-mem-t', '—');
+
+  // Registry table
+  state.upstreams = (ups && ups.upstreams) || [];
+  document.getElementById('overview-reg-count').textContent =
+    `${fmtNum(state.upstreams.length)} خادم`;
+  const tb = document.querySelector('#overview-reg-tbl tbody');
+  if (state.upstreams.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" class="dim center">لا توجد خوادم.</td></tr>';
+  } else {
+    tb.innerHTML = state.upstreams.slice(0, 8).map(s => {
+      const fresh = s.stale_seconds < 60;
+      return `<tr>
+        <td class="mono">${escapeHtml(s.id)}</td>
+        <td class="mono">${escapeHtml(s.url)}</td>
+        <td class="mono">${s.rtt_ms !== undefined ? fmtMs(s.rtt_ms) : '—'}</td>
+        <td><span class="pill ${fresh ? 'ok' : 'warn'}">${fresh ? 'نشط' : 'بائت'}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 24h chart
+  if (ts && ts.series && state.charts.h24) {
+    updateChart24h(ts);
+  }
+}
+
+function ensureChart24h() {
+  if (state.charts.h24) return;
+  if (typeof Chart === 'undefined') return;
+  const ctx = document.getElementById('chart-24h');
+  if (!ctx) return;
+  const empty = Array.from({ length: 24 }, (_, i) => ({ t: i, v: 0 }));
+  state.charts.h24 = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: empty.map(p => `${p.t}:00`),
+      datasets: [
+        { label: 'req/s', data: empty.map(p => p.v),
+          borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.15)',
+          tension: 0.3, fill: true },
+        { label: 'DNS q/min', data: empty.map(p => p.v),
+          borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.10)',
+          tension: 0.3, fill: false },
+        { label: 'NTP clients', data: empty.map(p => p.v),
+          borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.10)',
+          tension: 0.3, fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0a8b0' } } },
+      scales: {
+        x: { ticks: { color: '#a0a8b0' }, grid: { color: '#1a2a3a' } },
+        y: { ticks: { color: '#a0a8b0' }, grid: { color: '#1a2a3a' } },
+      },
+    },
+  });
+}
+function updateChart24h(ts) {
+  if (!state.charts.h24 || !ts || !ts.series) return;
+  const c = state.charts.h24;
+  const map = { 'req_per_sec': 0, 'dns_qpm': 1, 'ntp_clients': 2 };
+  c.data.labels = ts.labels || c.data.labels;
+  Object.keys(map).forEach(k => {
+    if (ts.series[k]) c.data.datasets[map[k]].data = ts.series[k];
+  });
+  c.update('none');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: MESH
+   ════════════════════════════════════════════════════════════════════ */
+function renderMesh() {
+  bindMeshButtons();
+  refreshMesh();
+}
+function bindMeshButtons() {
+  document.getElementById('btn-mesh-add').onclick = () => {
+    document.getElementById('mn-id').value = '';
+    document.getElementById('mn-url').value = '';
+    document.getElementById('modal-add-neighbour').classList.add('show');
+  };
+  document.getElementById('mn-cancel').onclick = () => {
+    document.getElementById('modal-add-neighbour').classList.remove('show');
+  };
+  document.getElementById('mn-save').onclick = async () => {
+    const rid = document.getElementById('mn-id').value.trim();
+    const url = document.getElementById('mn-url').value.trim();
+    if (!rid || !url) { toast('خطأ', 'املأ كل الحقول', 'err'); return; }
+    try {
+      await apiFetch('/mesh/neighbours', { method: 'POST', json: { router_id: rid, url } });
+      toast('تمت الإضافة', rid, 'ok');
+      document.getElementById('modal-add-neighbour').classList.remove('show');
+      refreshMesh();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-mesh-reroute').onclick = async () => {
+    try {
+      await apiFetch('/mesh/reroute', { method: 'POST' });
+      toast('تمت إعادة الحساب', '', 'ok');
+      refreshMesh();
+    } catch (e) {
+      // Fallback — re-fetch topology forces a fresh snapshot
+      toast('إعادة التحميل', '', 'info');
+      refreshMesh();
+    }
+  };
+}
+async function refreshMesh() {
+  const m = await apiFetch('/mesh/topology').catch(() => null);
+  state.mesh = m;
+  const strat = await apiFetch('/router/topology-strategy').catch(() => null);
+  setVal('mesh-strategy-sub', strat ? `الإستراتيجية: ${strat.strategy}` : '');
+  if (!m || !m.enabled) {
+    setVal('mesh-self-id', 'معطّلة');
+    setVal('mesh-alive-count', 0);
+    setVal('mesh-lsa-count', 0);
+    setVal('mesh-direct-count', 0);
+    document.querySelector('#mesh-neighbours-tbl tbody').innerHTML =
+      '<tr><td colspan="6" class="dim center">الشبكة المتداخلة معطّلة على هذا الراوتر.</td></tr>';
+    document.querySelector('#mesh-routes-tbl tbody').innerHTML =
+      '<tr><td colspan="4" class="dim center">—</td></tr>';
+    drawTopology({ enabled: false });
+    return;
+  }
+  setVal('mesh-self-id', m.id || '—');
+  setVal('mesh-alive-count', (m.neighbours || []).filter(n => n.alive).length);
+  setVal('mesh-lsa-count', (m.known_origins || []).length);
+  setVal('mesh-direct-count', (m.direct_servers || []).length);
+
+  const tbN = document.querySelector('#mesh-neighbours-tbl tbody');
+  if ((m.neighbours || []).length === 0) {
+    tbN.innerHTML = '<tr><td colspan="6" class="dim center">لا يوجد جيران بعد.</td></tr>';
+  } else {
+    tbN.innerHTML = m.neighbours.map(n => `<tr class="${n.alive ? '' : 'err'}">
+      <td class="mono">${escapeHtml(n.id)}</td>
+      <td class="mono">${escapeHtml(n.url)}</td>
+      <td><span class="pill ${n.alive ? 'ok' : 'err'}">${n.alive ? 'حي' : 'ميت'}</span></td>
+      <td class="mono">${n.rtt_ms !== undefined ? fmtMs(n.rtt_ms) : '—'}</td>
+      <td class="dim">${n.last_seen ? fmtRelative(n.last_seen) : '—'}</td>
+      <td class="actions">
+        <button class="small" data-remove="${escapeHtml(n.id)}">حذف</button>
+      </td>
+    </tr>`).join('');
+    tbN.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.onclick = async () => {
+        const rid = btn.dataset.remove;
+        if (!confirm(`حذف الجار ${rid}؟`)) return;
+        try {
+          await apiFetch('/mesh/neighbours/' + encodeURIComponent(rid),
+                         { method: 'DELETE' });
+          toast('تم الحذف', rid, 'ok');
+          refreshMesh();
+        } catch (e) { toast('فشل', e.message || e, 'err'); }
+      };
+    });
+  }
+
+  const tbR = document.querySelector('#mesh-routes-tbl tbody');
+  const routes = m.routes || {};
+  const keys = Object.keys(routes);
+  if (keys.length === 0) {
+    tbR.innerHTML = '<tr><td colspan="4" class="dim center">لا توجد مسارات.</td></tr>';
+  } else {
+    tbR.innerHTML = keys.map(sid => {
+      const paths = routes[sid] || [];
+      const first = paths[0] || {};
+      return `<tr>
+        <td class="mono">${escapeHtml(sid)}</td>
+        <td class="mono">${escapeHtml(first.next_hop || '—')}</td>
+        <td class="mono">${first.cost !== undefined ? fmtNum(first.cost, { maximumFractionDigits: 2 }) : '—'}</td>
+        <td class="actions"><button class="small" data-path="${escapeHtml(sid)}">…</button></td>
+      </tr>`;
+    }).join('');
+    tbR.querySelectorAll('[data-path]').forEach(btn => {
+      btn.onclick = async () => {
+        const sid = btn.dataset.path;
+        try {
+          const p = await apiFetch('/mesh/path/' + encodeURIComponent(sid));
+          alert(JSON.stringify(p, null, 2));
+        } catch (e) { toast('فشل', e.message || e, 'err'); }
+      };
+    });
+  }
+
+  drawTopology(m);
+}
+
+function drawTopology(mesh) {
+  const svg = document.getElementById('topo-svg');
+  if (!svg) return;
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  if (!mesh || !mesh.enabled) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', 500); t.setAttribute('y', 240);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('fill', '#a0a8b0');
+    t.textContent = 'الشبكة المتداخلة معطّلة.';
+    svg.appendChild(t);
+    return;
+  }
+  const nodes = [];
+  const links = [];
+  const self = mesh.id || 'self';
+  nodes.push({ id: self, type: 'self', x: 500, y: 240 });
+  const peers = mesh.neighbours || [];
+  const R = 160;
+  peers.forEach((p, i) => {
+    const ang = (i / Math.max(1, peers.length)) * Math.PI * 2;
+    nodes.push({
+      id: p.id, type: p.alive ? 'peer' : 'dead',
+      x: 500 + R * Math.cos(ang), y: 240 + R * Math.sin(ang),
+      meta: p,
+    });
+    links.push({ from: self, to: p.id, alive: p.alive });
+  });
+  // Server nodes around the perimeter
+  const directs = mesh.direct_servers || [];
+  directs.forEach((sid, i) => {
+    const ang = (i / Math.max(1, directs.length)) * Math.PI * 2 + Math.PI / 4;
+    nodes.push({
+      id: sid, type: 'server',
+      x: 500 + (R + 110) * Math.cos(ang),
+      y: 240 + (R + 110) * Math.sin(ang),
+      label: sid,
+    });
+    links.push({ from: self, to: sid, alive: true });
+  });
+  // Draw links first so they render under nodes
+  links.forEach(l => {
+    const a = nodes.find(n => n.id === l.from);
+    const b = nodes.find(n => n.id === l.to);
+    if (!a || !b) return;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
+    ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
+    ln.setAttribute('class', 'topo-link ' + (l.alive ? 'active' : 'dead'));
+    svg.appendChild(ln);
+  });
+  nodes.forEach(n => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'topo-node ' + n.type);
+    g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('r', n.type === 'self' ? 22 : 16);
+    g.appendChild(c);
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('y', n.type === 'self' ? -30 : -22);
+    t.setAttribute('text-anchor', 'middle');
+    t.textContent = n.id;
+    g.appendChild(t);
+    svg.appendChild(g);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: REGISTRY
+   ════════════════════════════════════════════════════════════════════ */
+function renderRegistry() {
+  bindRegistryButtons();
+  refreshRegistry();
+}
+function bindRegistryButtons() {
+  document.getElementById('btn-reg-refresh').onclick = refreshRegistry;
+  document.getElementById('btn-reg-add').onclick = () => {
+    ['reg-new-id', 'reg-new-url', 'reg-new-caps'].forEach(id =>
+      document.getElementById(id).value = '');
+    document.getElementById('modal-add-server').classList.add('show');
+  };
+  document.getElementById('reg-cancel').onclick = () => {
+    document.getElementById('modal-add-server').classList.remove('show');
+  };
+  document.getElementById('reg-save').onclick = async () => {
+    const sid = document.getElementById('reg-new-id').value.trim();
+    const url = document.getElementById('reg-new-url').value.trim();
+    const caps = document.getElementById('reg-new-caps').value
+      .split(',').map(s => s.trim()).filter(Boolean);
+    if (!sid || !url) { toast('خطأ', 'يجب إدخال المعرّف و URL', 'err'); return; }
+    try {
+      await apiFetch('/router/register',
+        { method: 'POST', json: { server_id: sid, url, capabilities: caps } });
+      toast('تمت الإضافة', sid, 'ok');
+      document.getElementById('modal-add-server').classList.remove('show');
+      refreshRegistry();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  const f = document.getElementById('reg-filter');
+  f.oninput = () => renderRegistryRows(state.upstreams, f.value);
+}
+async function refreshRegistry() {
+  const r = await apiFetch('/router/upstreams').catch(() => ({ upstreams: [] }));
+  state.upstreams = r.upstreams || [];
+  document.getElementById('badge-registry').textContent = state.upstreams.length;
+  const f = (document.getElementById('reg-filter') || {}).value || '';
+  renderRegistryRows(state.upstreams, f);
+}
+function renderRegistryRows(ups, filter) {
+  const tb = document.querySelector('#registry-tbl tbody');
+  filter = (filter || '').toLowerCase();
+  const filtered = ups.filter(s =>
+    !filter || s.id.toLowerCase().includes(filter) ||
+    s.url.toLowerCase().includes(filter));
+  if (filtered.length === 0) {
+    tb.innerHTML = '<tr><td colspan="7" class="dim center">لا توجد نتائج.</td></tr>';
+    return;
+  }
+  tb.innerHTML = filtered.map(s => {
+    const live = s.stale_seconds < 60;
+    return `<tr>
+      <td class="mono">${escapeHtml(s.id)}</td>
+      <td class="mono">${escapeHtml(s.url)}</td>
+      <td>${(s.capabilities || []).map(c =>
+        `<span class="tag">${escapeHtml(c)}</span>`).join('')}</td>
+      <td class="mono">${s.rtt_ms !== undefined ? fmtMs(s.rtt_ms) : '—'}</td>
+      <td class="dim">${s.last_seen ? fmtRelative(s.last_seen) : '—'}</td>
+      <td><span class="pill ${live ? 'ok' : 'warn'}">${live ? 'نشط' : 'بائت'}</span></td>
+      <td class="actions">
+        <button class="small" data-hb="${escapeHtml(s.id)}">heartbeat</button>
+        <button class="small danger" data-del="${escapeHtml(s.id)}">حذف</button>
+      </td>
+    </tr>`;
+  }).join('');
+  tb.querySelectorAll('[data-hb]').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        await apiFetch('/router/heartbeat/' + encodeURIComponent(btn.dataset.hb),
+          { method: 'POST' });
+        toast('heartbeat', btn.dataset.hb, 'ok');
+        refreshRegistry();
+      } catch (e) { toast('فشل', e.message || e, 'err'); }
+    };
+  });
+  tb.querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm(`حذف ${btn.dataset.del}؟`)) return;
+      try {
+        await apiFetch('/router/register/' + encodeURIComponent(btn.dataset.del),
+          { method: 'DELETE' });
+        toast('تم الحذف', btn.dataset.del, 'ok');
+        refreshRegistry();
+      } catch (e) { toast('فشل', e.message || e, 'err'); }
+    };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: REVERSE PROXY
+   ════════════════════════════════════════════════════════════════════ */
+function renderProxy() {
+  bindProxyButtons();
+  refreshProxy();
+  refreshAclAndRl();
+}
+function bindProxyButtons() {
+  document.getElementById('btn-proxy-log-refresh').onclick = refreshProxy;
+  document.getElementById('btn-proxy-log-clear').onclick = () => {
+    document.querySelector('#proxy-log-tbl tbody').innerHTML =
+      '<tr><td colspan="7" class="dim center">—</td></tr>';
+  };
+  document.getElementById('proxy-log-prev').onclick = () => {
+    if (state.proxy.page > 1) { state.proxy.page--; refreshProxy(); }
+  };
+  document.getElementById('proxy-log-next').onclick = () => {
+    state.proxy.page++; refreshProxy();
+  };
+  document.getElementById('proxy-log-filter').oninput = debounce(refreshProxy, 350);
+  document.getElementById('proxy-log-status').onchange = refreshProxy;
+
+  document.getElementById('btn-rl-add').onclick = async () => {
+    const path = document.getElementById('rl-path').value.trim();
+    const limit = +document.getElementById('rl-limit').value;
+    if (!path || !limit) { toast('خطأ', 'املأ المسار والحد', 'err'); return; }
+    try {
+      await apiFetch('/router/proxy/ratelimit',
+        { method: 'POST', json: { path, limit } });
+      toast('تمت إضافة قاعدة', path, 'ok');
+      refreshAclAndRl();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+
+  document.getElementById('btn-acl-save').onclick = async () => {
+    const allow = document.getElementById('acl-allow').value.split('\n')
+      .map(s => s.trim()).filter(Boolean);
+    const deny = document.getElementById('acl-deny').value.split('\n')
+      .map(s => s.trim()).filter(Boolean);
+    try {
+      await apiFetch('/router/proxy/acl',
+        { method: 'POST', json: { allow, deny } });
+      toast('حفظ ACL', '', 'ok');
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-acl-reload').onclick = refreshAclAndRl;
+}
+
+async function refreshProxy() {
+  // KPIs
+  const stats = await apiFetch('/router/proxy/stats').catch(() => null);
+  setVal('proxy-total', stats ? fmtNum(stats.total) : '—');
+  setVal('proxy-success', stats ? `${fmtNum(stats.success_pct, { maximumFractionDigits: 1 })}%` : '—');
+  setVal('proxy-avg', stats ? fmtMs(stats.avg_ms) : '—');
+
+  // Log
+  const filt = (document.getElementById('proxy-log-filter') || {}).value || '';
+  const code = (document.getElementById('proxy-log-status') || {}).value || '';
+  const page = state.proxy.page;
+  const qs = new URLSearchParams({
+    page: page, per_page: state.proxy.perPage,
+    q: filt, status_class: code,
+  });
+  const log = await apiFetch('/router/proxy/log?' + qs.toString())
+    .catch(() => ({ items: [], total: 0 }));
+  const tb = document.querySelector('#proxy-log-tbl tbody');
+  if (!log.items || log.items.length === 0) {
+    tb.innerHTML = '<tr><td colspan="7" class="dim center">لا توجد إدخالات.</td></tr>';
+  } else {
+    tb.innerHTML = log.items.map(e => {
+      const cls = e.status >= 500 ? 'err' :
+                  (e.status >= 400 ? 'warn' : '');
+      return `<tr class="${cls}">
+        <td class="mono">${fmtTime(e.t)}</td>
+        <td class="mono">${escapeHtml(e.ip || '')}</td>
+        <td class="mono">${escapeHtml(e.method || '')}</td>
+        <td class="mono">${escapeHtml(e.path || '')}</td>
+        <td class="mono">${e.status || ''}</td>
+        <td class="mono">${e.ms !== undefined ? fmtMs(e.ms) : '—'}</td>
+        <td class="mono">${escapeHtml(e.upstream || '—')}</td>
+      </tr>`;
+    }).join('');
+  }
+  state.proxy.total = log.total || 0;
+  document.getElementById('proxy-log-page-info').textContent =
+    `الصفحة ${page} من ~${Math.max(1, Math.ceil((log.total || 1) / state.proxy.perPage))}`;
+}
+
+async function refreshAclAndRl() {
+  const rl = await apiFetch('/router/proxy/ratelimit').catch(() => ({ rules: [] }));
+  const tb = document.querySelector('#rl-tbl tbody');
+  if (!rl.rules || rl.rules.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" class="dim center">لا توجد قواعد.</td></tr>';
+  } else {
+    tb.innerHTML = rl.rules.map(r => `<tr>
+      <td class="mono">${escapeHtml(r.path || '*')}</td>
+      <td class="mono">${fmtNum(r.limit)} / ${r.window_s || 1}s</td>
+      <td class="mono">${escapeHtml(r.scope || 'ip')}</td>
+      <td class="actions"><button class="small danger" data-rl="${escapeHtml(r.id || r.path)}">حذف</button></td>
+    </tr>`).join('');
+    tb.querySelectorAll('[data-rl]').forEach(b => {
+      b.onclick = async () => {
+        try {
+          await apiFetch('/router/proxy/ratelimit/' + encodeURIComponent(b.dataset.rl),
+            { method: 'DELETE' });
+          toast('تم الحذف', b.dataset.rl, 'ok');
+          refreshAclAndRl();
+        } catch (e) { toast('فشل', e.message || e, 'err'); }
+      };
+    });
+  }
+
+  const acl = await apiFetch('/router/proxy/acl').catch(() => ({ allow: [], deny: [] }));
+  document.getElementById('acl-allow').value = (acl.allow || []).join('\n');
+  document.getElementById('acl-deny').value = (acl.deny || []).join('\n');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: DNS
+   ════════════════════════════════════════════════════════════════════ */
+function renderDns() {
+  bindDnsButtons();
+  refreshDns();
+}
+function bindDnsButtons() {
+  document.getElementById('btn-dns-add').onclick = async () => {
+    const t = document.getElementById('dns-rec-type').value;
+    const name = document.getElementById('dns-rec-name').value.trim();
+    const value = document.getElementById('dns-rec-value').value.trim();
+    const ttl = +document.getElementById('dns-rec-ttl').value || 300;
+    if (!name || !value) { toast('خطأ', 'الاسم والقيمة مطلوبان', 'err'); return; }
+    try {
+      await apiFetch('/router/dns/records',
+        { method: 'POST', json: { type: t, name, value, ttl } });
+      toast('تمت الإضافة', `${t} ${name}`, 'ok');
+      refreshDns();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-dns-block-save').onclick = async () => {
+    const list = document.getElementById('dns-blocklist').value
+      .split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await apiFetch('/router/dns/blocklist', { method: 'PUT', json: { list } });
+      document.getElementById('dns-block-saved').textContent = 'محفوظ ' + fmtTime(Date.now() / 1000);
+      toast('حُفظت قائمة الحظر', `${list.length} نطاق`, 'ok');
+      refreshDns();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-dns-block-reload').onclick = refreshDns;
+  document.getElementById('btn-dns-up-add').onclick = async () => {
+    const a = document.getElementById('dns-up-addr').value.trim();
+    const p = document.getElementById('dns-up-proto').value;
+    if (!a) return;
+    try {
+      await apiFetch('/router/dns/upstreams',
+        { method: 'POST', json: { address: a, protocol: p } });
+      refreshDns();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+}
+async function refreshDns() {
+  const [stats, recs, bl, ql, ups] = await Promise.all([
+    apiFetch('/router/dns/stats').catch(() => null),
+    apiFetch('/router/dns/records').catch(() => ({ records: [] })),
+    apiFetch('/router/dns/blocklist').catch(() => ({ list: [] })),
+    apiFetch('/router/dns/query_log?n=200').catch(() => ({ items: [] })),
+    apiFetch('/router/dns/upstreams').catch(() => ({ upstreams: [] })),
+  ]);
+  if (stats) {
+    setVal('dns-total-records', fmtNum(stats.records || 0));
+    setVal('dns-qps', fmtNum(stats.qpm || 0));
+    setVal('dns-cache-hit', stats.cache_hit_pct !== undefined
+                            ? `${fmtNum(stats.cache_hit_pct, { maximumFractionDigits: 1 })}%`
+                            : '—');
+    setVal('dns-block-count', fmtNum(stats.blocked || 0));
+  }
+  const tbR = document.querySelector('#dns-rec-tbl tbody');
+  if (!recs.records || recs.records.length === 0) {
+    tbR.innerHTML = '<tr><td colspan="5" class="dim center">لا توجد سجلات.</td></tr>';
+  } else {
+    tbR.innerHTML = recs.records.map(r => `<tr>
+      <td class="mono"><span class="tag">${escapeHtml(r.type || 'A')}</span></td>
+      <td class="mono">${escapeHtml(r.name)}</td>
+      <td class="mono">${escapeHtml(r.value)}</td>
+      <td class="mono">${r.ttl || 300}</td>
+      <td class="actions">
+        <button class="small danger" data-del-rec="${escapeHtml(r.id || (r.type + ':' + r.name))}">حذف</button>
+      </td>
+    </tr>`).join('');
+    tbR.querySelectorAll('[data-del-rec]').forEach(b => {
+      b.onclick = async () => {
+        const id = b.dataset.delRec;
+        if (!confirm(`حذف السجل ${id}؟`)) return;
+        try {
+          await apiFetch('/router/dns/records/' + encodeURIComponent(id),
+            { method: 'DELETE' });
+          refreshDns();
+        } catch (e) { toast('فشل', e.message || e, 'err'); }
+      };
+    });
+  }
+  document.getElementById('dns-blocklist').value = (bl.list || []).join('\n');
+  const tbU = document.querySelector('#dns-upstream-tbl tbody');
+  if (!ups.upstreams || ups.upstreams.length === 0) {
+    tbU.innerHTML = '<tr><td colspan="4" class="dim center">لا توجد upstreams.</td></tr>';
+  } else {
+    tbU.innerHTML = ups.upstreams.map(u => `<tr>
+      <td class="mono">${escapeHtml(u.address || '')}</td>
+      <td class="mono">${escapeHtml(u.protocol || 'udp')}</td>
+      <td class="mono">${u.rtt_ms !== undefined ? fmtMs(u.rtt_ms) : '—'}</td>
+      <td class="actions"><button class="small danger" data-del-up="${escapeHtml(u.id || u.address)}">حذف</button></td>
+    </tr>`).join('');
+    tbU.querySelectorAll('[data-del-up]').forEach(b => {
+      b.onclick = async () => {
+        try {
+          await apiFetch('/router/dns/upstreams/' + encodeURIComponent(b.dataset.delUp),
+            { method: 'DELETE' });
+          refreshDns();
+        } catch (e) { toast('فشل', e.message || e, 'err'); }
+      };
+    });
+  }
+  const tbQ = document.querySelector('#dns-querylog-tbl tbody');
+  if (!ql.items || ql.items.length === 0) {
+    tbQ.innerHTML = '<tr><td colspan="6" class="dim center">لا توجد استعلامات.</td></tr>';
+  } else {
+    tbQ.innerHTML = ql.items.slice(0, 200).map(q => `<tr>
+      <td class="mono">${fmtTime(q.t)}</td>
+      <td class="mono">${escapeHtml(q.client || '')}</td>
+      <td><span class="tag">${escapeHtml(q.type || '')}</span></td>
+      <td class="mono">${escapeHtml(q.name || '')}</td>
+      <td class="mono">${escapeHtml(q.result || '')}</td>
+      <td class="mono dim">${escapeHtml(q.source || '')}</td>
+    </tr>`).join('');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: NTP
+   ════════════════════════════════════════════════════════════════════ */
+function renderNtp() {
+  bindNtpButtons();
+  refreshNtp();
+  ensureChartNtpDrift();
+}
+function bindNtpButtons() {
+  document.getElementById('btn-ntp-add').onclick = async () => {
+    const h = document.getElementById('ntp-peer-add').value.trim();
+    if (!h) return;
+    try {
+      await apiFetch('/router/ntp/peers', { method: 'POST', json: { host: h } });
+      refreshNtp();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-ntp-force-sync').onclick = async () => {
+    try {
+      const r = await apiFetch('/router/ntp/sync', { method: 'POST' });
+      toast('مزامنة', JSON.stringify(r), 'ok');
+      refreshNtp();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+}
+async function refreshNtp() {
+  const [status, peers, drift] = await Promise.all([
+    apiFetch('/router/ntp/status').catch(() => null),
+    apiFetch('/router/ntp/peers').catch(() => ({ peers: [] })),
+    apiFetch('/router/ntp/drift?range=1h').catch(() => null),
+  ]);
+  if (status) {
+    setVal('ntp-status', status.synced ? 'متزامن' : 'غير متزامن');
+    setVal('ntp-offset', status.offset_ms !== undefined ? fmtMs(status.offset_ms) : '—');
+    setVal('ntp-clients', fmtNum(status.clients || 0));
+    setVal('ntp-last-sync', status.last_sync ? fmtRelative(status.last_sync) : '—');
+  }
+  const tb = document.querySelector('#ntp-peers-tbl tbody');
+  if (!peers.peers || peers.peers.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" class="dim center">لا توجد أقران.</td></tr>';
+  } else {
+    tb.innerHTML = peers.peers.map(p => `<tr>
+      <td class="mono">${escapeHtml(p.host || '')}</td>
+      <td class="mono">${p.stratum || '—'}</td>
+      <td class="mono">${p.rtt_ms !== undefined ? fmtMs(p.rtt_ms) : '—'}</td>
+      <td class="mono">${p.offset_ms !== undefined ? fmtMs(p.offset_ms) : '—'}</td>
+      <td><span class="pill ${p.reachable ? 'ok' : 'err'}">${p.reachable ? 'نشط' : 'لا يستجيب'}</span></td>
+    </tr>`).join('');
+  }
+  if (drift && drift.points && state.charts.ntpDrift) {
+    updateChartNtpDrift(drift);
+  }
+}
+function ensureChartNtpDrift() {
+  if (state.charts.ntpDrift) return;
+  if (typeof Chart === 'undefined') return;
+  const ctx = document.getElementById('chart-ntp-drift');
+  if (!ctx) return;
+  state.charts.ntpDrift = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: 'الانحراف (ms)', data: [],
+      borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.15)',
+      tension: 0.3, fill: true,
+    }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#a0a8b0' } } },
+      scales: {
+        x: { ticks: { color: '#a0a8b0' }, grid: { color: '#1a2a3a' } },
+        y: { ticks: { color: '#a0a8b0' }, grid: { color: '#1a2a3a' } },
+      },
+    },
+  });
+}
+function updateChartNtpDrift(d) {
+  const c = state.charts.ntpDrift;
+  if (!c || !d) return;
+  c.data.labels = (d.points || []).map(p => fmtTime(p.t));
+  c.data.datasets[0].data = (d.points || []).map(p => p.offset_ms);
+  c.update('none');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: UPnP
+   ════════════════════════════════════════════════════════════════════ */
+function renderUpnp() {
+  bindUpnpButtons();
+  refreshUpnp();
+}
+function bindUpnpButtons() {
+  document.getElementById('btn-upnp-discover').onclick = async () => {
+    document.getElementById('btn-upnp-discover').disabled = true;
+    try {
+      const r = await apiFetch('/router/upnp/discover', { method: 'POST', timeout: 25000 });
+      toast('انتهى المسح', `وُجد ${(r && r.devices || []).length} جهاز`, 'ok');
+      refreshUpnp();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+    finally { document.getElementById('btn-upnp-discover').disabled = false; }
+  };
+  document.getElementById('btn-upnp-refresh').onclick = refreshUpnp;
+  document.getElementById('btn-upnp-add').onclick = async () => {
+    const body = {
+      upnp_url: document.getElementById('upnp-url').value.trim(),
+      external_port: +document.getElementById('upnp-ext').value,
+      internal_port: +document.getElementById('upnp-int').value,
+      internal_ip: document.getElementById('upnp-ip').value.trim(),
+      protocol: document.getElementById('upnp-proto').value,
+      lease: +document.getElementById('upnp-ttl').value,
+    };
+    if (!body.upnp_url) { toast('خطأ', 'UPnP URL مطلوب', 'err'); return; }
+    try {
+      const r = await apiFetch('/router/upnp/portmap', { method: 'POST', json: body });
+      toast('تم', r && r.ok ? 'success' : 'fail', r && r.ok ? 'ok' : 'err');
+      refreshUpnp();
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+}
+async function refreshUpnp() {
+  const r = await apiFetch('/router/upnp/list').catch(() => ({ items: [] }));
+  const tb = document.querySelector('#upnp-tbl tbody');
+  if (!r.items || r.items.length === 0) {
+    tb.innerHTML = '<tr><td colspan="7" class="dim center">لا توجد عمليات تخطيط.</td></tr>';
+    return;
+  }
+  tb.innerHTML = r.items.map(m => `<tr>
+    <td class="mono">${escapeHtml(m.description || '')}</td>
+    <td class="mono">${m.external_port}</td>
+    <td class="mono">${m.internal_port}</td>
+    <td class="mono">${escapeHtml(m.internal_ip || '')}</td>
+    <td>${escapeHtml(m.protocol || 'TCP')}</td>
+    <td class="mono">${m.lease_duration || '—'}</td>
+    <td class="actions">
+      <button class="small danger" data-rm-pm="${escapeHtml(m.id || (m.external_port + m.protocol))}">حذف</button>
+    </td>
+  </tr>`).join('');
+  tb.querySelectorAll('[data-rm-pm]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm('حذف هذا الـ port map؟')) return;
+      try {
+        await apiFetch('/router/upnp/portmap/' + encodeURIComponent(b.dataset.rmPm),
+          { method: 'DELETE' });
+        refreshUpnp();
+      } catch (e) { toast('فشل', e.message || e, 'err'); }
+    };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: VENDOR ADAPTERS
+   ════════════════════════════════════════════════════════════════════ */
+function renderVendor() {
+  document.getElementById('btn-vendor-load').onclick = async () => {
+    const v = document.getElementById('vendor-pick').value;
+    try {
+      const r = await apiFetch('/router/vendor/templates?vendor=' + encodeURIComponent(v))
+        .catch(() => ({ templates: builtinTemplates(v) }));
+      const tpls = (r && r.templates) || builtinTemplates(v);
+      state.vendorTpls[v] = tpls;
+      renderVendorTpls(tpls);
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-vendor-push').onclick = async () => {
+    const v = document.getElementById('vendor-pick').value;
+    const body = {
+      vendor: v,
+      target: document.getElementById('vendor-target').value.trim(),
+      username: document.getElementById('vendor-user').value.trim(),
+      password: document.getElementById('vendor-pass').value,
+      config: document.getElementById('vendor-tpl-text').value,
+    };
+    if (!body.target) { toast('خطأ', 'العنوان مطلوب', 'err'); return; }
+    try {
+      const r = await apiFetch('/router/vendor/push', { method: 'POST', json: body });
+      document.getElementById('vendor-push-result').textContent =
+        JSON.stringify(r, null, 2);
+      toast('تم الدفع', body.target, 'ok');
+    } catch (e) {
+      document.getElementById('vendor-push-result').textContent = String(e.message || e);
+      toast('فشل', e.message || e, 'err');
+    }
+  };
+  // Pre-load default
+  setTimeout(() => {
+    document.getElementById('btn-vendor-load').click();
+  }, 50);
+}
+function renderVendorTpls(tpls) {
+  const tb = document.querySelector('#vendor-tpl-tbl tbody');
+  if (!tpls || tpls.length === 0) {
+    tb.innerHTML = '<tr><td colspan="3" class="dim center">لا توجد قوالب.</td></tr>';
+    return;
+  }
+  tb.innerHTML = tpls.map((t, i) => `<tr>
+    <td class="mono">${escapeHtml(t.name || ('tpl-' + i))}</td>
+    <td class="dim">${escapeHtml(t.description || '')}</td>
+    <td class="actions"><button class="small" data-tpl-i="${i}">تحميل</button></td>
+  </tr>`).join('');
+  tb.querySelectorAll('[data-tpl-i]').forEach(btn => {
+    btn.onclick = () => {
+      const t = tpls[+btn.dataset.tplI];
+      document.getElementById('vendor-tpl-text').value = t.body || '';
+    };
+  });
+}
+function builtinTemplates(v) {
+  // Fallback if the router lacks /router/vendor/templates.
+  return ({
+    mikrotik: [
+      { name: 'port-forward', description: 'RouterOS NAT rule',
+        body: '/ip firewall nat\nadd chain=dstnat protocol=tcp dst-port=3000 \\\n    action=dst-nat to-addresses=10.0.0.5 to-ports=3000' },
+      { name: 'wireguard',     description: 'WG peer for Helen mesh',
+        body: '/interface wireguard\nadd name=wg-helen listen-port=51820 private-key="..."' },
+    ],
+    ubiquiti: [
+      { name: 'port-forward', description: 'EdgeOS port forwarding',
+        body: 'set service nat rule 5000 description "helen-fw"\nset service nat rule 5000 destination port 3000\nset service nat rule 5000 inbound-interface eth0\nset service nat rule 5000 inside-address address 10.0.0.5\nset service nat rule 5000 protocol tcp\nset service nat rule 5000 type destination' },
+    ],
+    openwrt: [
+      { name: 'port-forward', description: 'UCI firewall redirect',
+        body: 'uci add firewall redirect\nuci set firewall.@redirect[-1].name=helen\nuci set firewall.@redirect[-1].src=wan\nuci set firewall.@redirect[-1].src_dport=3000\nuci set firewall.@redirect[-1].dest_ip=10.0.0.5\nuci set firewall.@redirect[-1].dest_port=3000\nuci set firewall.@redirect[-1].target=DNAT\nuci commit firewall\nservice firewall restart' },
+    ],
+    pfsense: [
+      { name: 'port-forward', description: 'NAT rule (manual via UI or API)',
+        body: '# Use pfSense web UI: Firewall → NAT → Port Forward\n# Source: any, Destination: WAN address, Dest port: 3000\n# Redirect target: 10.0.0.5, Redirect port: 3000' },
+    ],
+    cisco: [
+      { name: 'port-forward', description: 'IOS PAT (overload)',
+        body: 'ip nat inside source static tcp 10.0.0.5 3000 interface GigabitEthernet0/0 3000' },
+    ],
+  })[v] || [];
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: EXTERNAL ROUTERS
+   ════════════════════════════════════════════════════════════════════ */
+function renderExternal() {
+  document.getElementById('btn-ext-scan').onclick = () => runExtScan(false);
+  document.getElementById('btn-ext-full').onclick = () => runExtScan(true);
+}
+async function runExtScan(full) {
+  document.getElementById('ext-scan-status').textContent = 'جارٍ المسح…';
+  const qs = full ? '?full=true&fingerprint=true' : '';
+  try {
+    const r = await apiFetch('/router/network' + qs, { timeout: full ? 60000 : 20000 });
+    document.getElementById('ext-scan-status').textContent =
+      `وُجد ${(r.devices || []).length} جهاز`;
+    const tb = document.querySelector('#ext-tbl tbody');
+    if (!r.devices || r.devices.length === 0) {
+      tb.innerHTML = '<tr><td colspan="8" class="dim center">لا توجد أجهزة.</td></tr>';
+      return;
+    }
+    tb.innerHTML = r.devices.map(d => `<tr>
+      <td class="mono">${escapeHtml(d.ip || '')}</td>
+      <td class="mono">${escapeHtml(d.mac || '—')}</td>
+      <td class="mono">${escapeHtml(d.hostname || '—')}</td>
+      <td>${escapeHtml(d.vendor || '—')}</td>
+      <td>${escapeHtml(d.model || '—')}</td>
+      <td>${d.is_gateway ? '<span class="pill ok">بوابة</span>' : '—'}</td>
+      <td class="dim">${(d.discovered_via || []).map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</td>
+      <td class="dim">${(d.capabilities || []).slice(0, 4).map(c => `<span class="tag">${escapeHtml(c)}</span>`).join('')}</td>
+    </tr>`).join('');
+  } catch (e) {
+    document.getElementById('ext-scan-status').textContent = 'فشل: ' + (e.message || e);
+    toast('فشل', e.message || e, 'err');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: BROKER
+   ════════════════════════════════════════════════════════════════════ */
+function renderBroker() { refreshBroker(); }
+async function refreshBroker() {
+  const [st, ses] = await Promise.all([
+    apiFetch('/router/broker/status').catch(() => null),
+    apiFetch('/router/broker/sessions').catch(() => ({ items: [] })),
+  ]);
+  if (st) {
+    setVal('broker-active', fmtNum(st.active || 0));
+    setVal('broker-pending', fmtNum(st.pending || 0));
+    setVal('broker-success',
+      st.success_pct !== undefined
+        ? `${fmtNum(st.success_pct, { maximumFractionDigits: 1 })}%`
+        : '—');
+    setVal('broker-hp', fmtNum(st.holepunch_per_min || 0));
+  }
+  const tb = document.querySelector('#broker-sessions-tbl tbody');
+  if (!ses.items || ses.items.length === 0) {
+    tb.innerHTML = '<tr><td colspan="7" class="dim center">لا توجد جلسات.</td></tr>';
+    return;
+  }
+  tb.innerHTML = ses.items.map(s => `<tr>
+    <td class="mono">${escapeHtml(s.id || '')}</td>
+    <td class="mono">${escapeHtml(s.client || '')}</td>
+    <td class="mono">${escapeHtml(s.server || '')}</td>
+    <td><span class="tag">${escapeHtml(s.capability || '')}</span></td>
+    <td><span class="pill ${s.state === 'ready' ? 'ok' : (s.state === 'pending' ? 'warn' : 'err')}">${escapeHtml(s.state || '')}</span></td>
+    <td class="mono">${fmtDuration(s.duration_s || 0)}</td>
+    <td class="actions">
+      <button class="small danger" data-bk-del="${escapeHtml(s.id)}">إنهاء</button>
+    </td>
+  </tr>`).join('');
+  tb.querySelectorAll('[data-bk-del]').forEach(b => {
+    b.onclick = async () => {
+      try {
+        await apiFetch('/router/broker/sessions/' + encodeURIComponent(b.dataset.bkDel),
+          { method: 'DELETE' });
+        toast('تم الإنهاء', b.dataset.bkDel, 'ok');
+        refreshBroker();
+      } catch (e) { toast('فشل', e.message || e, 'err'); }
+    };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: SECURITY
+   ════════════════════════════════════════════════════════════════════ */
+function renderSecurity() {
+  bindSecurityButtons();
+  refreshSecurity();
+}
+function bindSecurityButtons() {
+  document.getElementById('btn-sec-rotate').onclick = async () => {
+    const t = document.getElementById('sec-new-token').value.trim() || null;
+    if (!confirm('تدوير الرمز سيقطع كل العملاء غير المتزامنين فوراً. المتابعة؟')) return;
+    try {
+      const r = await apiFetch('/router/security/rotate',
+        { method: 'POST', json: { new_token: t } });
+      const newToken = r.token;
+      if (newToken) {
+        TokenStore.set(newToken);
+        document.getElementById('sec-rotate-result').textContent =
+          'الرمز الجديد محفوظ محلياً.';
+        toast('تم التدوير', 'تم تحديث رمزك المحلي', 'ok');
+      }
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-sec-subnets-save').onclick = async () => {
+    const list = document.getElementById('sec-subnets').value.split('\n')
+      .map(s => s.trim()).filter(Boolean);
+    try {
+      await apiFetch('/router/security/subnets',
+        { method: 'PUT', json: { subnets: list } });
+      toast('حُفظت الشبكات', `${list.length} كتلة`, 'ok');
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-sec-subnets-reload').onclick = refreshSecurity;
+  document.getElementById('btn-sec-mode-save').onclick = async () => {
+    const m = document.querySelector('input[name="sec-mode"]:checked');
+    if (!m) return;
+    try {
+      await apiFetch('/router/security/mode',
+        { method: 'PUT', json: { mode: m.value } });
+      toast('وضع التطبيق', m.value, 'ok');
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+}
+async function refreshSecurity() {
+  const s = await apiFetch('/router/security/subnets').catch(() => null);
+  if (s) {
+    document.getElementById('sec-subnets').value = (s.subnets || []).join('\n');
+  }
+  const m = await apiFetch('/router/security/mode').catch(() => null);
+  if (m && m.mode) {
+    const r = document.querySelector(`input[name="sec-mode"][value="${m.mode}"]`);
+    if (r) r.checked = true;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: DIAGNOSTICS
+   ════════════════════════════════════════════════════════════════════ */
+function renderDiag() {
+  document.getElementById('btn-diag-ping').onclick = async () => {
+    const out = document.getElementById('diag-ping-out');
+    out.textContent = 'جارٍ التنفيذ…';
+    const host = document.getElementById('diag-ping-host').value.trim();
+    const n = +document.getElementById('diag-ping-n').value || 4;
+    try {
+      const r = await apiFetch(`/router/diag/ping?host=${encodeURIComponent(host)}&n=${n}`,
+        { timeout: 30000 });
+      out.textContent = formatDiagResult(r);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+  document.getElementById('btn-diag-tr').onclick = async () => {
+    const out = document.getElementById('diag-tr-out');
+    out.textContent = 'جارٍ التنفيذ…';
+    const host = document.getElementById('diag-tr-host').value.trim();
+    try {
+      const r = await apiFetch('/router/diag/traceroute?host=' + encodeURIComponent(host),
+        { timeout: 30000 });
+      out.textContent = formatDiagResult(r);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+  document.getElementById('btn-diag-dns').onclick = async () => {
+    const out = document.getElementById('diag-dns-out');
+    out.textContent = 'جارٍ التنفيذ…';
+    const name = document.getElementById('diag-dns-name').value.trim();
+    const t = document.getElementById('diag-dns-type').value;
+    try {
+      const r = await apiFetch(`/router/diag/dns?name=${encodeURIComponent(name)}&type=${t}`);
+      out.textContent = formatDiagResult(r);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+  document.getElementById('btn-diag-ps').onclick = async () => {
+    const out = document.getElementById('diag-ps-out');
+    out.textContent = 'جارٍ التنفيذ…';
+    const host = document.getElementById('diag-ps-host').value.trim();
+    const ports = document.getElementById('diag-ps-ports').value.trim();
+    try {
+      const r = await apiFetch(`/router/diag/portscan?host=${encodeURIComponent(host)}&ports=${encodeURIComponent(ports)}`,
+        { timeout: 30000 });
+      out.textContent = formatDiagResult(r);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+  document.getElementById('btn-diag-bw').onclick = async () => {
+    const out = document.getElementById('diag-bw-out');
+    out.textContent = 'جارٍ القياس…';
+    const target = document.getElementById('diag-bw-target').value.trim();
+    const secs = +document.getElementById('diag-bw-secs').value || 5;
+    try {
+      const r = await apiFetch(`/router/diag/bandwidth?target=${encodeURIComponent(target)}&seconds=${secs}`,
+        { timeout: (secs + 5) * 1000 });
+      out.textContent = formatDiagResult(r);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+  document.getElementById('btn-diag-connect').onclick = async () => {
+    const out = document.getElementById('diag-connect-out');
+    out.textContent = 'جارٍ التخطيط…';
+    const cap = document.getElementById('diag-cap').value;
+    try {
+      const r = await apiFetch('/router/connect',
+        { method: 'POST', json: { capability: cap } });
+      out.textContent = JSON.stringify(r, null, 2);
+    } catch (e) { out.textContent = 'فشل: ' + (e.message || e); }
+  };
+}
+function formatDiagResult(r) {
+  if (!r) return '—';
+  if (typeof r === 'string') return r;
+  if (r.lines) return r.lines.join('\n');
+  return JSON.stringify(r, null, 2);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: CONFIGURATION
+   ════════════════════════════════════════════════════════════════════ */
+function renderConfig() {
+  refreshConfig();
+  document.getElementById('btn-cfg-validate').onclick = async () => {
+    try {
+      const body = {
+        format: document.getElementById('cfg-format').value,
+        content: document.getElementById('cfg-text').value,
+      };
+      const r = await apiFetch('/router/config/validate', { method: 'POST', json: body });
+      const el = document.getElementById('cfg-result');
+      if (r.ok) {
+        el.textContent = 'تم التحقق بنجاح ✓';
+        el.style.color = 'var(--ok)';
+      } else {
+        el.textContent = 'فشل التحقق: ' + (r.error || JSON.stringify(r));
+        el.style.color = 'var(--err)';
+      }
+    } catch (e) {
+      const el = document.getElementById('cfg-result');
+      el.textContent = 'خطأ: ' + (e.message || e);
+      el.style.color = 'var(--err)';
+    }
+  };
+  document.getElementById('btn-cfg-save').onclick = async () => {
+    try {
+      const body = {
+        format: document.getElementById('cfg-format').value,
+        content: document.getElementById('cfg-text').value,
+      };
+      await apiFetch('/router/config', { method: 'PUT', json: body });
+      toast('حُفظت الإعدادات', '', 'ok');
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+  document.getElementById('btn-cfg-reload').onclick = async () => {
+    if (!confirm('إعادة التحميل قد تقطع الاتصالات الحالية مؤقتاً. المتابعة؟')) return;
+    try {
+      const r = await apiFetch('/router/config/reload', { method: 'POST' });
+      toast('أعيد التحميل', r && r.ok ? 'success' : 'fail',
+            r && r.ok ? 'ok' : 'err');
+    } catch (e) { toast('فشل', e.message || e, 'err'); }
+  };
+}
+async function refreshConfig() {
+  try {
+    const r = await apiFetch('/router/config');
+    document.getElementById('cfg-text').value = r.content || '';
+    if (r.format) document.getElementById('cfg-format').value = r.format;
+  } catch (e) {
+    document.getElementById('cfg-text').placeholder =
+      '/router/config غير متاح على هذا الإصدار.';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: LOGS
+   ════════════════════════════════════════════════════════════════════ */
+function renderLogs() {
+  bindLogsButtons();
+  startLogsStream();
+}
+function bindLogsButtons() {
+  document.getElementById('btn-logs-pause').onclick = (e) => {
+    state.logsPaused = !state.logsPaused;
+    e.currentTarget.textContent = state.logsPaused ? 'استئناف' : 'إيقاف';
+  };
+  document.getElementById('btn-logs-clear').onclick = () => {
+    document.getElementById('logs-view').innerHTML = '';
+    state.logsBuffer = [];
+  };
+  document.getElementById('btn-logs-download').onclick = () => {
+    const blob = new Blob([state.logsBuffer.join('\n')],
+      { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `helen-router-logs-${Date.now()}.log`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  };
+  document.getElementById('logs-filter').oninput = debounce(applyLogFilter, 200);
+  document.getElementById('logs-level').onchange = applyLogFilter;
+}
+function applyLogFilter() {
+  const q = (document.getElementById('logs-filter').value || '').toLowerCase();
+  const lvl = document.getElementById('logs-level').value;
+  const v = document.getElementById('logs-view');
+  v.innerHTML = '';
+  state.logsBuffer.forEach(line => {
+    const norm = line.toLowerCase();
+    if (lvl && !norm.includes(' ' + lvl + ' ')) return;
+    if (q && !norm.includes(q)) return;
+    appendLogLine(line, false);
+  });
+}
+function appendLogLine(line, store) {
+  const v = document.getElementById('logs-view');
+  if (!v) return;
+  if (store !== false && state.logsBuffer.length >= 5000) {
+    state.logsBuffer.shift();
+  }
+  if (store !== false) state.logsBuffer.push(line);
+  const lvl = (line.match(/\b(debug|info|warn|warning|error|err)\b/i) || [])[1] || 'info';
+  const cls = ({ warning: 'warn', err: 'err' })[lvl.toLowerCase()] || lvl.toLowerCase();
+  const sp = document.createElement('span');
+  sp.className = 'ln ' + cls;
+  sp.textContent = line;
+  v.appendChild(sp);
+  if (!state.logsPaused) v.scrollTop = v.scrollHeight;
+}
+function startLogsStream() {
+  // Try WebSocket first
+  closeLogsStream();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  try {
+    const ws = new WebSocket(proto + '//' + location.host + '/router/logs/ws');
+    ws.onmessage = (ev) => {
+      if (state.logsPaused) return;
+      try {
+        const j = JSON.parse(ev.data);
+        const line = `${fmtTime(j.t || Date.now() / 1000)} ${j.level || 'info'} ${j.module || ''} — ${j.msg || ''}`;
+        appendLogLine(line);
+      } catch {
+        appendLogLine(String(ev.data));
+      }
+    };
+    ws.onclose = () => {
+      state.ws.logs = null;
+      // Fall back to polling
+      pollLogs();
+    };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+    state.ws.logs = ws;
+  } catch {
+    pollLogs();
+  }
+}
+function closeLogsStream() {
+  if (state.ws.logs) { try { state.ws.logs.close(); } catch {} state.ws.logs = null; }
+  if (state.timers.logs) { clearInterval(state.timers.logs); state.timers.logs = null; }
+}
+function pollLogs() {
+  // 2-second poll of /router/logs/tail
+  state.timers.logs = setInterval(async () => {
+    if (state.currentView !== 'logs' || state.logsPaused) return;
+    try {
+      const r = await apiFetch('/router/logs/tail?n=200');
+      const items = (r && r.items) || [];
+      // Simple approach: replace contents each poll (operator-friendly).
+      const knownLen = state.logsBuffer.length;
+      const fresh = items.slice(-Math.max(0, items.length - 0));
+      // Append only new lines (best effort by timestamp + msg uniqueness).
+      const seen = new Set(state.logsBuffer);
+      fresh.forEach(item => {
+        const line = `${fmtTime(item.t)} ${item.level || 'info'} ${item.module || ''} — ${item.msg || ''}`;
+        if (!seen.has(line)) appendLogLine(line);
+      });
+    } catch (e) { /* silent */ }
+  }, 2000);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Section: ABOUT
+   ════════════════════════════════════════════════════════════════════ */
+function renderAbout() { refreshAbout(); }
+async function refreshAbout() {
+  try {
+    const r = await apiFetch('/router/info');
+    setVal('about-version', r.version || '—');
+    setVal('about-build', r.build || '—');
+    setVal('about-python', r.python || '—');
+    setVal('about-fastapi', r.fastapi || '—');
+    setVal('about-started', r.started_at ? fmtDateTime(r.started_at) : '—');
+  } catch (e) {
+    const h = await apiFetch('/router/health').catch(() => null);
+    setVal('about-version', (h && h.version) || '—');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Helpers
+   ════════════════════════════════════════════════════════════════════ */
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.textContent = (v === undefined || v === null) ? '—' : v; }
+function debounce(fn, ms) {
+  let t = null;
+  return function(...a) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, a), ms);
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Initialisation
+   ════════════════════════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  // Login overlay handlers
+  const btn = document.getElementById('login-btn');
+  const input = document.getElementById('login-token');
+  const paste = document.getElementById('login-paste-btn');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const ok = await attemptLogin(input.value.trim());
+    btn.disabled = false;
+    if (ok) {
+      input.value = '';
+      enterPanel();
+    }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btn.click();
+  });
+  paste.addEventListener('click', async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      if (t) input.value = t.trim();
+      input.focus();
+    } catch { toast('متعذر القراءة', 'الحافظة محمية', 'warn'); }
+  });
+
+  bootstrap();
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   Notes (kept inline so future readers find them without git archeology)
+   ════════════════════════════════════════════════════════════════════
+
+   Why so many endpoints we don't fully control?
+   ---------------------------------------------
+   The router exposes a finite set of /router/* endpoints today. The
+   panel is forward-looking: it speculatively probes endpoints that
+   *should* exist on the router for full operational coverage (DNS
+   record CRUD, NTP peer mgmt, broker stats, etc.). If an endpoint
+   isn't there, apiFetch() just rejects, the section shows "—" and
+   life continues. As the router grows new endpoints, the panel will
+   automatically light them up.
+
+   Why no build step?
+   ------------------
+   Air-gapped LAN deployments. Operators drop two JS files into
+   admin/vendor/ and the panel just works. No node_modules, no
+   webpack, no rollup, no SSR.
+
+   Why RTL Arabic?
+   ---------------
+   The user base sits primarily in MENA. RTL is the default; LTR
+   technical content (commands, IPs, hex tokens) is wrapped in
+   monospaced spans which the browser handles cleanly.
+
+   Why localStorage instead of cookies?
+   ------------------------------------
+   The router doesn't run CSRF protection (it relies on LAN-only
+   network policy). A bearer token in localStorage is easier to
+   rotate from the SPA without involving Set-Cookie semantics.
+
+   Charts optional?
+   ----------------
+   Yes. Chart.js / D3 are only loaded if dropped into admin/vendor/.
+   If `typeof Chart === 'undefined'`, chart panels still render their
+   surrounding card and KPIs, just without graphs. This matters for
+   operators who only need the textual data.
+
+   WebSocket logs?
+   ---------------
+   The SPA attempts /router/logs/ws first; if the router doesn't
+   expose a WS endpoint or the upgrade fails, the SPA polls
+   /router/logs/tail every 2s instead. Both paths feed into the same
+   appendLogLine() funnel so the UI surface is identical.
+
+   Why is the include_router added BEFORE the proxy catch-all?
+   -----------------------------------------------------------
+   FastAPI matches routes by registration order. The proxy is
+   defined inline in main.py with the catch-all path /{path:path}
+   that consumes /admin/*. By calling app.include_router() BEFORE
+   that decorator runs, our specific /admin/ routes are checked
+   first and the proxy still handles /admin/* paths that don't
+   match any of our routes (legacy server admin still proxied).
+
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   Static / placeholder text content (kept inline so the panel
+   functions completely offline without separate i18n files)
+   ════════════════════════════════════════════════════════════════════ */
+const HELP_TEXT = {
+  overview: 'نظرة عامة على صحة الراوتر — المؤشرات الرئيسية، الخوادم المسجلة، وآخر الأحداث.',
+  mesh: 'إدارة الـ Mesh Overlay بين الراوترات: الجيران، LSAs، Dijkstra routes، والمخطط البصري.',
+  registry: 'إدارة Helen-Server upstreams المُسجَّلة. يمكنك التسجيل اليدوي، إرسال heartbeat، وإلغاء التسجيل.',
+  proxy: 'سجل الطلبات وإدارة قواعد تحديد المعدّل وقوائم التحكم في الوصول.',
+  dns: 'إدارة سجلات DNS الداخلية، قائمة الحظر، الـ upstreams، وعرض سجل الاستعلامات.',
+  ntp: 'حالة خدمة الوقت، الأقران، والانحراف. يمكن إجبار مزامنة فورية.',
+  upnp: 'إدارة عمليات تخطيط المنافذ عبر UPnP IGD.',
+  vendor: 'إنشاء ودفع إعدادات لأجهزة الموردين المعروفين عبر SSH / API.',
+  external: 'اكتشاف الأجهزة الأخرى على LAN عبر SSDP/mDNS/ARP/ICMP.',
+  broker: 'حالة Connection Broker، الجلسات النشطة، وإحصاءات Hole-punch.',
+  security: 'تدوير الرمز، تحديد الشبكات المسموحة، وإدارة وضع التطبيق.',
+  diag: 'أدوات تشخيصية: Ping، Traceroute، DNS Lookup، Port scan، Bandwidth test.',
+  config: 'تحرير الإعدادات (YAML/JSON)، التحقق، الحفظ، وإعادة التحميل الساخن.',
+  logs: 'بث السجلات المباشرة مع تصفية بمستوى الخطر والبحث النصّي.',
+  about: 'معلومات الإصدار، Build hash، وروابط مفيدة.',
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   Style polish — late-bound, non-critical
+   ════════════════════════════════════════════════════════════════════ */
+window.addEventListener('load', () => {
+  // Decorate nav with help tooltips
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const v = el.dataset.view;
+    if (v && HELP_TEXT[v]) {
+      el.title = HELP_TEXT[v];
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   Defensive: page-leave warning if there are unsaved config edits
+   ════════════════════════════════════════════════════════════════════ */
+let _cfgSavedSnapshot = '';
+function snapshotCfg() {
+  const el = document.getElementById('cfg-text');
+  _cfgSavedSnapshot = el ? el.value : '';
+}
+window.addEventListener('beforeunload', (e) => {
+  if (state.currentView !== 'config') return;
+  const el = document.getElementById('cfg-text');
+  if (el && el.value !== _cfgSavedSnapshot) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   Late-bound: hook config save to snapshot
+   ════════════════════════════════════════════════════════════════════ */
+const _origSaveCfg = window.refreshConfig;
+window.refreshConfig = async function() {
+  const r = await (_origSaveCfg ? _origSaveCfg.apply(this, arguments) : refreshConfig.apply(this, arguments));
+  setTimeout(snapshotCfg, 50);
+  return r;
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   Exported helpers (for browser console debugging)
+   ════════════════════════════════════════════════════════════════════ */
+window.HelenAdmin = {
+  state,
+  apiFetch,
+  switchView,
+  toast,
+  logout: () => { TokenStore.clear(); location.reload(); },
+  getToken: () => TokenStore.get().substring(0, 12) + '…',
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   End of Helen-Router standalone admin SPA.
+   ════════════════════════════════════════════════════════════════════ */
+</script>
+</body>
+</html>

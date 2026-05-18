@@ -1,0 +1,1914 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Unified Monitoring Dashboard</title>
+<!--
+  Helen / CommClient Unified Monitoring Dashboard
+  ------------------------------------------------
+  Single standalone HTML module served from /admin/modules/monitoring_unified.html
+  100% LAN-only. NO external CDNs. Chart.js is loaded from /admin/vendor/chart.min.js
+  Operator NOTE: place a Chart.js v4 UMD minified build at /admin/vendor/chart.min.js
+                 (e.g. copy node_modules/chart.js/dist/chart.umd.min.js).
+  Auth: Bearer token from localStorage('helen_admin_token').
+  Server: FastAPI on http://127.0.0.1:3000, admin under /admin, api under /api/admin/*.
+-->
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  :root{
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --panel2:#152038;
+    --border:#1a2a3a;
+    --line:#223155;
+    --line2:#2d3f66;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --muted:#8ea2c5;
+    --muted2:#6a7fa0;
+    --accent:#00d4ff;
+    --accent2:#7c5cff;
+    --accent3:#39e6b4;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --link:#3b82f6;
+    --chip:#1f2a44;
+    --shadow:0 4px 18px rgba(0,0,0,.35);
+    --mono: ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+    --r-sm:7px;
+    --r-md:10px;
+    --r-lg:14px;
+  }
+  html[data-theme="light"]{
+    --bg:#f5f7fb;
+    --panel:#ffffff;
+    --panel2:#f0f3fa;
+    --border:#e1e6ef;
+    --line:#dbe2ed;
+    --line2:#c8d2e1;
+    --text:#1b2438;
+    --text-dim:#4a5468;
+    --muted:#5a6578;
+    --muted2:#7a8395;
+    --chip:#eef2fa;
+    --shadow:0 4px 12px rgba(20,30,60,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"Segoe UI","Noto Sans Arabic","Tajawal",system-ui,sans-serif;
+    font-size:13px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  body{min-height:100vh}
+  a{color:var(--link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--line2)}
+
+  /* ========================================================
+     LAYOUT
+     ======================================================== */
+  .app{
+    display:grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "main   side";
+    min-height:100vh;
+  }
+  .topbar{
+    grid-area: topbar;
+    display:flex;align-items:center;gap:14px;
+    padding:10px 16px;
+    background:var(--panel);
+    border-block-end:1px solid var(--border);
+    position:sticky;top:0;z-index:50;
+    box-shadow:var(--shadow);
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex;align-items:center;gap:10px;
+    font-weight:600;font-size:15px;letter-spacing:.3px;
+  }
+  .brand .logo{
+    width:28px;height:28px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;color:#001020;font-weight:800;
+  }
+  .brand small{color:var(--muted);font-weight:400;font-size:11px}
+  .top-spacer{flex:1}
+  .top-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  main.content{
+    grid-area:main;
+    padding:14px;
+    min-width:0;
+    overflow:auto;
+  }
+  aside.sidebar{
+    grid-area:side;
+    background:var(--panel);
+    border-inline-start:1px solid var(--border);
+    padding:12px;
+    overflow:auto;
+    max-height: calc(100vh - 56px);
+    position:sticky; top:56px;
+  }
+
+  @media (max-width: 1100px){
+    .app{
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "topbar"
+        "main"
+        "side";
+    }
+    aside.sidebar{
+      position:static;border-inline-start:none;border-block-start:1px solid var(--border);
+      max-height:none;
+    }
+  }
+
+  /* ========================================================
+     COMPONENTS
+     ======================================================== */
+  .btn{
+    background:#1b2945;color:var(--text);
+    border:1px solid var(--line);
+    padding:6px 11px;border-radius:var(--r-sm);
+    cursor:pointer;font-size:12px;
+    transition:background .15s,border-color .15s,transform .05s;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:#233561;border-color:var(--line2)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#001020;border:none;font-weight:600;
+  }
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  html[data-theme="light"] .btn{background:#eef2fa;color:var(--text)}
+  html[data-theme="light"] .btn:hover{background:#dfe6f3}
+
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:3px 10px;border-radius:999px;
+    background:var(--chip);color:var(--muted);
+    font-size:11px;border:1px solid var(--line);
+  }
+  .pill.ok{color:var(--ok);background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.35)}
+  .pill.warn{color:var(--warn);background:rgba(250,204,21,.08);border-color:rgba(250,204,21,.35)}
+  .pill.err{color:var(--err);background:rgba(255,71,87,.08);border-color:rgba(255,71,87,.35)}
+  .pill.info{color:var(--accent);background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.35)}
+
+  .dot{
+    width:9px;height:9px;border-radius:50%;
+    display:inline-block;background:var(--muted);
+    box-shadow:0 0 0 0 rgba(0,0,0,0);
+  }
+  .dot.ok{background:var(--ok);box-shadow:0 0 8px rgba(74,222,128,.5)}
+  .dot.warn{background:var(--warn);box-shadow:0 0 8px rgba(250,204,21,.5)}
+  .dot.err{background:var(--err);box-shadow:0 0 8px rgba(255,71,87,.5)}
+  .dot.pulse{animation:pulse 1.6s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}
+    70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}
+    100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}
+  }
+
+  .select{
+    background:#0c1630;border:1px solid var(--line);color:var(--text);
+    border-radius:var(--r-sm);padding:6px 10px;
+    font-family:var(--mono);font-size:12px;
+  }
+  html[data-theme="light"] .select{background:#fff;color:var(--text)}
+
+  .seg{
+    display:inline-flex;background:#0c1630;border:1px solid var(--line);
+    border-radius:var(--r-sm);overflow:hidden;
+  }
+  html[data-theme="light"] .seg{background:#fff}
+  .seg button{
+    background:transparent;border:none;color:var(--muted);
+    padding:6px 10px;cursor:pointer;font-size:12px;
+    border-inline-end:1px solid var(--line);
+  }
+  .seg button:last-child{border-inline-end:none}
+  .seg button.active{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#001020;font-weight:600;
+  }
+
+  .switch{
+    position:relative;display:inline-block;
+    width:38px;height:20px;
+  }
+  .switch input{opacity:0;width:0;height:0}
+  .switch .slider{
+    position:absolute;cursor:pointer;
+    top:0;inset-inline-start:0;right:0;bottom:0;
+    background:#1b2945;border:1px solid var(--line);
+    transition:.2s;border-radius:999px;
+  }
+  .switch .slider:before{
+    position:absolute;content:"";
+    width:14px;height:14px;
+    inset-inline-start:2px;top:2px;
+    background:var(--text);transition:.2s;
+    border-radius:50%;
+  }
+  .switch input:checked + .slider{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border-color:transparent;
+  }
+  .switch input:checked + .slider:before{
+    transform:translateX(-16px);
+    background:#0a1020;
+  }
+  html[dir="ltr"] .switch input:checked + .slider:before{
+    transform:translateX(16px);
+  }
+
+  /* ========================================================
+     KPI STRIP
+     ======================================================== */
+  .kpi-strip{
+    display:grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap:10px;
+    margin-bottom:14px;
+  }
+  @media (max-width:1500px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
+  @media (max-width:760px){.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+
+  .kpi{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--r-md);
+    padding:12px;
+    display:flex;flex-direction:column;gap:6px;
+    position:relative;overflow:hidden;
+    transition:transform .15s,border-color .15s;
+  }
+  .kpi:hover{transform:translateY(-2px);border-color:var(--line2)}
+  .kpi .label{
+    font-size:11px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.5px;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .kpi .val{
+    font-family:var(--mono);font-size:24px;font-weight:600;
+    color:var(--text);line-height:1;
+    transition:color .2s;
+  }
+  .kpi .sub{font-size:11px;color:var(--muted2)}
+  .kpi.ok .val{color:var(--ok)}
+  .kpi.warn .val{color:var(--warn)}
+  .kpi.err .val{color:var(--err)}
+  .kpi .spark{height:32px;margin-top:auto;width:100%;display:block}
+  .kpi::before{
+    content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;
+    width:3px;background:var(--muted);opacity:.6;
+  }
+  .kpi.ok::before{background:var(--ok)}
+  .kpi.warn::before{background:var(--warn)}
+  .kpi.err::before{background:var(--err)}
+
+  /* ========================================================
+     PANEL
+     ======================================================== */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--r-md);
+    padding:12px;
+    margin-bottom:14px;
+  }
+  .panel-header{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:10px;flex-wrap:wrap;gap:8px;
+  }
+  .panel-title{
+    font-size:13px;font-weight:600;
+    color:var(--text);
+    display:flex;align-items:center;gap:8px;
+  }
+  .panel-title small{
+    color:var(--muted);font-weight:400;font-size:11px;
+  }
+
+  /* ========================================================
+     CHARTS ROW
+     ======================================================== */
+  .charts-row{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:14px;margin-bottom:14px;
+  }
+  @media (max-width:1400px){.charts-row{grid-template-columns:1fr}}
+  .chart-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--r-md);
+    padding:12px;
+    min-height:280px;
+    display:flex;flex-direction:column;
+  }
+  .chart-card .chart-canvas-wrap{flex:1;position:relative;min-height:220px}
+  .chart-card canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+
+  /* ========================================================
+     TRANSPORT MATRIX
+     ======================================================== */
+  .matrix{
+    display:grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap:8px;
+  }
+  @media (max-width:1200px){.matrix{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:700px){.matrix{grid-template-columns:repeat(2,1fr)}}
+
+  .mcell{
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    padding:10px;
+    display:flex;flex-direction:column;gap:4px;
+    position:relative;cursor:pointer;
+    transition:border-color .15s,background .15s;
+  }
+  .mcell:hover{border-color:var(--line2);background:var(--panel)}
+  .mcell .mname{
+    display:flex;align-items:center;gap:6px;
+    font-weight:600;font-size:12px;color:var(--text);
+  }
+  .mcell .mstats{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .mcell .mlat{font-size:10px;color:var(--muted2);font-family:var(--mono)}
+  .mcell .mtags{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+  .mcell .tag{
+    font-size:9px;padding:1px 6px;border-radius:999px;
+    background:var(--chip);color:var(--muted);
+    border:1px solid var(--line);
+  }
+
+  /* ========================================================
+     CONNECTIONS TABLE
+     ======================================================== */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-sm)}
+  table.tbl{
+    width:100%;border-collapse:separate;border-spacing:0;
+    font-size:12px;
+  }
+  table.tbl th, table.tbl td{
+    padding:8px 10px;text-align:start;
+    border-block-end:1px solid var(--border);
+    white-space:nowrap;
+  }
+  table.tbl th{
+    background:var(--panel2);
+    color:var(--muted);font-weight:500;
+    text-transform:uppercase;font-size:10px;letter-spacing:.4px;
+    position:sticky;top:0;cursor:pointer;
+    user-select:none;
+  }
+  table.tbl th:hover{color:var(--text)}
+  table.tbl th .sort-ic{opacity:.5;font-size:10px;margin-inline-start:4px}
+  table.tbl tbody tr:hover{background:var(--panel2)}
+  table.tbl td.num{font-family:var(--mono);text-align:end}
+  .pagination{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;flex-wrap:wrap;gap:6px;
+  }
+  .pager-btns{display:flex;gap:4px}
+
+  /* ========================================================
+     ALERT STREAM
+     ======================================================== */
+  .alerts-list{
+    display:flex;flex-direction:column;gap:6px;
+    max-height:calc(100vh - 200px);overflow-y:auto;
+  }
+  .alert{
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-inline-start-width:3px;
+    border-radius:var(--r-sm);
+    padding:8px 10px;
+    cursor:pointer;
+    transition:background .15s;
+    font-size:12px;
+  }
+  .alert:hover{background:var(--panel)}
+  .alert.sev-crit{border-inline-start-color:var(--err)}
+  .alert.sev-err{border-inline-start-color:var(--err)}
+  .alert.sev-warn{border-inline-start-color:var(--warn)}
+  .alert.sev-info{border-inline-start-color:var(--accent)}
+  .alert .ahead{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:6px;margin-bottom:2px;
+  }
+  .alert .atitle{font-weight:600;color:var(--text);font-size:12px}
+  .alert .atime{color:var(--muted2);font-size:10px;font-family:var(--mono)}
+  .alert .abody{
+    color:var(--muted);font-size:11px;
+    display:none;margin-top:4px;
+    line-height:1.5;
+    word-break:break-word;
+  }
+  .alert.expanded .abody{display:block}
+  .alert .sev-tag{
+    font-size:9px;padding:1px 6px;border-radius:999px;
+    font-weight:600;text-transform:uppercase;
+  }
+  .sev-tag.sev-crit,.sev-tag.sev-err{background:rgba(255,71,87,.15);color:var(--err)}
+  .sev-tag.sev-warn{background:rgba(250,204,21,.15);color:var(--warn)}
+  .sev-tag.sev-info{background:rgba(0,212,255,.15);color:var(--accent)}
+
+  /* ========================================================
+     AUDIT WIDGET
+     ======================================================== */
+  .audit-widget{
+    display:flex;align-items:center;gap:10px;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:var(--r-sm);
+    padding:8px 12px;
+    font-size:12px;
+  }
+  .audit-widget .hash{
+    font-family:var(--mono);font-size:11px;color:var(--accent);
+    overflow:hidden;text-overflow:ellipsis;max-width:240px;
+  }
+
+  /* ========================================================
+     TOASTS
+     ======================================================== */
+  .toasts{
+    position:fixed;top:70px;inset-inline-end:14px;
+    display:flex;flex-direction:column;gap:8px;z-index:1000;
+    pointer-events:none;
+  }
+  .toast{
+    background:var(--panel);border:1px solid var(--border);
+    border-inline-start:3px solid var(--accent);
+    padding:9px 14px;border-radius:var(--r-sm);
+    font-size:12px;box-shadow:var(--shadow);
+    min-width:240px;max-width:380px;
+    animation:slideIn .25s ease;
+    pointer-events:auto;
+  }
+  .toast.ok{border-inline-start-color:var(--ok)}
+  .toast.warn{border-inline-start-color:var(--warn)}
+  .toast.err{border-inline-start-color:var(--err)}
+  @keyframes slideIn{
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  /* ========================================================
+     MISC
+     ======================================================== */
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .empty{
+    color:var(--muted);font-size:12px;padding:14px;
+    text-align:center;font-style:italic;
+  }
+  .badge-404{
+    display:inline-block;padding:1px 6px;border-radius:4px;
+    background:rgba(255,71,87,.1);color:var(--err);
+    font-size:10px;border:1px solid rgba(255,71,87,.3);
+  }
+  .filter-bar{
+    display:flex;gap:6px;flex-wrap:wrap;
+    align-items:center;margin-bottom:10px;
+  }
+  input.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--text);
+    border-radius:var(--r-sm);padding:6px 10px;font-size:12px;
+    font-family:inherit;outline:none;
+  }
+  input.in:focus{border-color:var(--accent)}
+  html[data-theme="light"] input.in{background:#fff}
+
+  .hidden{display:none!important}
+  .glow-ok{color:var(--ok)}
+  .glow-warn{color:var(--warn)}
+  .glow-err{color:var(--err)}
+
+  .mono{font-family:var(--mono)}
+  .conn-state{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:11px;color:var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ============================================================
+       TOP BAR
+       ============================================================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">H</div>
+      <div>
+        Helen Unified Monitoring
+        <div><small>لوحة المراقبة الموحّدة</small></div>
+      </div>
+    </div>
+    <span class="pill info" id="connBadge">
+      <span class="dot pulse" id="connDot"></span>
+      <span id="connText">— غير متصل</span>
+    </span>
+    <span class="pill" id="latencyBadge">RTT: <span class="mono" id="latencyVal">—</span></span>
+
+    <div class="top-spacer"></div>
+
+    <div class="top-tools">
+      <div class="seg" id="rangeSeg" role="tablist" aria-label="Time range">
+        <button data-range="5m">5د</button>
+        <button data-range="15m">15د</button>
+        <button data-range="1h" class="active">1س</button>
+        <button data-range="6h">6س</button>
+        <button data-range="24h">24س</button>
+        <button data-range="7d">7أ</button>
+      </div>
+
+      <label class="row" title="تحديث تلقائي" style="gap:6px">
+        <span style="font-size:11px;color:var(--muted)">تلقائي</span>
+        <span class="switch">
+          <input type="checkbox" id="autoRefresh" checked>
+          <span class="slider"></span>
+        </span>
+      </label>
+
+      <button class="btn" id="reloadBtn" title="إعادة تحميل الآن">
+        <span aria-hidden="true">⟲</span> تحديث
+      </button>
+
+      <button class="btn ghost" id="themeBtn" title="تبديل المظهر">
+        <span id="themeIco">◐</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main class="content">
+
+    <!-- KPI STRIP -->
+    <section class="kpi-strip" id="kpiStrip" aria-label="Top KPIs">
+      <div class="kpi" data-kpi="users">
+        <div class="label">المستخدمون <span class="dot ok"></span></div>
+        <div class="val" id="kpiUsers">—</div>
+        <div class="sub">متصلون الآن</div>
+        <canvas class="spark" data-spark="users"></canvas>
+      </div>
+      <div class="kpi" data-kpi="calls">
+        <div class="label">المكالمات <span class="dot ok"></span></div>
+        <div class="val" id="kpiCalls">—</div>
+        <div class="sub">نشطة</div>
+        <canvas class="spark" data-spark="calls"></canvas>
+      </div>
+      <div class="kpi" data-kpi="conns">
+        <div class="label">الاتصالات <span class="dot ok"></span></div>
+        <div class="val" id="kpiConns">—</div>
+        <div class="sub">TCP+WS+gRPC</div>
+        <canvas class="spark" data-spark="conns"></canvas>
+      </div>
+      <div class="kpi" data-kpi="cpu">
+        <div class="label">CPU <span class="dot ok"></span></div>
+        <div class="val" id="kpiCpu">—</div>
+        <div class="sub">% الاستخدام</div>
+        <canvas class="spark" data-spark="cpu"></canvas>
+      </div>
+      <div class="kpi" data-kpi="mem">
+        <div class="label">الذاكرة <span class="dot ok"></span></div>
+        <div class="val" id="kpiMem">—</div>
+        <div class="sub">% الاستخدام</div>
+        <canvas class="spark" data-spark="mem"></canvas>
+      </div>
+      <div class="kpi" data-kpi="net">
+        <div class="label">الشبكة <span class="dot ok"></span></div>
+        <div class="val" id="kpiNet">—</div>
+        <div class="sub">MB/s in+out</div>
+        <canvas class="spark" data-spark="net"></canvas>
+      </div>
+      <div class="kpi" data-kpi="disk">
+        <div class="label">القرص <span class="dot ok"></span></div>
+        <div class="val" id="kpiDisk">—</div>
+        <div class="sub">MB/s I/O</div>
+        <canvas class="spark" data-spark="disk"></canvas>
+      </div>
+      <div class="kpi" data-kpi="err">
+        <div class="label">الأخطاء <span class="dot ok"></span></div>
+        <div class="val" id="kpiErr">—</div>
+        <div class="sub">آخر 60 ثانية</div>
+        <canvas class="spark" data-spark="err"></canvas>
+      </div>
+    </section>
+
+    <!-- CHARTS ROW -->
+    <section class="charts-row">
+      <div class="chart-card">
+        <div class="panel-header">
+          <div class="panel-title">CPU &amp; الذاكرة <small>(مباشر / 1ث)</small></div>
+          <span class="pill" id="cpuPeak">peak: <span id="cpuPeakVal">—</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chCpuMem"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="panel-header">
+          <div class="panel-title">شبكة I/O <small>(RX / TX)</small></div>
+          <span class="pill" id="netPeak">peak: <span id="netPeakVal">—</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chNet"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="panel-header">
+          <div class="panel-title">معدّل الطلبات / الأخطاء</div>
+          <span class="pill" id="rateInfo">RPS: <span id="rpsVal">—</span></span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chRate"></canvas></div>
+      </div>
+    </section>
+
+    <!-- TRANSPORT MATRIX -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          مصفوفة صحّة النقل
+          <small>15 نوع نقل — حالة حيّة</small>
+        </div>
+        <div class="row">
+          <span class="pill ok"><span class="dot ok"></span> <span id="matOk">—</span> سليم</span>
+          <span class="pill warn"><span class="dot warn"></span> <span id="matWarn">—</span> تحذير</span>
+          <span class="pill err"><span class="dot err"></span> <span id="matErr">—</span> معطّل</span>
+        </div>
+      </div>
+      <div class="matrix" id="transportMatrix"><!-- cells rendered dynamically --></div>
+    </section>
+
+    <!-- AUDIT WIDGET -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">سلسلة التدقيق</div>
+        <a href="/admin/modules/audit.html" class="btn ghost">عرض كامل ↗</a>
+      </div>
+      <div class="audit-widget">
+        <span class="dot" id="auditDot"></span>
+        <div>
+          <div><span style="color:var(--muted);font-size:11px">HEAD:</span> <span class="hash" id="auditHash">—</span></div>
+          <div style="color:var(--muted2);font-size:11px;margin-top:2px">
+            آخر تحقّق: <span class="mono" id="auditTs">—</span> ·
+            الحالة: <span id="auditStatus">—</span> ·
+            الطول: <span class="mono" id="auditLen">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONNECTIONS TABLE -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          الاتصالات النشطة
+          <small>تحديث تلقائي كل 5 ثوانٍ</small>
+        </div>
+        <div class="row">
+          <input class="in" id="connSearch" placeholder="بحث (مستخدم/IP)" />
+          <select class="select" id="connTransportFilter">
+            <option value="">كل النقل</option>
+            <option value="tcp">TCP</option>
+            <option value="ws">WebSocket</option>
+            <option value="grpc">gRPC</option>
+            <option value="http">HTTP</option>
+            <option value="mqtt">MQTT</option>
+            <option value="nats">NATS</option>
+            <option value="zeromq">ZeroMQ</option>
+            <option value="rabbitmq">RabbitMQ</option>
+            <option value="wireguard">WireGuard</option>
+          </select>
+          <select class="select" id="connPageSize">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="connTbl">
+          <thead>
+            <tr>
+              <th data-sort="user_id">User ID <span class="sort-ic">⇅</span></th>
+              <th data-sort="username">اسم المستخدم <span class="sort-ic">⇅</span></th>
+              <th data-sort="ip">IP <span class="sort-ic">⇅</span></th>
+              <th data-sort="transport">النقل <span class="sort-ic">⇅</span></th>
+              <th data-sort="connected_at">منذ <span class="sort-ic">⇅</span></th>
+              <th data-sort="bytes_in">داخل <span class="sort-ic">⇅</span></th>
+              <th data-sort="bytes_out">خارج <span class="sort-ic">⇅</span></th>
+              <th data-sort="last_activity">آخر نشاط <span class="sort-ic">⇅</span></th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="connTbody">
+            <tr><td colspan="9" class="empty">يجري التحميل…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span style="color:var(--muted);font-size:11px">
+          عرض <span id="connRange">0-0</span> من <span id="connTotal">0</span>
+        </span>
+        <div class="pager-btns">
+          <button class="btn" id="connPrev">السابق</button>
+          <span class="pill" id="connPageLabel">صفحة 1</span>
+          <button class="btn" id="connNext">التالي</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================
+       SIDEBAR / ALERTS
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="panel-header" style="margin-bottom:8px">
+      <div class="panel-title">تيار التنبيهات</div>
+      <span class="pill" id="alertCount">0</span>
+    </div>
+    <div class="filter-bar">
+      <select class="select" id="alertSevFilter">
+        <option value="">كل الشدّة</option>
+        <option value="crit">حرج</option>
+        <option value="err">خطأ</option>
+        <option value="warn">تحذير</option>
+        <option value="info">معلومات</option>
+      </select>
+      <button class="btn ghost" id="clearAlerts">مسح</button>
+    </div>
+    <div id="alertsList" class="alerts-list">
+      <div class="empty">لا تنبيهات حتى الآن</div>
+    </div>
+  </aside>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   HELEN UNIFIED MONITORING — runtime
+   ----------------------------------------------------------------------------
+   Sections:
+     1. constants & state
+     2. utils (fmt, throttle, retry fetch, toast)
+     3. theme + UI bindings
+     4. range selector + auto-refresh
+     5. WebSocket subscriber with polling fallback
+     6. sparklines
+     7. main charts
+     8. KPI render
+     9. transport matrix
+    10. connections table
+    11. alerts stream
+    12. audit widget
+    13. bootstrap
+   ========================================================================== */
+
+/* ---------- 1. constants & state ---------- */
+const API_BASE = "";           // same origin (served from /admin)
+const WS_URL   = (location.protocol === "https:" ? "wss://" : "ws://")
+                 + location.host + "/api/admin/ws/metrics";
+
+const RANGES = {
+  "5m":  { window: 5*60,         tick: 1     },
+  "15m": { window: 15*60,        tick: 2     },
+  "1h":  { window: 60*60,        tick: 5     },
+  "6h":  { window: 6*60*60,      tick: 30    },
+  "24h": { window: 24*60*60,     tick: 120   },
+  "7d":  { window: 7*24*60*60,   tick: 900   },
+};
+
+const TRANSPORTS = [
+  { id:"tcp",         name:"TCP",          endpoint:null },
+  { id:"udp",         name:"UDP",          endpoint:null },
+  { id:"ws",          name:"WebSocket",    endpoint:null },
+  { id:"http",        name:"HTTP",         endpoint:null },
+  { id:"grpc",        name:"gRPC",         endpoint:"/api/admin/transports/grpc/status" },
+  { id:"mqtt",        name:"MQTT",         endpoint:"/api/admin/transports/mqtt/status" },
+  { id:"nats",        name:"NATS",         endpoint:"/api/admin/transports/nats/status" },
+  { id:"zeromq",      name:"ZeroMQ",       endpoint:"/api/admin/transports/zeromq/status" },
+  { id:"rabbitmq",    name:"RabbitMQ",     endpoint:"/api/admin/transports/rabbitmq/status" },
+  { id:"mdns",        name:"mDNS",         endpoint:null },
+  { id:"broadcast",   name:"Broadcast",    endpoint:null },
+  { id:"wireguard",   name:"WireGuard",    endpoint:"/api/admin/transports/wireguard/status" },
+  { id:"ssh",         name:"SSH",          endpoint:"/api/admin/transports/ssh/status" },
+  { id:"revproxy",    name:"Reverse Proxy",endpoint:null },
+  { id:"p2p",         name:"P2P Direct",   endpoint:null },
+];
+
+const state = {
+  range: "1h",
+  autoRefresh: true,
+  theme: localStorage.getItem("helen_theme") || "dark",
+  wsConnected: false,
+  ws: null,
+  wsBackoff: 1000,
+  pollTimers: {},
+
+  // time-series rolling buffers
+  history: {
+    cpu: [], mem: [],
+    netRx: [], netTx: [],
+    disk: [],
+    rps: [], err: [],
+    users: [], calls: [], conns: [],
+  },
+
+  // sparklines
+  sparks: {},
+
+  // kpi raw
+  kpi: {
+    users:0, calls:0, conns:0,
+    cpu:0, mem:0, net:0, disk:0, err:0,
+  },
+
+  // matrix
+  matrix: {},
+
+  // connections
+  conns: {
+    rows: [], filtered: [],
+    page: 1, pageSize: 25,
+    sortKey: "connected_at", sortDir: "desc",
+    search: "", transport: "",
+    timer: null,
+  },
+
+  // alerts
+  alerts: [],
+  alertFilter: "",
+
+  // audit
+  audit: { head:null, ts:null, status:"unknown", len:0 },
+
+  // charts
+  charts: {},
+};
+
+/* ---------- 2. utils ---------- */
+const ARABIC_LOCALE = "ar-EG";
+
+function fmtNum(n, digits = 0) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  try {
+    return Number(n).toLocaleString(ARABIC_LOCALE, {
+      minimumFractionDigits: digits, maximumFractionDigits: digits
+    });
+  } catch { return String(n); }
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return fmtNum(n, 1) + "٪";
+}
+function fmtBytes(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  const u = ["B","KB","MB","GB","TB"];
+  let i = 0, v = Number(n);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return fmtNum(v, v < 10 ? 2 : 1) + " " + u[i];
+}
+function fmtRate(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return fmtNum(n, n < 10 ? 2 : 1);
+}
+function fmtTime(ts) {
+  if (!ts) return "—";
+  const d = (typeof ts === "number") ? new Date(ts * (ts < 1e12 ? 1000 : 1)) : new Date(ts);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString(ARABIC_LOCALE, { hour12: false });
+}
+function fmtDuration(sec){
+  if(sec==null) return "—";
+  sec = Math.max(0, Math.floor(sec));
+  const d = Math.floor(sec/86400);
+  const h = Math.floor((sec%86400)/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = sec%60;
+  if(d) return `${fmtNum(d)}ي ${h}س`;
+  if(h) return `${h}س ${m}د`;
+  if(m) return `${m}د ${s}ث`;
+  return `${s}ث`;
+}
+function shortHash(h){
+  if(!h) return "—";
+  if(h.length<=16) return h;
+  return h.slice(0,8)+"…"+h.slice(-8);
+}
+function pushRolling(arr, value, maxLen = 600) {
+  arr.push({ t: Date.now(), v: value });
+  while (arr.length > maxLen) arr.shift();
+}
+function clampRolling(arr, windowSec){
+  const cutoff = Date.now() - windowSec*1000;
+  while (arr.length && arr[0].t < cutoff) arr.shift();
+}
+function getToken(){ return localStorage.getItem("helen_admin_token") || ""; }
+
+async function apiFetch(path, opts = {}, { retries = 2, backoff = 400 } = {}) {
+  const url = API_BASE + path;
+  const headers = Object.assign({
+    "Accept": "application/json",
+    "Authorization": "Bearer " + getToken(),
+  }, opts.headers || {});
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, Object.assign({}, opts, { headers }));
+      if (res.status === 404) {
+        const e = new Error("404"); e.code = 404; throw e;
+      }
+      if (!res.ok) {
+        const e = new Error("HTTP " + res.status); e.code = res.status; throw e;
+      }
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return await res.json();
+      return await res.text();
+    } catch (err) {
+      lastErr = err;
+      if (err.code === 404 || err.code === 401 || err.code === 403) throw err;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, backoff * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function toast(msg, kind="info"){
+  const root = document.getElementById("toasts");
+  const t = document.createElement("div");
+  t.className = "toast " + (kind==="info"?"":kind);
+  t.textContent = msg;
+  root.appendChild(t);
+  setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .4s"; }, 3200);
+  setTimeout(()=>{ t.remove(); }, 3800);
+}
+
+function throttle(fn, ms){
+  let lastCall=0, pending=null;
+  return function(...args){
+    const now=Date.now();
+    const remaining = ms-(now-lastCall);
+    if(remaining<=0){
+      if(pending){ clearTimeout(pending); pending=null; }
+      lastCall=now; fn.apply(this,args);
+    } else if(!pending){
+      pending=setTimeout(()=>{
+        lastCall=Date.now(); pending=null; fn.apply(this,args);
+      }, remaining);
+    }
+  };
+}
+
+/* ---------- 3. theme + ui bindings ---------- */
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  state.theme = theme;
+  localStorage.setItem("helen_theme", theme);
+  document.getElementById("themeIco").textContent = theme === "light" ? "☀" : "◐";
+  // re-skin charts
+  rebuildChartColors();
+}
+function bindUI(){
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    applyTheme(state.theme === "dark" ? "light" : "dark");
+  });
+  document.getElementById("reloadBtn").addEventListener("click", () => {
+    refreshAll(true);
+    toast("جاري التحديث…", "info");
+  });
+  document.getElementById("autoRefresh").addEventListener("change", (e)=>{
+    state.autoRefresh = e.target.checked;
+    if(state.autoRefresh){ refreshAll(false); }
+    toast(state.autoRefresh ? "التحديث التلقائي مُفعّل" : "التحديث التلقائي مُعطّل",
+          state.autoRefresh?"ok":"warn");
+  });
+  document.querySelectorAll("#rangeSeg button").forEach(btn=>{
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#rangeSeg button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      state.range = btn.dataset.range;
+      rebuildChartScales();
+      refreshAll(true);
+    });
+  });
+
+  // connections table
+  document.getElementById("connSearch").addEventListener("input", throttle((e)=>{
+    state.conns.search = e.target.value.trim().toLowerCase();
+    state.conns.page = 1;
+    renderConnections();
+  }, 200));
+  document.getElementById("connTransportFilter").addEventListener("change", (e)=>{
+    state.conns.transport = e.target.value;
+    state.conns.page = 1; renderConnections();
+  });
+  document.getElementById("connPageSize").addEventListener("change", (e)=>{
+    state.conns.pageSize = parseInt(e.target.value, 10);
+    state.conns.page = 1; renderConnections();
+  });
+  document.getElementById("connPrev").addEventListener("click", ()=>{
+    if(state.conns.page > 1){ state.conns.page--; renderConnections(); }
+  });
+  document.getElementById("connNext").addEventListener("click", ()=>{
+    const total = state.conns.filtered.length;
+    const pages = Math.max(1, Math.ceil(total / state.conns.pageSize));
+    if(state.conns.page < pages){ state.conns.page++; renderConnections(); }
+  });
+  document.querySelectorAll("#connTbl th[data-sort]").forEach(th=>{
+    th.addEventListener("click", ()=>{
+      const k = th.dataset.sort;
+      if(state.conns.sortKey === k){
+        state.conns.sortDir = state.conns.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.conns.sortKey = k; state.conns.sortDir = "desc";
+      }
+      renderConnections();
+    });
+  });
+
+  // alerts
+  document.getElementById("alertSevFilter").addEventListener("change",(e)=>{
+    state.alertFilter = e.target.value; renderAlerts();
+  });
+  document.getElementById("clearAlerts").addEventListener("click", ()=>{
+    state.alerts = []; renderAlerts();
+  });
+}
+
+/* ---------- 4. range + intervals ---------- */
+const POLL_INTERVALS = {
+  stats:        5_000,
+  metrics:      2_000,
+  transports:  10_000,
+  conns:        5_000,
+  audit:       30_000,
+  health:      15_000,
+};
+function clearTimers(){
+  Object.values(state.pollTimers).forEach(clearInterval);
+  state.pollTimers = {};
+}
+function startTimers(){
+  clearTimers();
+  state.pollTimers.stats     = setInterval(pollStats, POLL_INTERVALS.stats);
+  state.pollTimers.metrics   = setInterval(pollMetrics, POLL_INTERVALS.metrics);
+  state.pollTimers.transports= setInterval(pollTransports, POLL_INTERVALS.transports);
+  state.pollTimers.conns     = setInterval(pollConnections, POLL_INTERVALS.conns);
+  state.pollTimers.audit     = setInterval(pollAudit, POLL_INTERVALS.audit);
+  state.pollTimers.health    = setInterval(pollHealth, POLL_INTERVALS.health);
+}
+
+/* ---------- 5. websocket + polling fallback ---------- */
+function setConnBadge(connected, text){
+  state.wsConnected = connected;
+  document.getElementById("connDot").className = "dot " + (connected ? "ok pulse" : "err");
+  document.getElementById("connText").textContent = text;
+}
+function openWS(){
+  if(!("WebSocket" in window)){ setConnBadge(false, "WS غير مدعوم — استطلاع"); return; }
+  try{
+    const sock = new WebSocket(WS_URL + (getToken()? ("?token="+encodeURIComponent(getToken())) : ""));
+    state.ws = sock;
+    setConnBadge(false, "جاري الاتصال…");
+    sock.addEventListener("open", () => {
+      setConnBadge(true, "حيّ — WS");
+      state.wsBackoff = 1000;
+    });
+    sock.addEventListener("message", (e) => {
+      try{
+        const msg = JSON.parse(e.data);
+        handleWSMessage(msg);
+      }catch{ /* ignore non-json */ }
+    });
+    sock.addEventListener("close", () => {
+      setConnBadge(false, "WS مغلق — استطلاع");
+      scheduleReconnect();
+    });
+    sock.addEventListener("error", () => {
+      try{ sock.close(); }catch{}
+    });
+  } catch(_){
+    setConnBadge(false, "WS فشل — استطلاع");
+    scheduleReconnect();
+  }
+}
+function scheduleReconnect(){
+  state.wsBackoff = Math.min(30_000, Math.floor(state.wsBackoff * 1.7));
+  setTimeout(openWS, state.wsBackoff);
+}
+function handleWSMessage(msg){
+  // accept several shapes: { type:"metric", name:"cpu", value:42 }
+  // or                     { metrics:{cpu,mem,...} }
+  // or                     { alert:{...} }
+  if(!msg || typeof msg !== "object") return;
+  if(msg.type === "metric"){
+    ingestMetric(msg.name, msg.value);
+    return;
+  }
+  if(msg.metrics){
+    for(const k in msg.metrics) ingestMetric(k, msg.metrics[k]);
+    renderKPIs(); renderCharts();
+    return;
+  }
+  if(msg.alert){
+    addAlert(msg.alert);
+    return;
+  }
+}
+
+function ingestMetric(name, value){
+  const v = Number(value);
+  if(Number.isNaN(v)) return;
+  switch(name){
+    case "cpu":      state.kpi.cpu=v;   pushRolling(state.history.cpu, v); break;
+    case "mem":
+    case "memory":   state.kpi.mem=v;   pushRolling(state.history.mem, v); break;
+    case "net_in":
+    case "rx":       pushRolling(state.history.netRx, v); state.kpi.net = lastSum(state.history.netRx)+lastSum(state.history.netTx); break;
+    case "net_out":
+    case "tx":       pushRolling(state.history.netTx, v); state.kpi.net = lastSum(state.history.netRx)+lastSum(state.history.netTx); break;
+    case "disk":     state.kpi.disk=v;  pushRolling(state.history.disk, v); break;
+    case "rps":      pushRolling(state.history.rps, v); break;
+    case "err":
+    case "errors":   state.kpi.err=v;   pushRolling(state.history.err, v); break;
+    case "users":    state.kpi.users=v; pushRolling(state.history.users, v); break;
+    case "calls":    state.kpi.calls=v; pushRolling(state.history.calls, v); break;
+    case "conns":
+    case "connections": state.kpi.conns=v; pushRolling(state.history.conns, v); break;
+  }
+}
+function lastSum(arr){
+  if(!arr.length) return 0;
+  return arr[arr.length-1].v || 0;
+}
+
+/* ---------- 6. sparklines ---------- */
+function makeSpark(canvas, color){
+  const ctx = canvas.getContext("2d");
+  const chart = new Chart(ctx, {
+    type:"line",
+    data:{ labels:[], datasets:[{
+      data:[], borderColor:color, borderWidth:1.5,
+      pointRadius:0, tension:.3, fill:true,
+      backgroundColor: hexA(color, .18),
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:false,
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+      scales:{
+        x:{display:false}, y:{display:false}
+      },
+      elements:{ line:{ cubicInterpolationMode:"monotone" } }
+    }
+  });
+  return chart;
+}
+function hexA(hex, a){
+  const m = hex.match(/^#?([0-9a-f]{6})$/i);
+  if(!m) return hex;
+  const n = parseInt(m[1],16);
+  return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${a})`;
+}
+function initSparklines(){
+  const cfg = {
+    users:"#4ade80", calls:"#00d4ff", conns:"#7c5cff",
+    cpu:"#facc15",   mem:"#39e6b4",  net:"#3b82f6",
+    disk:"#fb923c",  err:"#ff4757",
+  };
+  document.querySelectorAll(".spark").forEach(c=>{
+    const key = c.dataset.spark;
+    state.sparks[key] = makeSpark(c, cfg[key]);
+  });
+}
+function updateSpark(key, points){
+  const ch = state.sparks[key]; if(!ch) return;
+  const labels = points.map((_,i)=>i);
+  const data   = points.map(p=>p.v);
+  ch.data.labels = labels; ch.data.datasets[0].data = data;
+  ch.update("none");
+}
+
+/* ---------- 7. main charts ---------- */
+function chartTextColor(){
+  const cs = getComputedStyle(document.documentElement);
+  return cs.getPropertyValue("--text-dim").trim() || "#a0a8b0";
+}
+function chartGridColor(){
+  return state.theme === "light" ? "rgba(0,0,0,.06)" : "rgba(255,255,255,.06)";
+}
+function timeWindowSec(){ return RANGES[state.range].window; }
+
+function buildCharts(){
+  const baseOpts = (yLabel, suggestedMax) => ({
+    responsive:true, maintainAspectRatio:false,
+    animation:false,
+    interaction:{ mode:"index", intersect:false },
+    plugins:{
+      legend:{
+        labels:{ color: chartTextColor(), boxWidth:10, font:{size:11} }
+      },
+      tooltip:{
+        backgroundColor:"#0a1020ee",
+        borderColor:"#1a2a3a", borderWidth:1,
+        titleColor:"#fff", bodyColor:"#e0e6ed",
+      }
+    },
+    scales:{
+      x:{
+        type:"time",
+        time:{ unit: timeUnit(), tooltipFormat:"HH:mm:ss" },
+        ticks:{ color:chartTextColor(), maxTicksLimit:8, font:{size:10} },
+        grid:{ color:chartGridColor() }
+      },
+      y:{
+        beginAtZero:true,
+        suggestedMax,
+        ticks:{ color:chartTextColor(), font:{size:10} },
+        grid:{ color:chartGridColor() },
+        title:{ display:!!yLabel, text:yLabel, color:chartTextColor(), font:{size:10}}
+      }
+    }
+  });
+
+  state.charts.cpuMem = new Chart(document.getElementById("chCpuMem"), {
+    type:"line",
+    data:{ datasets:[
+      { label:"CPU %", data:[], borderColor:"#facc15",
+        backgroundColor:"rgba(250,204,21,.15)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+      { label:"Memory %", data:[], borderColor:"#39e6b4",
+        backgroundColor:"rgba(57,230,180,.12)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+    ]},
+    options: baseOpts("٪", 100)
+  });
+  state.charts.net = new Chart(document.getElementById("chNet"), {
+    type:"line",
+    data:{ datasets:[
+      { label:"RX (in)", data:[], borderColor:"#00d4ff",
+        backgroundColor:"rgba(0,212,255,.15)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+      { label:"TX (out)", data:[], borderColor:"#7c5cff",
+        backgroundColor:"rgba(124,92,255,.15)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+    ]},
+    options: baseOpts("MB/s")
+  });
+  state.charts.rate = new Chart(document.getElementById("chRate"), {
+    type:"line",
+    data:{ datasets:[
+      { label:"RPS", yAxisID:"y", data:[], borderColor:"#4ade80",
+        backgroundColor:"rgba(74,222,128,.12)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+      { label:"Errors", yAxisID:"y1", data:[], borderColor:"#ff4757",
+        backgroundColor:"rgba(255,71,87,.12)", borderWidth:1.6,
+        pointRadius:0, tension:.25, fill:true },
+    ]},
+    options: (function(){
+      const o = baseOpts(null);
+      o.scales.y1 = {
+        position:"right", beginAtZero:true,
+        ticks:{ color:"#ff4757", font:{size:10} },
+        grid:{ display:false },
+        title:{ display:true, text:"errors", color:"#ff4757", font:{size:10}}
+      };
+      o.scales.y.title = { display:true, text:"rps", color:"#4ade80", font:{size:10}};
+      return o;
+    })()
+  });
+}
+function timeUnit(){
+  const w = timeWindowSec();
+  if(w <= 15*60) return "second";
+  if(w <= 6*60*60) return "minute";
+  if(w <= 24*60*60) return "minute";
+  return "hour";
+}
+function rebuildChartScales(){
+  for(const k in state.charts){
+    const ch = state.charts[k];
+    if(!ch?.options?.scales?.x?.time) continue;
+    ch.options.scales.x.time.unit = timeUnit();
+    ch.update("none");
+  }
+}
+function rebuildChartColors(){
+  for(const k in state.charts){
+    const ch = state.charts[k];
+    if(!ch) continue;
+    if(ch.options?.scales?.x?.ticks) ch.options.scales.x.ticks.color = chartTextColor();
+    if(ch.options?.scales?.y?.ticks) ch.options.scales.y.ticks.color = chartTextColor();
+    if(ch.options?.scales?.x?.grid)  ch.options.scales.x.grid.color  = chartGridColor();
+    if(ch.options?.scales?.y?.grid)  ch.options.scales.y.grid.color  = chartGridColor();
+    if(ch.options?.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = chartTextColor();
+    ch.update("none");
+  }
+}
+
+function renderCharts(){
+  const w = timeWindowSec();
+  clampRolling(state.history.cpu, w);
+  clampRolling(state.history.mem, w);
+  clampRolling(state.history.netRx, w);
+  clampRolling(state.history.netTx, w);
+  clampRolling(state.history.rps, w);
+  clampRolling(state.history.err, w);
+
+  const toXY = arr => arr.map(p=>({x:p.t, y:p.v}));
+
+  if(state.charts.cpuMem){
+    state.charts.cpuMem.data.datasets[0].data = toXY(state.history.cpu);
+    state.charts.cpuMem.data.datasets[1].data = toXY(state.history.mem);
+    state.charts.cpuMem.update("none");
+    const peak = Math.max(0, ...state.history.cpu.map(p=>p.v||0));
+    document.getElementById("cpuPeakVal").textContent = fmtPct(peak);
+  }
+  if(state.charts.net){
+    state.charts.net.data.datasets[0].data = toXY(state.history.netRx);
+    state.charts.net.data.datasets[1].data = toXY(state.history.netTx);
+    state.charts.net.update("none");
+    const peak = Math.max(
+      Math.max(0, ...state.history.netRx.map(p=>p.v||0)),
+      Math.max(0, ...state.history.netTx.map(p=>p.v||0)),
+    );
+    document.getElementById("netPeakVal").textContent = fmtRate(peak) + " MB/s";
+  }
+  if(state.charts.rate){
+    state.charts.rate.data.datasets[0].data = toXY(state.history.rps);
+    state.charts.rate.data.datasets[1].data = toXY(state.history.err);
+    state.charts.rate.update("none");
+    const last = state.history.rps.length ? state.history.rps[state.history.rps.length-1].v : 0;
+    document.getElementById("rpsVal").textContent = fmtRate(last);
+  }
+}
+
+/* ---------- 8. KPI rendering ---------- */
+function thresholdClass(name, v){
+  // returns "ok" | "warn" | "err"
+  switch(name){
+    case "cpu":   return v >= 90 ? "err" : v >= 70 ? "warn" : "ok";
+    case "mem":   return v >= 92 ? "err" : v >= 75 ? "warn" : "ok";
+    case "err":   return v >= 50 ? "err" : v >= 10 ? "warn" : "ok";
+    case "disk":  return v >= 200 ? "err": v >= 80 ? "warn" : "ok";
+    case "net":   return v >= 800 ? "err": v >= 400 ? "warn": "ok";
+    default:      return "ok";
+  }
+}
+function setKpiClass(el, cls){
+  el.classList.remove("ok","warn","err");
+  el.classList.add(cls);
+  const dot = el.querySelector(".label .dot");
+  if(dot){ dot.className = "dot " + cls; }
+}
+
+function renderKPIs(){
+  const k = state.kpi;
+  document.getElementById("kpiUsers").textContent = fmtNum(k.users);
+  document.getElementById("kpiCalls").textContent = fmtNum(k.calls);
+  document.getElementById("kpiConns").textContent = fmtNum(k.conns);
+  document.getElementById("kpiCpu").textContent   = fmtPct(k.cpu);
+  document.getElementById("kpiMem").textContent   = fmtPct(k.mem);
+  document.getElementById("kpiNet").textContent   = fmtRate(k.net);
+  document.getElementById("kpiDisk").textContent  = fmtRate(k.disk);
+  document.getElementById("kpiErr").textContent   = fmtNum(k.err);
+
+  // color
+  const map = [
+    ["users","ok"],
+    ["calls","ok"],
+    ["conns","ok"],
+    ["cpu",  thresholdClass("cpu", k.cpu)],
+    ["mem",  thresholdClass("mem", k.mem)],
+    ["net",  thresholdClass("net", k.net)],
+    ["disk", thresholdClass("disk", k.disk)],
+    ["err",  thresholdClass("err", k.err)],
+  ];
+  map.forEach(([key, cls])=>{
+    const el = document.querySelector(`.kpi[data-kpi="${key}"]`);
+    if(el) setKpiClass(el, cls);
+  });
+
+  // sparks
+  updateSpark("users", lastN(state.history.users, 60));
+  updateSpark("calls", lastN(state.history.calls, 60));
+  updateSpark("conns", lastN(state.history.conns, 60));
+  updateSpark("cpu",   lastN(state.history.cpu,   60));
+  updateSpark("mem",   lastN(state.history.mem,   60));
+  updateSpark("net",   lastN(combine(state.history.netRx, state.history.netTx), 60));
+  updateSpark("disk",  lastN(state.history.disk,  60));
+  updateSpark("err",   lastN(state.history.err,   60));
+}
+function lastN(arr, n){ return arr.slice(-n); }
+function combine(a,b){
+  // pointwise sum by index (best-effort)
+  const len = Math.min(a.length, b.length);
+  const out=[];
+  for(let i=0;i<len;i++) out.push({t:a[i].t, v:(a[i].v||0)+(b[i].v||0)});
+  return out;
+}
+
+/* ---------- 9. transport matrix ---------- */
+function renderMatrixCells(){
+  const root = document.getElementById("transportMatrix");
+  root.innerHTML = "";
+  TRANSPORTS.forEach(tr=>{
+    const cell = document.createElement("div");
+    cell.className = "mcell";
+    cell.dataset.id = tr.id;
+    cell.innerHTML = `
+      <div class="mname"><span class="dot" data-dot></span> ${tr.name}</div>
+      <div class="mstats" data-stats>—</div>
+      <div class="mlat" data-lat>p50: —  p99: —</div>
+      <div class="mtags" data-tags></div>
+    `;
+    cell.addEventListener("click", () => onMatrixClick(tr));
+    root.appendChild(cell);
+  });
+  updateMatrixUI();
+}
+function onMatrixClick(tr){
+  const s = state.matrix[tr.id];
+  if(!s){ toast(`${tr.name}: لا توجد بيانات`, "warn"); return; }
+  toast(`${tr.name} → ${s.status} · ${fmtNum(s.throughput||0)} msg/s`, s.status==="ok"?"ok":(s.status==="warn"?"warn":"err"));
+}
+function updateMatrixUI(){
+  let okN=0,wN=0,eN=0;
+  TRANSPORTS.forEach(tr=>{
+    const cell = document.querySelector(`.mcell[data-id="${tr.id}"]`);
+    if(!cell) return;
+    const s = state.matrix[tr.id];
+    const dot = cell.querySelector("[data-dot]");
+    const stats = cell.querySelector("[data-stats]");
+    const lat   = cell.querySelector("[data-lat]");
+    const tags  = cell.querySelector("[data-tags]");
+    if(!s){
+      dot.className = "dot";
+      stats.textContent = "—";
+      lat.textContent = "p50: —  p99: —";
+      tags.innerHTML = `<span class="tag">غير مرتبط</span>`;
+      return;
+    }
+    dot.className = "dot " + s.status;
+    if(s.status==="ok") okN++; else if(s.status==="warn") wN++; else eN++;
+    stats.textContent = `${fmtNum(s.throughput||0)} msg/s · ${fmtNum(s.conns||0)} conn`;
+    lat.textContent = `p50: ${fmtNum(s.p50||0,1)}ms  p99: ${fmtNum(s.p99||0,1)}ms`;
+    const t = [];
+    if(s.notice404) t.push(`<span class="tag badge-404">404</span>`);
+    if(s.tls) t.push(`<span class="tag">TLS</span>`);
+    if(s.compressed) t.push(`<span class="tag">gzip</span>`);
+    tags.innerHTML = t.join("");
+  });
+  document.getElementById("matOk").textContent   = fmtNum(okN);
+  document.getElementById("matWarn").textContent = fmtNum(wN);
+  document.getElementById("matErr").textContent  = fmtNum(eN);
+}
+
+/* ---------- 10. connections table ---------- */
+async function pollConnections(){
+  if(!state.autoRefresh) return;
+  // Try a couple of possible endpoint names so we keep degrading gracefully.
+  const candidates = [
+    "/api/admin/connections/list",
+    "/api/admin/clients/list",
+    "/api/admin/stats",
+  ];
+  for(const path of candidates){
+    try{
+      const data = await apiFetch(path);
+      const rows = extractConnections(data);
+      if(rows){
+        state.conns.rows = rows;
+        renderConnections();
+        return;
+      }
+    } catch(e){
+      if(e.code === 404) continue;
+      console.warn("conns poll", path, e);
+    }
+  }
+  // none worked
+  if(!state.conns.rows.length){
+    const tbody = document.getElementById("connTbody");
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">
+      نقاط الاتصالات لم تُربط بعد <span class="badge-404">404</span>
+    </td></tr>`;
+  }
+}
+function extractConnections(data){
+  if(!data) return null;
+  if(Array.isArray(data)) return data;
+  if(Array.isArray(data.connections)) return data.connections;
+  if(Array.isArray(data.clients))     return data.clients;
+  if(Array.isArray(data.rows))        return data.rows;
+  if(data.online && Array.isArray(data.online)) return data.online;
+  return null;
+}
+function renderConnections(){
+  const s = state.conns;
+  // filter
+  let rows = s.rows.slice();
+  if(s.transport){
+    rows = rows.filter(r => (r.transport||"").toLowerCase() === s.transport);
+  }
+  if(s.search){
+    rows = rows.filter(r => {
+      const hay = [
+        r.user_id, r.username, r.ip, r.transport, r.last_activity
+      ].map(x=>String(x||"").toLowerCase()).join(" ");
+      return hay.includes(s.search);
+    });
+  }
+  // sort
+  rows.sort((a,b)=>{
+    const k = s.sortKey;
+    const av = a[k], bv = b[k];
+    let cmp;
+    if(typeof av === "number" && typeof bv === "number") cmp = av-bv;
+    else cmp = String(av||"").localeCompare(String(bv||""), ARABIC_LOCALE);
+    return s.sortDir === "asc" ? cmp : -cmp;
+  });
+  s.filtered = rows;
+
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / s.pageSize));
+  if(s.page > pages) s.page = pages;
+  const start = (s.page-1) * s.pageSize;
+  const slice = rows.slice(start, start + s.pageSize);
+
+  const tbody = document.getElementById("connTbody");
+  if(!slice.length){
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">لا توجد اتصالات مطابقة</td></tr>`;
+  } else {
+    tbody.innerHTML = slice.map(r=>`
+      <tr>
+        <td class="mono">${esc(r.user_id||r.id||"—")}</td>
+        <td>${esc(r.username||"—")}</td>
+        <td class="mono">${esc(r.ip||r.remote_addr||"—")}</td>
+        <td>${tagTransport(r.transport)}</td>
+        <td class="mono">${fmtTime(r.connected_at)}</td>
+        <td class="num">${fmtBytes(r.bytes_in||0)}</td>
+        <td class="num">${fmtBytes(r.bytes_out||0)}</td>
+        <td class="mono">${fmtTime(r.last_activity)}</td>
+        <td>
+          <button class="btn" data-kick="${esc(r.user_id||r.id||"")}">ركل</button>
+        </td>
+      </tr>
+    `).join("");
+    tbody.querySelectorAll("[data-kick]").forEach(b=>{
+      b.addEventListener("click", () => kickConnection(b.dataset.kick));
+    });
+  }
+
+  document.getElementById("connRange").textContent =
+    `${fmtNum(slice.length?start+1:0)}-${fmtNum(start+slice.length)}`;
+  document.getElementById("connTotal").textContent = fmtNum(total);
+  document.getElementById("connPageLabel").textContent = `صفحة ${fmtNum(s.page)} / ${fmtNum(pages)}`;
+  document.getElementById("connPrev").disabled = s.page <= 1;
+  document.getElementById("connNext").disabled = s.page >= pages;
+}
+function esc(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function tagTransport(t){
+  if(!t) return "—";
+  const k = String(t).toLowerCase();
+  return `<span class="pill">${esc(t)}</span>`;
+}
+async function kickConnection(id){
+  if(!id) return;
+  if(!confirm(`فصل المستخدم ${id}؟`)) return;
+  try{
+    await apiFetch(`/api/admin/connections/${encodeURIComponent(id)}/kick`, {method:"POST"});
+    toast(`تم فصل ${id}`,"ok");
+    pollConnections();
+  } catch(e){
+    if(e.code === 404){
+      try{
+        await apiFetch(`/api/admin/clients/${encodeURIComponent(id)}/disconnect`, {method:"POST"});
+        toast(`تم فصل ${id}`,"ok");
+        pollConnections();
+        return;
+      } catch(e2){
+        toast(`نقطة الفصل غير مرتبطة (${e2.code||""})`,"err");
+        return;
+      }
+    }
+    toast(`فشل الفصل: ${e.message}`,"err");
+  }
+}
+
+/* ---------- 11. alerts ---------- */
+function addAlert(a){
+  if(!a) return;
+  const norm = {
+    id: a.id || (Date.now()+"-"+Math.random().toString(36).slice(2,8)),
+    severity: (a.severity || a.level || "info").toLowerCase(),
+    title: a.title || a.name || a.message?.split("\n")[0] || "Alert",
+    body: a.body || a.detail || a.description || a.message || "",
+    ts: a.ts || a.timestamp || Date.now(),
+    source: a.source || a.component || "—",
+  };
+  state.alerts.unshift(norm);
+  if(state.alerts.length > 200) state.alerts.length = 200;
+  renderAlerts();
+}
+function alertSevClass(s){
+  const t = String(s||"").toLowerCase();
+  if(t==="critical"||t==="crit"||t==="fatal") return "sev-crit";
+  if(t==="error"||t==="err") return "sev-err";
+  if(t==="warn"||t==="warning") return "sev-warn";
+  return "sev-info";
+}
+function renderAlerts(){
+  const list = document.getElementById("alertsList");
+  let rows = state.alerts.slice(0, 50);
+  if(state.alertFilter){
+    rows = rows.filter(a => alertSevClass(a.severity) === "sev-"+state.alertFilter);
+  }
+  document.getElementById("alertCount").textContent = fmtNum(rows.length);
+  if(!rows.length){
+    list.innerHTML = `<div class="empty">لا تنبيهات</div>`;
+    return;
+  }
+  list.innerHTML = rows.map(a => {
+    const sc = alertSevClass(a.severity);
+    return `
+      <div class="alert ${sc}" data-id="${esc(a.id)}">
+        <div class="ahead">
+          <span class="atitle">${esc(a.title)}</span>
+          <span class="sev-tag ${sc}">${esc(a.severity)}</span>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <span class="atime">${fmtTime(a.ts)}</span>
+          <span class="atime">${esc(a.source)}</span>
+        </div>
+        <div class="abody">${esc(a.body)}</div>
+      </div>
+    `;
+  }).join("");
+  list.querySelectorAll(".alert").forEach(el=>{
+    el.addEventListener("click", ()=> el.classList.toggle("expanded"));
+  });
+}
+
+/* ---------- 12. audit widget ---------- */
+async function pollAudit(){
+  try{
+    const data = await apiFetch("/api/admin/audit/head");
+    const head   = data.head || data.hash || data.root || data.tip || null;
+    const ts     = data.verified_at || data.ts || data.timestamp || Date.now();
+    const status = (data.status || (data.tamper === false ? "ok" : data.tamper === true ? "tamper" : "unknown")).toString();
+    const len    = data.length || data.count || data.index || 0;
+    state.audit = { head, ts, status, len };
+    renderAudit();
+  } catch(e){
+    if(e.code === 404){
+      document.getElementById("auditHash").textContent = "endpoint غير مرتبط";
+      document.getElementById("auditStatus").innerHTML = `<span class="badge-404">404</span>`;
+      document.getElementById("auditDot").className = "dot warn";
+      return;
+    }
+    console.warn("audit", e);
+  }
+}
+function renderAudit(){
+  const a = state.audit;
+  document.getElementById("auditHash").textContent = shortHash(a.head);
+  document.getElementById("auditTs").textContent   = fmtTime(a.ts);
+  document.getElementById("auditLen").textContent  = fmtNum(a.len);
+  const dot = document.getElementById("auditDot");
+  const stEl = document.getElementById("auditStatus");
+  let cls="warn", txt="unknown";
+  const s = String(a.status||"").toLowerCase();
+  if(s.includes("ok") || s.includes("verified") || s==="ok"){ cls="ok"; txt="سليم"; }
+  else if(s.includes("tamper") || s.includes("bad") || s.includes("err")){ cls="err"; txt="عبث محتمل!"; }
+  else { cls="warn"; txt=s||"غير معروف"; }
+  dot.className = "dot " + cls;
+  stEl.innerHTML = `<span class="${'glow-'+cls}">${esc(txt)}</span>`;
+}
+
+/* ---------- pollers ---------- */
+async function pollStats(){
+  if(!state.autoRefresh) return;
+  try{
+    const s = await apiFetch("/api/admin/stats");
+    const users = s.online || s.users || s.online_users || s.connected_users || 0;
+    const calls = s.active_calls || s.calls || 0;
+    const conns = s.connections || (
+      (s.tcp_conns||0) + (s.ws_conns||0) + (s.grpc_conns||0)
+    );
+    state.kpi.users = Number(users)||0;
+    state.kpi.calls = Number(calls)||0;
+    state.kpi.conns = Number(conns)||0;
+    pushRolling(state.history.users, state.kpi.users);
+    pushRolling(state.history.calls, state.kpi.calls);
+    pushRolling(state.history.conns, state.kpi.conns);
+    renderKPIs();
+  } catch(e){
+    if(e.code === 404){
+      console.warn("/api/admin/stats not wired");
+    }
+  }
+}
+async function pollMetrics(){
+  if(!state.autoRefresh) return;
+  try{
+    const m = await apiFetch("/api/admin/observability/metrics");
+    const cpu  = pickNum(m, ["cpu","cpu_percent","host_cpu","cpu_usage"]);
+    const mem  = pickNum(m, ["mem","memory","memory_percent","mem_percent"]);
+    const rx   = pickNum(m, ["net_in","rx","network_in_mb_s","net_rx_mb_s"]);
+    const tx   = pickNum(m, ["net_out","tx","network_out_mb_s","net_tx_mb_s"]);
+    const disk = pickNum(m, ["disk","disk_io_mb_s","disk_io"]);
+    const rps  = pickNum(m, ["rps","request_rate","requests_per_second"]);
+    const err  = pickNum(m, ["errors","err","error_rate_60s","errors_60s"]);
+    if(cpu!=null){  state.kpi.cpu=cpu;  pushRolling(state.history.cpu, cpu); }
+    if(mem!=null){  state.kpi.mem=mem;  pushRolling(state.history.mem, mem); }
+    if(rx!=null){   pushRolling(state.history.netRx, rx); }
+    if(tx!=null){   pushRolling(state.history.netTx, tx); }
+    if(rx!=null||tx!=null){
+      state.kpi.net = (rx||0) + (tx||0);
+    }
+    if(disk!=null){ state.kpi.disk=disk; pushRolling(state.history.disk, disk); }
+    if(rps!=null){  pushRolling(state.history.rps, rps); }
+    if(err!=null){  state.kpi.err=err;   pushRolling(state.history.err, err); }
+    // surface alerts if any
+    if(Array.isArray(m.alerts)){
+      m.alerts.forEach(addAlert);
+    }
+    renderKPIs(); renderCharts();
+    document.getElementById("latencyVal").textContent = fmtRate(m.rtt_ms||m.latency_ms||0)+" ms";
+  } catch(e){
+    if(e.code === 404){ console.warn("metrics not wired"); }
+  }
+}
+function pickNum(obj, keys){
+  for(const k of keys){
+    if(obj && obj[k]!=null && !Number.isNaN(Number(obj[k]))) return Number(obj[k]);
+  }
+  // nested .metrics
+  if(obj && obj.metrics){
+    for(const k of keys){
+      if(obj.metrics[k]!=null && !Number.isNaN(Number(obj.metrics[k]))) return Number(obj.metrics[k]);
+    }
+  }
+  return null;
+}
+
+async function pollTransports(){
+  if(!state.autoRefresh) return;
+  // Endpoints that exist
+  const tasks = TRANSPORTS.map(async tr=>{
+    if(!tr.endpoint){
+      // synthetic: derive from /stats or /health
+      state.matrix[tr.id] = state.matrix[tr.id] || { status:"warn", throughput:0, conns:0, p50:0, p99:0, notice404:true };
+      return;
+    }
+    try{
+      const d = await apiFetch(tr.endpoint);
+      state.matrix[tr.id] = {
+        status:  pickStatus(d),
+        throughput: pickNum(d, ["throughput","msgs_per_sec","rate","tx_rate"]) || 0,
+        conns:   pickNum(d, ["conns","connections","clients","peers"]) || 0,
+        p50:     pickNum(d, ["p50","latency_p50_ms","p50_ms"]) || 0,
+        p99:     pickNum(d, ["p99","latency_p99_ms","p99_ms"]) || 0,
+        tls:     !!(d.tls || d.tls_enabled),
+        compressed: !!d.compressed,
+      };
+    } catch(e){
+      state.matrix[tr.id] = { status:"err", throughput:0, conns:0, p50:0, p99:0, notice404: e.code===404 };
+    }
+  });
+  // pull DNS / federation / shaper / stun in parallel for synthetic transports
+  tasks.push((async()=>{
+    try{
+      const d = await apiFetch("/api/admin/dns/stats");
+      state.matrix.mdns = {
+        status: pickStatus(d),
+        throughput: pickNum(d, ["qps","throughput","rate"])||0,
+        conns: 0,
+        p50: pickNum(d,["p50","latency_p50_ms"])||0,
+        p99: pickNum(d,["p99","latency_p99_ms"])||0,
+      };
+    } catch(e){ state.matrix.mdns = { status:"err", throughput:0, conns:0, p50:0, p99:0, notice404:e.code===404 }; }
+  })());
+  tasks.push((async()=>{
+    try{
+      const d = await apiFetch("/api/admin/ops/stun/status");
+      state.matrix.p2p = {
+        status: pickStatus(d),
+        throughput: pickNum(d,["throughput","rate"])||0,
+        conns: pickNum(d,["peers","connections"])||0,
+        p50: pickNum(d,["p50"])||0, p99: pickNum(d,["p99"])||0,
+      };
+    } catch(e){ state.matrix.p2p = { status:"err",throughput:0,conns:0,p50:0,p99:0,notice404:e.code===404 }; }
+  })());
+  tasks.push((async()=>{
+    try{
+      const d = await apiFetch("/api/admin/wan/portmap/list");
+      // presence of mappings == reverse proxy alive
+      const count = Array.isArray(d?.mappings) ? d.mappings.length :
+                    Array.isArray(d) ? d.length : (d.count||0);
+      state.matrix.revproxy = {
+        status: count>0 ? "ok" : "warn",
+        throughput:0, conns:count, p50:0, p99:0,
+      };
+    } catch(e){ state.matrix.revproxy = { status:"err",throughput:0,conns:0,p50:0,p99:0,notice404:e.code===404 }; }
+  })());
+
+  await Promise.all(tasks);
+  updateMatrixUI();
+}
+function pickStatus(d){
+  if(!d) return "err";
+  const s = (d.status || d.state || (d.healthy===true?"ok":d.healthy===false?"err":"")).toString().toLowerCase();
+  if(["ok","up","running","healthy","green"].includes(s)) return "ok";
+  if(["warn","warning","degraded","yellow","pending"].includes(s)) return "warn";
+  if(["err","error","down","fail","failed","red","stopped"].includes(s)) return "err";
+  return d.ok===true ? "ok" : "warn";
+}
+
+async function pollHealth(){
+  if(!state.autoRefresh) return;
+  try{
+    const d = await apiFetch("/api/admin/health");
+    if(d && d.status){
+      // surface as a passive heartbeat in connection badge if WS is closed
+      if(!state.wsConnected){
+        setConnBadge(false, "صحّة: " + d.status);
+      }
+    }
+  } catch(e){
+    if(e.code === 404){
+      if(!state.wsConnected) setConnBadge(false, "health 404 — استطلاع");
+    }
+  }
+}
+
+/* ---------- bootstrap ---------- */
+function refreshAll(force){
+  pollStats();
+  pollMetrics();
+  pollTransports();
+  pollConnections();
+  pollAudit();
+  pollHealth();
+}
+
+function boot(){
+  if(typeof Chart === "undefined"){
+    document.body.insertAdjacentHTML("afterbegin",
+      `<div style="background:#ff4757;color:#fff;padding:10px;text-align:center;font-size:13px">
+        Chart.js غير محمّل — ضع الملف على /admin/vendor/chart.min.js
+      </div>`);
+    return;
+  }
+  applyTheme(state.theme);
+  bindUI();
+  initSparklines();
+  buildCharts();
+  renderMatrixCells();
+  renderAlerts();
+  startTimers();
+  refreshAll(true);
+  openWS();
+
+  // periodic chart redraw to flush rolling windows even when no new data arrives
+  setInterval(()=>{ if(state.autoRefresh) renderCharts(); }, 1000);
+}
+
+document.addEventListener("DOMContentLoaded", boot);
+
+/* end of monitoring_unified.html */
+</script>
+</body>
+</html>

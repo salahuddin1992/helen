@@ -1,0 +1,188 @@
+{
+  "links": [
+    {
+      "bandwidth_mbps": 0.0,
+      "dst_id": "Nuub2RQeawvPUCivdiiTrN7pM4fwK2ZQsJyGxiw1r3RKNQ3at6vvyqUacM62vTVT",
+      "extra": {},
+      "fail_count": 0,
+      "last_seen": 1778015887.022419,
+      "last_success": 1778015857.0172975,
+      "latency_ms": 1423.16,
+      "link_type": "lan_direct",
+      "packet_loss": 0.0,
+      "score": 0.0,
+      "src_id": "kIN7UkgiijzqpQytdcmgkXzMN3WqlIawpsGfglA3muhT518n79jVA48JcerNUh7M"
+    }
+  ],
+  "nodes": [
+    {
+      "capabilities": {
+        "cpu_cores": 14,
+        "nic_gbps": 1.0,
+        "ram_gb": 63.7
+      },
+      "cluster_id": "default",
+      "extra": {
+        "bridge": true
+      },
+      "host": "DESKTOP-5O9C927",
+      "is_self": true,
+      "last_seen": 1778001484.2614212,
+      "nics": [
+        "169.254.123.0/24",
+        "192.168.1.0/24",
+        "169.254.40.0/24",
+        "169.254.104.0/24",
+        "169.254.25.0/24",
+        "169.254.88.0/24",
+        "169.254.230.0/24"
+      ],
+      "node_id": "kIN7UkgiijzqpQytdcmgkXzMN3WqlIawpsGfglA3muhT518n79jVA48JcerNUh7M",
+      "node_type": "bridge",
+      "port": 3011,
+      "roles": [
+        "file_transfer",
+        "messaging",
+        "metrics",
+        "presence",
+        "relay",
+        "sfu",
+        "signaling"
+      ],
+      "subnet": null
+    },
+    {
+      "capabilities": {
+        "cpu_cores": 14,
+        "nic_gbps": 4.29,
+        "ram_gb": 63.7
+      },
+      "cluster_id": "default",
+      "extra": {
+        "bridge": true
+      },
+      "host": "DESKTOP-5O9C927",
+      "is_self": true,
+      "last_seen": 1778267383.9021106,
+      "nics": [
+        "169.254.123.0/24",
+        "192.168.1.0/24",
+        "169.254.40.0/24",
+        "169.254.88.0/24",
+        "172.21.224.0/24",
+        "169.254.230.0/24"
+      ],
+      "node_id": "7b859c3647ff0039lRxntdOM79vZwggI7qhW94Z5OYHE5ljRMLLBC3TTJ51dbn2q",
+      "node_type": "bridge",
+      "port": 3000,
+      "roles": [
+        "file_transfer",
+        "messaging",
+        "metrics",
+        "presence",
+        "relay",
+        "sfu",
+        "signaling"
+      ],
+      "subnet": null
+    },
+    {
+      "capabilities": {
+        "cpu_cores": 14,
+        "nic_gbps": 4.29,
+        "ram_gb": 63.7
+      },
+      "cluster_id": "default",
+      "extra": {},
+      "host": "172.21.224.1",
+      "is_self": false,
+      "last_seen": 1778015800.3656883,
+      "nics": [
+        "172.21.224.1"
+      ],
+      "node_id": "Nuub2RQeawvPUCivdiiTrN7pM4fwK2ZQsJyGxiw1r3RKNQ3at6vvyqUacM62vTVT",
+      "node_type": "peer",
+      "port": 3000,
+      "roles": [
+        "file_transfer",
+        "messaging",
+        "metrics",
+        "presence",
+        "relay",
+        "sfu",
+        "signaling"
+      ],
+      "subnet": "172.21.224.0/24"
+    },
+    {
+      "capabilities": {
+        "cpu_cores": 1,
+        "nic_gbps": 10.0,
+        "ram_gb": 3.8
+      },
+      "cluster_id": "default",
+      "extra": {},
+      "host": "claude",
+      "is_self": true,
+      "last_seen": 1778638614.159332,
+      "nics": [
+        "claude"
+      ],
+      "node_id": "jLt3HMxUbHYcxn3V9U4g8UFjKcg87HUdjqeRjWEXsvwJYouKp53bsPmZBAWqGXmw",
+      "node_type": "peer",
+      "port": 48069,
+      "roles": [
+        "file_transfer",
+        "messaging",
+        "metrics",
+        "presence",
+        "relay",
+        "sfu",
+        "signaling"
+      ],
+      "subnet": null
+    },
+    {
+      "capabilities": {
+        "cpu_cores": 1,
+        "nic_gbps": 10.0,
+        "ram_gb": 3.8
+      },
+      "cluster_id": "default",
+      "extra": {},
+      "host": "claude",
+      "is_self": true,
+      "last_seen": 1778670518.6556025,
+      "nics": [
+        "claude"
+      ],
+      "node_id": "tkd08BpKCRiAvpYrUuuk9OWr5EVSChdzVnRAhJJB184no3nlZ9pS2BCNnGU1Aqaq",
+      "node_type": "peer",
+      "port": 52817,
+      "roles": [
+        "file_transfer",
+        "messaging",
+        "metrics",
+        "presence",
+        "relay",
+        "sfu",
+        "signaling"
+      ],
+      "subnet": null
+    }
+  ],
+  "saved_at": 1778670518.6826568,
+  "subnets": [
+    {
+      "cidr": "172.21.224.0/24",
+      "discovered_at": 1778015827.0176105,
+      "extra": {},
+      "gateway": null,
+      "is_local": false,
+      "nodes": [
+        "Nuub2RQeawvPUCivdiiTrN7pM4fwK2ZQsJyGxiw1r3RKNQ3at6vvyqUacM62vTVT"
+      ]
+    }
+  ],
+  "version": 1
+}

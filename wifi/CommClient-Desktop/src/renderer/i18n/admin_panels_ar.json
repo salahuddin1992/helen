@@ -1,0 +1,74 @@
+{
+  "admin_panels.category.observability": "المراقبة",
+  "admin_panels.category.security": "الأمن",
+  "admin_panels.category.governance": "الحوكمة",
+  "admin_panels.category.operations": "العمليات",
+  "admin_panels.category.setup": "الإعداد",
+
+  "admin_panels.monitoring_unified.label": "لوحة المراقبة الموحدة",
+  "admin_panels.monitoring_unified.tooltip": "metrics خادم، اتصالات حية، صحة الأنظمة الفرعية",
+  "admin_panels.monitoring_unified.permission": "admin.monitoring.read",
+
+  "admin_panels.topology_visualizer.label": "مخطط البنية",
+  "admin_panels.topology_visualizer.tooltip": "مخطط ديناميكي للأنواد، الأقران، وجلسات SFU",
+  "admin_panels.topology_visualizer.permission": "admin.topology.read",
+
+  "admin_panels.router_control.label": "تحكم الموجّه",
+  "admin_panels.router_control.tooltip": "Helen-Router: jails، routes، أنفاق",
+  "admin_panels.router_control.permission": "admin.router.read",
+
+  "admin_panels.siem_audit.label": "SIEM / تدقيق",
+  "admin_panels.siem_audit.tooltip": "سجل سلسلة التدقيق، تنبيهات أمنية، تحقق من السلامة",
+  "admin_panels.siem_audit.permission": "admin.siem.read",
+
+  "admin_panels.billing_tenancy.label": "الفوترة / المستأجرون",
+  "admin_panels.billing_tenancy.tooltip": "مستأجرون، تراخيص، خطط، تنبيهات انتهاء",
+  "admin_panels.billing_tenancy.permission": "admin.billing.read",
+
+  "admin_panels.dr_console.label": "وحدة التعافي من الكوارث",
+  "admin_panels.dr_console.tooltip": "أهداف النسخ الاحتياطي، سياسات، failover، فحص",
+  "admin_panels.dr_console.permission": "admin.dr.read",
+
+  "admin_panels.plugin_marketplace.label": "سوق الإضافات",
+  "admin_panels.plugin_marketplace.tooltip": "الإضافات المثبتة، التحديثات، صلاحيات sandbox",
+  "admin_panels.plugin_marketplace.permission": "admin.plugins.read",
+
+  "admin_panels.federation_health.label": "صحة الاتحاد",
+  "admin_panels.federation_health.tooltip": "خريطة الأقران، حجر صحي، تأخير الاتحاد",
+  "admin_panels.federation_health.permission": "admin.federation.read",
+
+  "admin_panels.qos_live.label": "جودة الاتصال المباشر",
+  "admin_panels.qos_live.tooltip": "MOS / jitter / loss للمكالمات النشطة",
+  "admin_panels.qos_live.permission": "admin.qos.read",
+
+  "admin_panels.compliance_ediscovery.label": "الامتثال / eDiscovery",
+  "admin_panels.compliance_ediscovery.tooltip": "حجوزات قانونية، RTBF، تصدير GDPR",
+  "admin_panels.compliance_ediscovery.permission": "admin.compliance.read",
+
+  "admin_panels.onboarding_wizard.label": "معالج الإعداد",
+  "admin_panels.onboarding_wizard.tooltip": "إعداد أوّلي للمشغّل: TLS، DNS، تخزين، نسخ احتياطي",
+  "admin_panels.onboarding_wizard.permission": "admin.onboarding.read",
+
+  "admin_panels.loading": "جارِ تحميل اللوحة…",
+  "admin_panels.reload": "إعادة تحميل",
+  "admin_panels.open_external": "فتح في المتصفح",
+  "admin_panels.error.unknown": "لوحة غير معروفة",
+  "admin_panels.error.server_url_missing": "عنوان الخادم غير مُكوّن",
+  "admin_panels.error.role_required": "هذه اللوحة تتطلب دور المسؤول",
+
+  "admin_notifications.title": "إشعارات المسؤول",
+  "admin_notifications.empty": "لا توجد إشعارات",
+  "admin_notifications.clear_all": "مسح الكل",
+  "admin_notifications.open_panel": "فتح اللوحة",
+  "admin_notifications.dismiss": "تجاهل",
+
+  "admin_notifications.audit.tamper": "تكامل سلسلة التدقيق مكسور",
+  "admin_notifications.dr.backup_failed": "فشل النسخ الاحتياطي",
+  "admin_notifications.dr.destination_down": "وجهة DR غير متاحة",
+  "admin_notifications.license.expiring": "ترخيص ينتهي قريباً",
+  "admin_notifications.federation.peer_quarantined": "تم حجر قِرن اتحاد",
+  "admin_notifications.federation.peer_down": "قِرن غير متاح",
+  "admin_notifications.qos.critical": "جودة مكالمة حرجة",
+  "admin_notifications.plugin.update_available": "تحديث إضافة متوفر",
+  "admin_notifications.plugin.crashed": "انهيار إضافة"
+}

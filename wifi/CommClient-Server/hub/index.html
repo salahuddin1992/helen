@@ -1,0 +1,158 @@
+<!doctype html>
+<!--
+    Helen Hub — discovery page for every Helen panel.
+
+    Lists each panel with two ways to open it:
+      1. "Open in browser"  — direct link
+      2. "Open in app"      — helen-shell:// scheme handler (or copy command)
+
+    Mounted at /hub/ by `app/main.py`.
+-->
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Helen Hub</title>
+    <style>
+        :root {
+            --bg:        #0d1018;
+            --card:      #161a25;
+            --border:    rgba(120, 130, 160, 0.25);
+            --text:      #e6e9f1;
+            --muted:     #8a93a6;
+            --accent:    #4f7cff;
+            --accent-bg: rgba(79, 124, 255, 0.12);
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg:        #f6f7fb;
+                --card:      #ffffff;
+                --border:    rgba(0, 0, 0, 0.08);
+                --text:      #0b0d12;
+                --muted:     #5b6478;
+                --accent:    #0a6cff;
+                --accent-bg: rgba(10, 108, 255, 0.08);
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .wrap   { max-width: 920px; margin: 0 auto; padding: 48px 24px 64px; }
+        h1      { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
+        .lead   { color: var(--muted); margin: 0 0 36px; font-size: 15px; }
+        .grid   { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            display: flex; flex-direction: column;
+            gap: 10px;
+        }
+        .card h3 { margin: 0; font-size: 16px; font-weight: 600; }
+        .card .desc { color: var(--muted); font-size: 13px; line-height: 1.45; flex: 1; }
+        .card .path {
+            font-family: ui-monospace, monospace;
+            font-size: 11px; color: var(--muted);
+            background: var(--accent-bg);
+            padding: 4px 8px; border-radius: 6px;
+            display: inline-block; align-self: flex-start;
+        }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .btn {
+            font: inherit; font-size: 13px; font-weight: 600;
+            padding: 8px 12px;
+            border-radius: 8px; cursor: pointer;
+            border: 1px solid var(--border);
+            color: var(--text); background: transparent;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn:hover    { filter: brightness(1.08); }
+        .btn:active   { transform: scale(0.97); }
+        footer { color: var(--muted); font-size: 12px; margin-top: 36px; line-height: 1.6; }
+        kbd {
+            background: var(--accent-bg); padding: 1px 6px; border-radius: 4px;
+            font-family: ui-monospace, monospace; font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Helen Hub</h1>
+        <p class="lead">
+            Every Helen panel — open in your browser or in a desktop window.
+        </p>
+
+        <div class="grid" id="appGrid"></div>
+
+        <footer>
+            Run as a desktop app:
+            <kbd>cd Helen-Shell &amp;&amp; npm run &lt;id&gt;</kbd>
+            (e.g. <kbd>npm run admin</kbd>, <kbd>npm run vault</kbd>).
+            <br>The server URL is taken from this page's origin, so this works
+            both on <kbd>127.0.0.1</kbd> and on a LAN host.
+        </footer>
+    </div>
+
+    <script>
+        // The single source of truth for the panel list. Mirrors
+        // Helen-Shell/apps.json but inlined so this page works without
+        // a fetch round-trip.
+        const APPS = [
+            { id: 'admin',         title: 'Admin',           path: '/admin/',
+              desc: 'Operator dashboard — users, channels, sessions.' },
+            { id: 'secret-admin',  title: 'Secret Admin',    path: '/admin-secret/',
+              desc: 'Master-code-gated admin realm. Separate auth.' },
+            { id: 'vault',         title: 'Vault',           path: '/vault/',
+              desc: 'Secret codes management — admin master + access codes.' },
+            { id: 'ios',           title: 'iOS Simulator',   path: '/mobile/',
+              desc: 'iPhone-sized web client. Sized for 430×932.' },
+            { id: 'admin-mobile',  title: 'iOS Admin',       path: '/admin-mobile/',
+              desc: 'Mobile operator console — same role as Admin, phone form.' },
+            { id: 'desktop',       title: 'Desktop (web)',   path: '/desktop/',
+              desc: 'Web build of the Electron desktop client. Requires \'npm run build:renderer\'.' },
+            { id: 'group-call',    title: 'Group Call',      url:  'http://127.0.0.1:3099/?room=test',
+              desc: 'Standalone Socket.IO + WebRTC mesh demo. Runs on its own port (3099).' },
+        ];
+
+        const origin = location.origin;        // honors LAN host
+        const grid = document.getElementById('appGrid');
+
+        for (const app of APPS) {
+            const url = app.url || (origin + app.path);
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.innerHTML =
+                '<h3></h3>' +
+                '<p class="desc"></p>' +
+                '<span class="path"></span>' +
+                '<div class="actions">' +
+                    '<a class="btn primary" target="_blank" rel="noopener">Open in browser</a>' +
+                    '<button class="btn" type="button">Copy desktop command</button>' +
+                '</div>';
+            el.querySelector('h3').textContent  = app.title;
+            el.querySelector('p').textContent   = app.desc;
+            el.querySelector('.path').textContent = app.path || app.url;
+            const link = el.querySelector('a.btn');
+            link.href        = url;
+            link.textContent = 'Open in browser';
+            const btn = el.querySelector('button.btn');
+            btn.addEventListener('click', () => {
+                const cmd = `cd Helen-Shell && npm run ${app.id}`;
+                navigator.clipboard.writeText(cmd).then(() => {
+                    const original = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = original; }, 1500);
+                });
+            });
+            grid.appendChild(el);
+        }
+    </script>
+</body>
+</html>

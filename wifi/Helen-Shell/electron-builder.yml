@@ -1,0 +1,50 @@
+# ============================================================
+# Helen-Shell — Electron Builder Configuration
+# ============================================================
+# One binary, one installer. The .exe accepts a `--id=<panel>`
+# argument that selects which Helen panel to open. The NSIS
+# installer drops a Start-menu shortcut per registered panel,
+# each invoking `Helen-Shell.exe --id=<panel>`.
+#
+# Build:    npm run build         (or)  npx electron-builder --win
+# Output:   release/Helen-Shell-<version>-<arch>.exe
+# ============================================================
+
+appId: com.helen.shell
+productName: Helen-Shell
+copyright: "Copyright (C) 2024-2026 Helen Project"
+
+directories:
+  output: release
+  buildResources: build
+
+# Files bundled into the asar archive. node_modules is included
+# implicitly; we explicitly include the panel registry so the
+# installed binary can resolve --id at runtime.
+files:
+  - main.js
+  - preload.js
+  - apps.json
+  - package.json
+  - "!node_modules/**/*"
+  - node_modules/electron/**/*
+
+# ── Windows target ──────────────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  # Icon optional — fall back to default if absent.
+  # icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Helen Shell"
+  uninstallDisplayName: "Helen Shell ${version}"

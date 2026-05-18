@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Helen Mobile</string>
+    <string name="title_activity_main">Helen Mobile</string>
+    <string name="package_name">com.helen.mobile</string>
+    <string name="custom_url_scheme">com.helen.mobile</string>
+
+    <!-- App Shortcuts (long-press launcher icon) -->
+    <string name="shortcut_new_chat_short">New chat</string>
+    <string name="shortcut_new_chat_long">Start a new conversation</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Find a contact</string>
+    <string name="shortcut_call_short">Call</string>
+    <string name="shortcut_call_long">Start a Helen call</string>
+    <string name="shortcut_recents_short">Recents</string>
+    <string name="shortcut_recents_long">View recent calls</string>
+</resources>

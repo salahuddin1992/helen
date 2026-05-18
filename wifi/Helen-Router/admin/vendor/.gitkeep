@@ -1,0 +1,2 @@
+# Placeholder so the vendor/ directory exists in the repo.
+# Drop chart.min.js and d3.v7.min.js here at deploy time.

@@ -1,0 +1,32 @@
+{
+  "ethernet": {
+    "patterns": ["eth", "en", "emb"],
+    "methods": ["interface_scan"],
+    "keywords": ["Ethernet", "ethernet"]
+  },
+  "wifi": {
+    "patterns": ["wlan", "wifi", "wl"],
+    "methods": ["driver_check", "interface_scan"],
+    "keywords": ["WiFi", "802.11", "wireless"]
+  },
+  "bluetooth": {
+    "patterns": ["hci", "bnep"],
+    "methods": ["hardware_probe"],
+    "keywords": ["Bluetooth", "BLE"]
+  },
+  "usb": {
+    "patterns": ["usb", "enp"],
+    "methods": ["hardware_probe"],
+    "keywords": ["USB", "Tether"]
+  },
+  "serial": {
+    "patterns": ["tty", "COM"],
+    "methods": ["interface_scan"],
+    "keywords": ["Serial", "RS-232"]
+  },
+  "virtual": {
+    "patterns": ["vlan", "tun", "tap", "veth", "docker"],
+    "methods": ["interface_scan"],
+    "keywords": ["Virtual", "Tunnel"]
+  }
+}

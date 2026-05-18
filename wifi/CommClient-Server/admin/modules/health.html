@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Unified Health</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+  .card{grid-column:span 4;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px;min-height:140px}
+  .card.wide{grid-column:span 6}
+  .card.full{grid-column:span 12}
+  @media (max-width:1100px){.card,.card.wide{grid-column:span 12}}
+  h2{margin:0 0 8px 0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;
+    display:flex;justify-content:space-between;align-items:center}
+  .pill{padding:2px 9px;border-radius:999px;background:#1b2945;color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);background:#102a1b;border-color:#1f4b33}
+  .pill.warn{color:var(--warn);background:#2a1f12;border-color:#5c3a18}
+  .pill.err{color:var(--err);background:#2a1118;border-color:#5c2237}
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin-top:4px;font-size:12px}
+  .kv .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+  .kv .v{font-family:var(--mono);font-size:11px;word-break:break-all}
+  .bar{height:6px;background:#0c1630;border-radius:3px;overflow:hidden;margin-top:4px}
+  .bar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  .bar>div.warn{background:linear-gradient(90deg,var(--warn),var(--err))}
+  .alarm{padding:7px 11px;border-radius:8px;border:1px solid var(--line);margin-bottom:6px;
+    display:flex;justify-content:space-between;align-items:center}
+  .alarm.warn{background:#2a1f12;border-color:#5c3a18}
+  .alarm.crit{background:#2a1118;border-color:#5c2237}
+  .stat{font-family:var(--mono);font-size:18px;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Unified Health Dashboard
+  <span class="pill" id="genPill">…</span>
+  <span class="pill" id="refreshPill">auto-refresh: 10s</span>
+</h1>
+
+<div class="grid" id="grid"></div>
+
+<script>
+function getToken(){
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function fmtBytes(n){
+  if (!n) return "0 B";
+  const u = ["B","KB","MB","GB","TB"];
+  let i=0; while (n>=1024 && i<u.length-1){ n/=1024; i++; }
+  return n.toFixed(1)+" "+u[i];
+}
+function pillFor(status){
+  if (status === "ok") return '<span class="pill ok">OK</span>';
+  if (status === "error") return '<span class="pill err">ERROR</span>';
+  if (status === "n/a") return '<span class="pill">N/A</span>';
+  if (status === "idle") return '<span class="pill warn">IDLE</span>';
+  return `<span class="pill">${esc(status)}</span>`;
+}
+
+function kvRow(k, v){ return `<div class="k">${esc(k)}</div><div class="v">${v}</div>`; }
+
+async function refresh(){
+  try {
+    const r = await fetch(api("/api/admin/health/aggregate"), {
+      headers: { Authorization: "Bearer " + getToken() }
+    });
+    if (!r.ok) throw new Error(r.statusText);
+    const j = await r.json();
+    render(j);
+    $("genPill").textContent = new Date(j.generated_at*1000).toLocaleTimeString();
+  } catch(e){
+    $("genPill").textContent = "error: " + e.message;
+  }
+}
+
+function render(j){
+  const s = j.sections || {};
+  const srv = s.server || {}, db = s.database || {}, fed = s.federation || {},
+        turn = s.turn || {}, ms = s.mediasoup || {}, nat = s.nat || {},
+        res = s.resources || {}, disk = s.disk || {}, al = s.alarms || {};
+
+  const uptimeSec = srv.uptime_sec || 0;
+  const d = Math.floor(uptimeSec/86400), h = Math.floor((uptimeSec%86400)/3600), m = Math.floor((uptimeSec%3600)/60);
+  const upt = `${d}d ${h}h ${m}m`;
+
+  $("grid").innerHTML = `
+    <div class="card">
+      <h2>Server ${pillFor(srv.status)}</h2>
+      <div class="stat">${upt}</div>
+      <div class="kv">
+        ${kvRow("name", esc(srv.server_name||'-'))}
+        ${kvRow("host", esc(srv.host+':'+srv.port))}
+        ${kvRow("python", esc(srv.python||'-'))}
+        ${kvRow("platform", esc((srv.platform||'').slice(0,40)))}
+        ${kvRow("debug", srv.debug ? '✓' : '✗')}
+        ${kvRow("pid", srv.pid||'-')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Database ${pillFor(db.status)}</h2>
+      <div class="kv">
+        ${kvRow("backend", esc(db.backend||'-'))}
+        ${kvRow("size", fmtBytes(db.size_bytes||0))}
+        ${kvRow("users", db.users_total ?? '-')}
+        ${kvRow("messages", db.messages_total ?? '-')}
+        ${kvRow("channels", db.channels_total ?? '-')}
+        ${kvRow("last backup", esc(db.last_backup || 'never'))}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Federation ${pillFor(fed.status)}</h2>
+      <div class="stat">${fed.peer_count ?? 0} peers</div>
+      <div class="kv">
+        ${kvRow("enabled", fed.enabled ? '✓' : '✗')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>TURN ${pillFor(turn.status)}</h2>
+      <div class="stat">${turn.active_sessions ?? 0}</div>
+      <div class="kv">
+        ${kvRow("bandwidth", fmtBytes(turn.bandwidth_bps||0)+"/s")}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mediasoup ${pillFor(ms.status)}</h2>
+      <div class="stat">${(ms.workers||[]).length} workers</div>
+      <div class="kv">
+        ${(ms.workers||[]).slice(0,4).map(w => kvRow("pid "+w.pid, (w.load*100).toFixed(0)+"%")).join("") || '<div class="v" style="color:var(--muted)">—</div>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>NAT ${pillFor(nat.status)}</h2>
+      <div class="kv">
+        ${kvRow("type", esc(nat.nat_type||'-'))}
+        ${kvRow("public ip", esc(nat.public_ip||'-'))}
+        ${kvRow("lan ip", esc(nat.lan_ip||'-'))}
+        ${kvRow("active", esc((nat.active_strategies||[]).join(', ')||'-'))}
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>Resources ${pillFor(res.status)}</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div class="k">CPU ${(res.cpu_percent||0).toFixed(1)}%</div>
+          <div class="bar"><div class="${(res.cpu_percent||0)>80?'warn':''}" style="width:${(res.cpu_percent||0).toFixed(1)}%"></div></div>
+        </div>
+        <div>
+          <div class="k">Memory ${(res.memory_percent||0).toFixed(1)}%</div>
+          <div class="bar"><div class="${(res.memory_percent||0)>80?'warn':''}" style="width:${(res.memory_percent||0).toFixed(1)}%"></div></div>
+        </div>
+      </div>
+      <div class="kv" style="margin-top:8px">
+        ${kvRow("net in/out",  fmtBytes(res.network_recv||0)+"/s · "+fmtBytes(res.network_sent||0)+"/s")}
+        ${kvRow("disk r/w",    fmtBytes(res.disk_io_read||0)+"/s · "+fmtBytes(res.disk_io_write||0)+"/s")}
+        ${kvRow("rss",         fmtBytes((res.memory_mb||0)*1024*1024))}
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>Disk ${pillFor(disk.status)}</h2>
+      <div class="stat">${fmtBytes(disk.free_bytes||0)} free</div>
+      <div class="bar"><div class="${(100-(disk.free_percent||0))>90?'warn':''}" style="width:${(100-(disk.free_percent||0)).toFixed(1)}%"></div></div>
+      <div class="kv" style="margin-top:6px">
+        ${kvRow("used",  fmtBytes(disk.used_bytes||0))}
+        ${kvRow("total", fmtBytes(disk.total_bytes||0))}
+      </div>
+    </div>
+
+    <div class="card full">
+      <h2>Alarms ${al.count ? `<span class="pill err">${al.count}</span>` : `<span class="pill ok">none</span>`}</h2>
+      ${(al.alarms||[]).map(a =>
+        `<div class="alarm ${esc(a.level)}">
+          <span><b>${esc(a.key)}</b>: ${esc(a.message)}</span>
+          <span class="pill ${esc(a.level==='crit'?'err':a.level)}">${esc(a.level)}</span>
+        </div>`).join("") || '<div style="color:var(--muted)">No active alarms.</div>'}
+    </div>
+  `;
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

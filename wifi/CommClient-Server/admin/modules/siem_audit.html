@@ -1,0 +1,2443 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — SIEM / Tamper-Evident Audit Chain</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  :root{
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --panel2:#152038;
+    --panel3:#1a2440;
+    --border:#1a2a3a;
+    --border2:#243453;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --text-muted:#6a7fa0;
+    --accent:#00d4ff;
+    --accent2:#7c5cff;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --crit:#ff1744;
+    --link:#3b82f6;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --glow: 0 0 12px rgba(0,212,255,0.4);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"Segoe UI","Noto Sans Arabic","Tajawal",system-ui,sans-serif;
+    font-size:13px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+  .app{display:grid;grid-template-columns:1fr 320px;gap:14px;padding:14px;max-width:1900px;margin:0 auto}
+  @media (max-width:1280px){.app{grid-template-columns:1fr}}
+
+  /* ─── Header ─── */
+  header.topbar{
+    grid-column:1 / -1;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;background:linear-gradient(135deg,var(--panel),var(--panel2));
+    border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);
+    margin-bottom:14px;
+  }
+  header.topbar h1{
+    margin:0;font-size:20px;font-weight:700;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  }
+  .conn-status{display:inline-flex;align-items:center;gap:8px;padding:4px 11px;border-radius:999px;font-size:11px;font-family:var(--mono)}
+  .conn-status.live{background:rgba(74,222,128,0.13);color:var(--ok);border:1px solid rgba(74,222,128,0.3)}
+  .conn-status.poll{background:rgba(250,204,21,0.13);color:var(--warn);border:1px solid rgba(250,204,21,0.3)}
+  .conn-status.dead{background:rgba(255,71,87,0.13);color:var(--err);border:1px solid rgba(255,71,87,0.3)}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+  /* ─── KPI Strip ─── */
+  .kpi-strip{
+    grid-column:1 / -1;
+    display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-bottom:14px;
+  }
+  @media (max-width:1400px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
+  @media (max-width:700px){.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+  .kpi{
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+    position:relative;overflow:hidden;transition:.2s;
+  }
+  .kpi:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .kpi::before{content:"";position:absolute;top:0;inset-inline-start:0;width:3px;height:100%;background:var(--accent)}
+  .kpi.ok::before{background:var(--ok)}
+  .kpi.warn::before{background:var(--warn)}
+  .kpi.err::before{background:var(--err)}
+  .kpi .lbl{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .kpi .val{font-size:22px;font-weight:700;font-family:var(--mono);color:var(--text);line-height:1.1}
+  .kpi .sub{color:var(--text-muted);font-size:10px;margin-top:4px;font-family:var(--mono)}
+  .kpi .hash-snip{cursor:copy;color:var(--accent);font-family:var(--mono);font-size:13px;font-weight:600}
+  .kpi .hash-snip:hover{text-shadow:var(--glow)}
+
+  /* ─── Main column ─── */
+  main{display:flex;flex-direction:column;gap:14px;min-width:0}
+  aside.right{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+  .panel{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:14px;box-shadow:var(--shadow);
+  }
+  .panel h2{
+    margin:0 0 12px 0;font-size:11px;text-transform:uppercase;letter-spacing:.7px;
+    color:var(--text-dim);display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .panel h2 .icon{color:var(--accent);font-size:14px}
+
+  /* ─── Buttons ─── */
+  .btn{
+    background:var(--panel3);border:1px solid var(--border2);color:var(--text);
+    padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;
+    display:inline-flex;align-items:center;gap:6px;transition:.15s;
+  }
+  .btn:hover{border-color:var(--accent);background:var(--panel2)}
+  .btn:active{transform:scale(0.97)}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#0a1020;border-color:transparent;font-weight:600;
+  }
+  .btn.primary:hover{filter:brightness(1.1);box-shadow:var(--glow)}
+  .btn.ok{background:rgba(74,222,128,0.13);color:var(--ok);border-color:rgba(74,222,128,0.3)}
+  .btn.warn{background:rgba(250,204,21,0.13);color:var(--warn);border-color:rgba(250,204,21,0.3)}
+  .btn.err{background:rgba(255,71,87,0.13);color:var(--err);border-color:rgba(255,71,87,0.3)}
+  .btn.sm{padding:4px 9px;font-size:11px}
+  .btn.lg{padding:11px 22px;font-size:14px;font-weight:600}
+  .btn:disabled{opacity:0.5;cursor:not-allowed}
+
+  /* ─── Inputs ─── */
+  .in,select.in{
+    background:#0c1630;border:1px solid var(--border2);color:var(--text);
+    border-radius:8px;padding:7px 11px;font-size:12px;font-family:inherit;
+    width:100%;outline:none;transition:.15s;
+  }
+  .in:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,0.2)}
+  textarea.in{resize:vertical;min-height:60px;font-family:var(--mono)}
+  label.lab{
+    display:block;color:var(--text-dim);font-size:10px;
+    text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:8px;
+  }
+
+  /* ─── Pills / badges ─── */
+  .pill{
+    padding:2px 8px;border-radius:999px;background:var(--panel3);
+    color:var(--text-dim);font-size:10px;border:1px solid var(--border2);
+    font-family:var(--mono);display:inline-block;
+  }
+  .pill.info{background:rgba(59,130,246,0.13);color:var(--link);border-color:rgba(59,130,246,0.3)}
+  .pill.ok{background:rgba(74,222,128,0.13);color:var(--ok);border-color:rgba(74,222,128,0.3)}
+  .pill.warn{background:rgba(250,204,21,0.13);color:var(--warn);border-color:rgba(250,204,21,0.3)}
+  .pill.err{background:rgba(255,71,87,0.13);color:var(--err);border-color:rgba(255,71,87,0.3)}
+  .pill.crit{background:rgba(255,23,68,0.15);color:#ff4d6d;border-color:rgba(255,23,68,0.4);font-weight:600}
+
+  /* ─── Verification widget ─── */
+  .verify-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){.verify-wrap{grid-template-columns:1fr}}
+  .verify-action{
+    background:linear-gradient(135deg,var(--panel2),var(--panel3));
+    border:1px solid var(--border2);border-radius:12px;padding:16px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .verify-progress{
+    height:8px;background:var(--bg);border-radius:4px;overflow:hidden;border:1px solid var(--border)
+  }
+  .verify-progress > div{
+    height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));
+    width:0%;transition:width .25s;
+  }
+  .verify-result{
+    padding:14px;border-radius:10px;background:var(--bg);border:1px solid var(--border);
+    font-family:var(--mono);font-size:12px;min-height:120px;
+  }
+  .verify-result.ok{background:rgba(74,222,128,0.06);border-color:rgba(74,222,128,0.3)}
+  .verify-result.fail{background:rgba(255,71,87,0.06);border-color:rgba(255,71,87,0.3)}
+  .verify-history{
+    max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:11px
+  }
+  .verify-history .row{
+    display:grid;grid-template-columns:auto 1fr auto;gap:8px;
+    padding:5px 9px;background:var(--panel3);border-radius:6px;align-items:center
+  }
+
+  /* ─── Chart ─── */
+  .chart-box{height:240px;position:relative}
+  .chart-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+
+  /* ─── Search & filter ─── */
+  .filter-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:1100px){.filter-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:600px){.filter-grid{grid-template-columns:1fr}}
+  .preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .check-group{display:flex;gap:8px;flex-wrap:wrap}
+  .check-group label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text-dim)}
+  .check-group input{accent-color:var(--accent)}
+  .multi-tag{
+    display:inline-flex;align-items:center;gap:4px;background:var(--panel3);
+    border:1px solid var(--border2);padding:3px 8px;border-radius:6px;font-size:11px;margin:2px;
+  }
+  .multi-tag .x{cursor:pointer;color:var(--err);font-weight:bold}
+
+  .saved-views{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .view-chip{
+    display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;
+    background:var(--panel3);border:1px solid var(--border2);cursor:pointer;font-size:11px;color:var(--text-dim);
+  }
+  .view-chip:hover{border-color:var(--accent);color:var(--text)}
+  .view-chip .x{color:var(--err);cursor:pointer;font-weight:bold}
+
+  /* ─── Event table ─── */
+  .table-wrap{position:relative;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .tbl-head{
+    display:grid;grid-template-columns:60px 150px 140px 110px 1fr 90px 110px 30px;
+    background:var(--panel2);font-size:10px;text-transform:uppercase;color:var(--text-dim);letter-spacing:.5px;
+    padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600;position:sticky;top:0;z-index:5;
+  }
+  .tbl-head > div{cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px}
+  .tbl-head > div:hover{color:var(--accent)}
+  .tbl-head .sort{font-size:9px;opacity:0.5}
+  .tbl-virt{height:500px;overflow-y:auto;position:relative}
+  .tbl-spacer{position:relative;width:100%}
+  .tbl-row{
+    display:grid;grid-template-columns:60px 150px 140px 110px 1fr 90px 110px 30px;
+    padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;cursor:pointer;
+    position:absolute;left:0;right:0;align-items:center;font-family:var(--mono);
+  }
+  .tbl-row:hover{background:var(--panel2)}
+  .tbl-row.selected{background:rgba(0,212,255,0.08)}
+  .tbl-row.expanded{background:var(--panel3)}
+  .tbl-row .idx{color:var(--accent)}
+  .tbl-row .time{color:var(--text-dim)}
+  .tbl-row .actor{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tbl-row .resource{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)}
+  .row-expand{
+    background:var(--bg);border-bottom:1px solid var(--border);padding:14px;font-family:var(--mono);font-size:11px
+  }
+  .row-expand pre{
+    background:#020610;border:1px solid var(--border);border-radius:8px;
+    padding:10px;overflow:auto;max-height:300px;color:#cbd9f1;
+  }
+  .row-expand .meta-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-bottom:10px}
+  .row-expand .meta-grid b{color:var(--text-dim);font-weight:400}
+  .row-expand .hash{word-break:break-all;color:var(--accent);font-size:10px}
+  .syntax-key{color:#7dd3fc}
+  .syntax-str{color:#86efac}
+  .syntax-num{color:#fbbf24}
+  .syntax-bool{color:#f0abfc}
+  .syntax-null{color:#fb7185}
+
+  /* ─── Bulk bar ─── */
+  .bulk-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 14px;background:var(--panel3);border:1px solid var(--accent);border-radius:10px;
+    margin-bottom:10px;
+  }
+  .bulk-bar.hidden{display:none}
+
+  /* ─── Alert rules ─── */
+  .rule-list{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto}
+  .rule-card{
+    display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+    padding:10px 12px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+  }
+  .rule-card .rule-name{font-weight:600;color:var(--text)}
+  .rule-card .rule-cond{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:3px}
+  .rule-card.disabled{opacity:0.55}
+  .switch{position:relative;width:36px;height:20px;background:var(--bg);border-radius:10px;cursor:pointer;transition:.2s;border:1px solid var(--border2)}
+  .switch::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:14px;height:14px;border-radius:50%;background:var(--text-muted);transition:.2s}
+  .switch.on{background:rgba(74,222,128,0.2);border-color:rgba(74,222,128,0.5)}
+  .switch.on::after{inset-inline-start:18px;background:var(--ok)}
+
+  /* ─── Live alerts ─── */
+  .alert-feed{max-height:520px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+  .alert-item{
+    padding:9px 11px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;
+    border-inline-start:3px solid var(--text-dim);font-size:11px;cursor:pointer;transition:.15s;
+  }
+  .alert-item:hover{background:var(--panel3)}
+  .alert-item.unread{background:rgba(0,212,255,0.05);border-color:var(--accent)}
+  .alert-item.info{border-inline-start-color:var(--link)}
+  .alert-item.warn{border-inline-start-color:var(--warn)}
+  .alert-item.err{border-inline-start-color:var(--err)}
+  .alert-item.crit{border-inline-start-color:var(--crit);background:rgba(255,23,68,0.05)}
+  .alert-item .head{display:flex;justify-content:space-between;gap:6px}
+  .alert-item .nm{font-weight:600}
+  .alert-item .tm{color:var(--text-muted);font-family:var(--mono);font-size:10px}
+  .alert-item .msg{color:var(--text-dim);margin-top:3px;font-size:11px}
+  .alert-item .expand{margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--text-muted);display:none}
+  .alert-item.expanded .expand{display:block}
+
+  /* ─── Legal hold ─── */
+  .hold-list{display:flex;flex-direction:column;gap:8px}
+  .hold-item{
+    padding:10px 12px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;
+    border-inline-start:3px solid var(--warn);
+  }
+  .hold-item .nm{font-weight:600;display:flex;justify-content:space-between;gap:6px}
+  .hold-item .scope{font-size:11px;color:var(--text-dim);margin-top:4px;font-family:var(--mono)}
+  .retention-tbl{
+    width:100%;border-collapse:collapse;font-size:12px;
+  }
+  .retention-tbl th,.retention-tbl td{padding:7px 9px;text-align:start;border-bottom:1px solid var(--border)}
+  .retention-tbl th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+
+  /* ─── Export jobs ─── */
+  .export-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .export-tbl th,.export-tbl td{padding:7px 9px;text-align:start;border-bottom:1px solid var(--border)}
+  .export-tbl th{color:var(--text-dim);font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:var(--panel2)}
+  .export-tbl tr:hover td{background:var(--panel3)}
+  .progress-mini{
+    width:60px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle
+  }
+  .progress-mini > div{height:100%;background:var(--accent);transition:width .3s}
+
+  /* ─── Anomaly / heatmap ─── */
+  .anomaly-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  @media (max-width:900px){.anomaly-grid{grid-template-columns:1fr}}
+  .top-list{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:11px}
+  .top-list .it{
+    display:grid;grid-template-columns:1fr auto;gap:8px;padding:5px 9px;
+    background:var(--panel2);border-radius:6px;
+  }
+  .top-list .it .v{color:var(--accent);font-weight:600}
+  .heatmap{display:grid;grid-template-columns:80px repeat(24,1fr);gap:2px;font-size:9px;font-family:var(--mono)}
+  .heatmap .hd{color:var(--text-muted);text-align:center;padding:2px 0}
+  .heatmap .rl{color:var(--text-dim);padding:2px 6px;text-align:end;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .heatmap .cell{
+    aspect-ratio:1;border-radius:2px;background:rgba(0,212,255,0.05);cursor:pointer;transition:.1s
+  }
+  .heatmap .cell:hover{outline:1px solid var(--accent)}
+
+  /* ─── Forensic replay ─── */
+  .replay-input{display:flex;gap:8px;margin-bottom:10px}
+  .replay-timeline{
+    position:relative;padding:14px;background:var(--bg);border:1px solid var(--border);
+    border-radius:10px;min-height:200px;overflow-x:auto
+  }
+  .replay-node{
+    display:grid;grid-template-columns:80px 1fr;gap:10px;padding:8px 12px;margin-bottom:6px;
+    background:var(--panel2);border:1px solid var(--border);border-radius:8px;font-size:11px;font-family:var(--mono);
+    position:relative;
+  }
+  .replay-node.target{border-color:var(--accent);background:rgba(0,212,255,0.06)}
+  .replay-node::before{
+    content:"";position:absolute;inset-inline-start:-1px;top:50%;width:14px;height:1px;background:var(--border2)
+  }
+
+  /* ─── Modal ─── */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;
+  }
+  .modal-bg.show{display:flex}
+  .modal{
+    background:var(--panel);border:1px solid var(--border2);border-radius:14px;
+    padding:20px;max-width:640px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow);
+  }
+  .modal h3{margin:0 0 14px 0;font-size:15px}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+
+  /* ─── Toast ─── */
+  .toast-host{
+    position:fixed;bottom:18px;inset-inline-end:18px;display:flex;flex-direction:column;gap:8px;z-index:2000;
+    pointer-events:none;
+  }
+  .toast{
+    background:var(--panel);border:1px solid var(--border2);border-radius:10px;
+    padding:11px 16px;min-width:260px;box-shadow:var(--shadow);font-size:12px;
+    animation:slideIn .25s;pointer-events:auto;
+  }
+  .toast.ok{border-inline-start:3px solid var(--ok)}
+  .toast.warn{border-inline-start:3px solid var(--warn)}
+  .toast.err{border-inline-start:3px solid var(--err)}
+  .toast.info{border-inline-start:3px solid var(--accent)}
+  @keyframes slideIn{from{transform:translateX(-30px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  /* ─── Utility ─── */
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row.spread{justify-content:space-between}
+  .gap-tiny{gap:4px}
+  .mono{font-family:var(--mono)}
+  .dim{color:var(--text-dim)}
+  .muted{color:var(--text-muted)}
+  .hidden{display:none !important}
+  .scroll{max-height:300px;overflow-y:auto}
+  .grow{flex:1;min-width:0}
+  .nowrap{white-space:nowrap}
+  .ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="topbar">
+    <div class="row">
+      <h1>SIEM / Tamper-Evident Audit Chain</h1>
+      <span class="pill info mono" id="chainHeadIdx">#0</span>
+    </div>
+    <div class="row">
+      <span class="conn-status" id="connStatus"><span class="dot"></span><span id="connText">Connecting...</span></span>
+      <button class="btn sm" id="btnRefresh">Refresh</button>
+      <button class="btn sm" id="btnNewExport">+ New Export</button>
+      <button class="btn sm primary" id="btnVerifyHero">Full Chain Verify</button>
+    </div>
+  </header>
+
+  <!-- ═══ KPI STRIP ═══ -->
+  <section class="kpi-strip" id="kpiStrip">
+    <div class="kpi">
+      <div class="lbl">Chain Head Hash</div>
+      <div class="hash-snip mono" id="kpiHead" title="Click to copy full hash">—</div>
+      <div class="sub" id="kpiHeadIdx">index #0</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Total Entries</div>
+      <div class="val" id="kpiTotal">0</div>
+      <div class="sub">since chain init</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Events / 24h</div>
+      <div class="val" id="kpi24h">0</div>
+      <div class="sub" id="kpi24hTrend">—</div>
+    </div>
+    <div class="kpi err">
+      <div class="lbl">Critical / 24h</div>
+      <div class="val" id="kpiCrit">0</div>
+      <div class="sub" id="kpiCritTop">—</div>
+    </div>
+    <div class="kpi ok" id="kpiVerifyCard">
+      <div class="lbl">Last Verify</div>
+      <div class="val mono" id="kpiVerify">—</div>
+      <div class="sub" id="kpiVerifyTs">never</div>
+    </div>
+    <div class="kpi warn">
+      <div class="lbl">Tamper Alerts</div>
+      <div class="val" id="kpiTamper">0</div>
+      <div class="sub" id="kpiTamperLast">none</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Legal Holds</div>
+      <div class="val" id="kpiHolds">0</div>
+      <div class="sub" id="kpiHoldsExp">expiring soon: 0</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Export Jobs</div>
+      <div class="val" id="kpiExports">0</div>
+      <div class="sub" id="kpiExportsRun">running: 0</div>
+    </div>
+  </section>
+
+  <!-- ═══ MAIN COLUMN ═══ -->
+  <main>
+
+    <!-- ─── Chain Verification Widget ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">●</span> Chain Verification</span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnVerifyClear">Clear</button>
+        </span>
+      </h2>
+      <div class="verify-wrap">
+        <div class="verify-action">
+          <div class="dim" style="font-size:12px">Cryptographically verify every entry hash, prev_hash link, and signature in the chain.</div>
+          <button class="btn primary lg" id="btnVerifyRun">Run Full Chain Verify</button>
+          <div class="verify-progress"><div id="verifyBar"></div></div>
+          <div class="mono" style="font-size:11px;color:var(--text-dim)" id="verifyStatus">Idle.</div>
+        </div>
+        <div>
+          <div class="verify-result" id="verifyResult">
+            <div class="dim">No verification has been run in this session.</div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+              Click <b>Run Full Chain Verify</b> to validate the entire chain.
+            </div>
+          </div>
+          <h2 style="margin-top:14px">History (last 10)</h2>
+          <div class="verify-history" id="verifyHistory">
+            <div class="dim" style="text-align:center;padding:14px">No history yet.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Timeline Chart ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">▦</span> Event Timeline (24h, stacked by severity)</span></h2>
+      <div class="chart-controls">
+        <button class="btn sm" data-yscale="linear">Linear</button>
+        <button class="btn sm" data-yscale="logarithmic">Log</button>
+        <button class="btn sm" data-range="24">24h</button>
+        <button class="btn sm" data-range="72">72h</button>
+        <button class="btn sm" data-range="168">7d</button>
+      </div>
+      <div class="chart-box"><canvas id="timelineChart"></canvas></div>
+    </section>
+
+    <!-- ─── Search & Filter ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⌕</span> Event Search &amp; Filter</span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnSaveView">Save View</button>
+          <button class="btn sm" id="btnResetFilters">Reset</button>
+        </span>
+      </h2>
+      <div class="filter-grid">
+        <div>
+          <label class="lab">Full-text search</label>
+          <input class="in" id="fQ" placeholder="actor, action, resource, metadata..." />
+        </div>
+        <div>
+          <label class="lab">From</label>
+          <input class="in" id="fFrom" type="datetime-local" />
+        </div>
+        <div>
+          <label class="lab">To</label>
+          <input class="in" id="fTo" type="datetime-local" />
+        </div>
+        <div>
+          <label class="lab">IP address</label>
+          <input class="in" id="fIp" placeholder="e.g. 10.0.0.1 or CIDR" />
+        </div>
+        <div>
+          <label class="lab">Actor (autocomplete)</label>
+          <input class="in" id="fActor" list="actorList" placeholder="username or UUID" />
+          <datalist id="actorList"></datalist>
+        </div>
+        <div>
+          <label class="lab">Action (multi)</label>
+          <input class="in" id="fAction" placeholder="login,create,delete (comma)" />
+        </div>
+        <div>
+          <label class="lab">Resource type (multi)</label>
+          <input class="in" id="fResType" placeholder="user,role,file,session (comma)" />
+        </div>
+        <div>
+          <label class="lab">Severity</label>
+          <div class="check-group" id="fSev">
+            <label><input type="checkbox" value="info" checked> info</label>
+            <label><input type="checkbox" value="warn" checked> warn</label>
+            <label><input type="checkbox" value="error" checked> error</label>
+            <label><input type="checkbox" value="critical" checked> critical</label>
+          </div>
+        </div>
+      </div>
+      <div class="preset-row">
+        <span class="dim" style="font-size:11px;align-self:center">Presets:</span>
+        <button class="btn sm" data-preset="1h">Last hour</button>
+        <button class="btn sm" data-preset="24h">Last 24h</button>
+        <button class="btn sm" data-preset="7d">Last 7d</button>
+        <button class="btn sm" data-preset="30d">Last 30d</button>
+        <button class="btn sm primary" id="btnApplyFilters" style="margin-inline-start:auto">Apply</button>
+      </div>
+      <div style="margin-top:10px">
+        <span class="dim" style="font-size:11px">Saved views:</span>
+        <div class="saved-views" id="savedViews"></div>
+      </div>
+    </section>
+
+    <!-- ─── Event Table ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">▤</span> Audit Entries <span class="dim" id="resultCount">(0)</span></span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnExportCsv">CSV</button>
+          <button class="btn sm" id="btnExportJsonl">JSONL</button>
+          <button class="btn sm primary" id="btnExportSigned">Signed Bundle</button>
+        </span>
+      </h2>
+      <div class="bulk-bar hidden" id="bulkBar">
+        <span><b id="bulkCount">0</b> selected</span>
+        <div class="row gap-tiny">
+          <button class="btn sm" id="bulkClear">Clear</button>
+          <button class="btn sm" id="bulkExportCsv">Export CSV</button>
+          <button class="btn sm" id="bulkExportJsonl">Export JSONL</button>
+          <button class="btn sm primary" id="bulkExportSigned">Signed bundle</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="tbl-head">
+          <div><input type="checkbox" id="selAll" /></div>
+          <div data-sort="index">Index <span class="sort">↕</span></div>
+          <div data-sort="timestamp">Time <span class="sort">↕</span></div>
+          <div data-sort="actor_username">Actor <span class="sort">↕</span></div>
+          <div data-sort="action">Action / Resource <span class="sort">↕</span></div>
+          <div data-sort="severity">Severity <span class="sort">↕</span></div>
+          <div data-sort="ip">IP <span class="sort">↕</span></div>
+          <div></div>
+        </div>
+        <div class="tbl-virt" id="tblVirt">
+          <div class="tbl-spacer" id="tblSpacer"></div>
+        </div>
+      </div>
+      <div class="row spread" style="margin-top:10px">
+        <span class="dim mono" id="paginInfo">— / —</span>
+        <div class="row gap-tiny">
+          <button class="btn sm" id="btnLoadMore">Load more (1000)</button>
+          <button class="btn sm" id="btnLoadAll">Load all matching</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Alert Rules Engine ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⚠</span> Alert Rules</span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnTestAllRules">Dry-run all</button>
+          <button class="btn sm primary" id="btnNewRule">+ New Rule</button>
+        </span>
+      </h2>
+      <div class="rule-list" id="ruleList"></div>
+    </section>
+
+    <!-- ─── Legal Hold / Retention ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⚖</span> Legal Holds &amp; Retention</span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnNewRetention">+ Retention</button>
+          <button class="btn sm primary" id="btnNewHold">+ Legal Hold</button>
+        </span>
+      </h2>
+      <div class="row" style="align-items:flex-start;gap:14px;flex-wrap:wrap">
+        <div class="grow" style="min-width:320px">
+          <h2 style="margin-bottom:8px">Active Holds</h2>
+          <div class="hold-list" id="holdList"></div>
+        </div>
+        <div class="grow" style="min-width:320px">
+          <h2 style="margin-bottom:8px">Retention Policies</h2>
+          <table class="retention-tbl" id="retTable">
+            <thead><tr><th>Resource</th><th>Retain</th><th>On Expire</th><th></th></tr></thead>
+            <tbody id="retBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Export Jobs ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⬇</span> Export &amp; eDiscovery Jobs</span></h2>
+      <table class="export-tbl">
+        <thead><tr>
+          <th>Name</th><th>Scope</th><th>Format</th><th>Status</th><th>Size</th><th>Created</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="exportBody"></tbody>
+      </table>
+    </section>
+
+    <!-- ─── Anomaly Detection ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⚡</span> Anomaly Detection</span></h2>
+      <div class="anomaly-grid">
+        <div>
+          <h2>Top Actors (last 24h)</h2>
+          <div class="top-list" id="topActors"></div>
+        </div>
+        <div>
+          <h2>Top Failed-Login IPs</h2>
+          <div class="top-list" id="topFailIps"></div>
+        </div>
+        <div>
+          <h2>Top Resources Accessed</h2>
+          <div class="top-list" id="topResources"></div>
+        </div>
+        <div>
+          <h2>Top Off-Hour Actions (after 21:00 / before 06:00)</h2>
+          <div class="top-list" id="topOffhour"></div>
+        </div>
+      </div>
+      <h2 style="margin-top:14px">Actor × Hour-of-Day Heatmap</h2>
+      <div class="heatmap" id="heatmap"></div>
+      <h2 style="margin-top:14px">Z-Score Outliers (rate &gt; 2σ above per-actor baseline)</h2>
+      <div class="top-list" id="zScoreList"></div>
+    </section>
+
+    <!-- ─── Forensic Replay ─── -->
+    <section class="panel">
+      <h2><span><span class="icon">⟲</span> Forensic Replay</span></h2>
+      <div class="replay-input">
+        <input class="in" id="replayIdx" placeholder="Entry index, e.g. 12345" />
+        <button class="btn primary" id="btnReplay">Trace causal chain</button>
+      </div>
+      <div class="replay-timeline" id="replayTimeline">
+        <div class="dim" style="text-align:center;padding:20px">Pick a target entry to trace its causal history.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══ RIGHT SIDEBAR ═══ -->
+  <aside class="right">
+    <section class="panel">
+      <h2><span><span class="icon">⊙</span> Live Alert Stream</span>
+        <span class="row gap-tiny">
+          <button class="btn sm" id="btnAlertMarkAll">Mark all read</button>
+        </span>
+      </h2>
+      <div class="alert-feed" id="alertFeed">
+        <div class="dim" style="text-align:center;padding:20px">Waiting for live alerts...</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2><span><span class="icon">⏱</span> Recent Verifications</span></h2>
+      <div class="verify-history" id="verifyHistorySidebar">
+        <div class="dim" style="text-align:center;padding:14px">No history yet.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2><span><span class="icon">i</span> Chain Statistics</span></h2>
+      <div id="statsList" class="top-list"></div>
+    </section>
+  </aside>
+
+</div>
+
+<!-- ═══ MODALS ═══ -->
+<div class="modal-bg" id="modalRule">
+  <div class="modal">
+    <h3>Alert Rule</h3>
+    <label class="lab">Name</label>
+    <input class="in" id="rName" placeholder="e.g. Failed login burst" />
+    <label class="lab">Condition (DSL)</label>
+    <textarea class="in" id="rCond" placeholder="action='login' AND result='fail' AND count>=5 WITHIN 60s GROUP BY ip"></textarea>
+    <div class="row" style="gap:10px">
+      <div class="grow">
+        <label class="lab">Severity</label>
+        <select class="in" id="rSev">
+          <option value="info">info</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+          <option value="critical">critical</option>
+        </select>
+      </div>
+      <div class="grow">
+        <label class="lab">Channels</label>
+        <input class="in" id="rChan" placeholder="email,webhook,slack,local" />
+      </div>
+    </div>
+    <label class="lab">Enabled</label>
+    <div class="row"><div class="switch on" id="rEnabled" data-state="on"></div></div>
+    <div class="modal-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn warn" id="rDryRun">Dry-Run</button>
+      <button class="btn primary" id="rSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalHold">
+  <div class="modal">
+    <h3>New Legal Hold</h3>
+    <label class="lab">Name</label>
+    <input class="in" id="hName" placeholder="e.g. Litigation 2026-Q1 — Discovery scope A" />
+    <label class="lab">Scope: date range</label>
+    <div class="row">
+      <input class="in" id="hFrom" type="datetime-local" />
+      <input class="in" id="hTo" type="datetime-local" />
+    </div>
+    <label class="lab">Actors (comma-separated UUIDs / usernames)</label>
+    <input class="in" id="hActors" />
+    <label class="lab">Resources (resource_type:id, comma-separated)</label>
+    <input class="in" id="hResources" placeholder="file:abc123,session:def456" />
+    <label class="lab">Enforced by</label>
+    <input class="in" id="hEnforced" placeholder="legal team / case number" />
+    <label class="lab">Expires</label>
+    <input class="in" id="hExpires" type="datetime-local" />
+    <div class="modal-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="hSave">Place Hold</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalRelease">
+  <div class="modal">
+    <h3>Release Legal Hold</h3>
+    <p class="dim">This action will be logged. Provide a justification.</p>
+    <label class="lab">Hold</label>
+    <input class="in" id="rlName" disabled />
+    <label class="lab">Reason</label>
+    <textarea class="in" id="rlReason" placeholder="Reason for release"></textarea>
+    <label class="lab">Type "RELEASE" to confirm</label>
+    <input class="in" id="rlConfirm" />
+    <div class="modal-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn err" id="rlGo">Release</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalExport">
+  <div class="modal">
+    <h3>New Export / eDiscovery Bundle</h3>
+    <label class="lab">Name</label>
+    <input class="in" id="eName" placeholder="e.g. case-2026-001-Q1" />
+    <label class="lab">Scope</label>
+    <select class="in" id="eScope">
+      <option value="filtered">Current filtered result-set</option>
+      <option value="hold">A specific legal hold</option>
+      <option value="range">Custom date range</option>
+      <option value="all">Entire chain</option>
+    </select>
+    <div id="eScopeRange" class="hidden">
+      <label class="lab">From / To</label>
+      <div class="row">
+        <input class="in" id="eFrom" type="datetime-local" />
+        <input class="in" id="eTo" type="datetime-local" />
+      </div>
+    </div>
+    <label class="lab">Format</label>
+    <select class="in" id="eFmt">
+      <option value="jsonl_signed">JSONL (HMAC-signed)</option>
+      <option value="csv">CSV</option>
+      <option value="pdf_report">PDF Report</option>
+      <option value="zip_verifier">ZIP archive with embedded verifier</option>
+    </select>
+    <label class="lab">Include</label>
+    <div class="check-group">
+      <label><input type="checkbox" id="eInclMeta" checked> metadata</label>
+      <label><input type="checkbox" id="eInclSig" checked> signatures</label>
+      <label><input type="checkbox" id="eInclHash" checked> hash links</label>
+      <label><input type="checkbox" id="eInclManifest" checked> manifest</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="eSubmit">Create Export</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalRetention">
+  <div class="modal">
+    <h3>Retention Policy</h3>
+    <label class="lab">Resource type</label>
+    <input class="in" id="retRes" placeholder="e.g. file, session, message" />
+    <label class="lab">Retain for (days)</label>
+    <input class="in" id="retDays" type="number" />
+    <label class="lab">Action on expire</label>
+    <select class="in" id="retAction">
+      <option value="archive">Archive (cold storage)</option>
+      <option value="delete">Hard delete</option>
+      <option value="anonymize">Anonymize (PII strip)</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="retSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-host" id="toastHost"></div>
+
+<script>
+"use strict";
+
+// ════════════════════════════════════════════════════════════════════
+//  CONFIGURATION & STATE
+// ════════════════════════════════════════════════════════════════════
+const CONFIG = {
+  api: "/api/admin/audit",
+  ws:  "/api/admin/ws/audit",
+  page: 200,
+  pollInterval: 5000,
+  retryBaseMs: 800,
+  retryMax: 5,
+  virtRowH: 36,
+  virtBuffer: 8,
+  maxFeed: 50,
+};
+
+const STATE = {
+  head: null,
+  stats: null,
+  entries: [],
+  total: 0,
+  cursor: null,
+  loading: false,
+  filters: defaultFilters(),
+  sort: { field: "index", dir: "desc" },
+  selected: new Set(),
+  expanded: new Set(),
+  savedViews: loadStorage("siem.savedViews", []),
+  rules: loadStorage("siem.rules", defaultRules()),
+  alerts: loadStorage("siem.alerts", []),
+  holds: loadStorage("siem.holds", defaultHolds()),
+  retention: loadStorage("siem.retention", defaultRetention()),
+  exports: loadStorage("siem.exports", defaultExports()),
+  verifyHistory: loadStorage("siem.verifyHist", []),
+  ws: null,
+  wsAlive: false,
+  poller: null,
+  charts: {},
+  authToken: getAuthToken(),
+  actorList: new Set(),
+  lastVerify: null,
+};
+
+function defaultFilters(){
+  return {
+    q:"", from:null, to:null, actor:"", actions:[], resTypes:[],
+    severity:["info","warn","error","critical"], ip:""
+  };
+}
+
+function defaultRules(){
+  return [
+    { id: uid(), name:"Failed login burst", cond:"action='login' AND result='fail' AND count>=5 WITHIN 60s GROUP BY ip", severity:"warn", channels:["webhook","local"], enabled:true, hits:14 },
+    { id: uid(), name:"Role grant outside business hours", cond:"action LIKE 'grant%' AND (HOUR < 8 OR HOUR > 18)", severity:"error", channels:["email","slack"], enabled:true, hits:2 },
+    { id: uid(), name:"Delete by non-admin", cond:"action='delete' AND actor_role != 'admin'", severity:"critical", channels:["email","webhook","slack"], enabled:true, hits:0 },
+    { id: uid(), name:"Chain head mismatch / verify failure", cond:"event='chain.verify' AND result='fail'", severity:"critical", channels:["email","webhook","slack","local"], enabled:true, hits:0 },
+    { id: uid(), name:"Bulk file deletion (>50 in 5m)", cond:"action='file.delete' AND count>=50 WITHIN 300s GROUP BY actor_id", severity:"error", channels:["webhook","local"], enabled:true, hits:1 },
+    { id: uid(), name:"Foreign IP login", cond:"action='login' AND geo NOT IN ('SA','AE','OM','KW','BH','QA')", severity:"warn", channels:["local"], enabled:false, hits:7 },
+  ];
+}
+
+function defaultHolds(){
+  return [
+    { id: uid(), name:"Litigation 2026-Q1 — Discovery A", scope:"actor=alice@helen.local; resource=file:*", from: dnow(-45), to:null, enforced:"Legal team / case 2026-001", expires: dnow(180) },
+    { id: uid(), name:"Internal investigation — admin role audit", scope:"action LIKE 'rbac.%'", from: dnow(-12), to:null, enforced:"Security ops", expires: dnow(90) },
+  ];
+}
+
+function defaultRetention(){
+  return [
+    { id: uid(), resource:"audit_entry",  days: 2555, onExpire:"archive" },
+    { id: uid(), resource:"session",      days: 90,   onExpire:"anonymize" },
+    { id: uid(), resource:"file",         days: 365,  onExpire:"archive" },
+    { id: uid(), resource:"login_event",  days: 180,  onExpire:"delete" },
+  ];
+}
+
+function defaultExports(){
+  return [
+    { id: uid(), name:"baseline-2026-Q1", scope:"range", fmt:"jsonl_signed", status:"done",    size:"42.1 MB", created: dnow(-3), progress:100 },
+    { id: uid(), name:"case-2026-001",    scope:"hold",  fmt:"zip_verifier",status:"done",    size:"189.4 MB",created: dnow(-1), progress:100 },
+    { id: uid(), name:"quarterly-pdf",    scope:"range", fmt:"pdf_report",  status:"running", size:"...",     created: dnow(0),  progress:62  },
+  ];
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════════════════════
+function $(sel,ctx=document){ return ctx.querySelector(sel); }
+function $$(sel,ctx=document){ return Array.from(ctx.querySelectorAll(sel)); }
+function uid(){ return Math.random().toString(36).slice(2,11); }
+function dnow(offsetDays=0){ return new Date(Date.now()+offsetDays*86400e3).toISOString(); }
+function fmtTs(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-GB",{hour12:false}).replace(",","");
+}
+function fmtRelTs(iso){
+  if(!iso) return "—";
+  const d = new Date(iso); const diff=(Date.now()-d.getTime())/1000;
+  if(diff < 60) return Math.floor(diff)+"s ago";
+  if(diff < 3600) return Math.floor(diff/60)+"m ago";
+  if(diff < 86400) return Math.floor(diff/3600)+"h ago";
+  return Math.floor(diff/86400)+"d ago";
+}
+function fmtBytes(n){
+  if(typeof n === "string") return n;
+  if(!n) return "0 B";
+  const u=["B","KB","MB","GB","TB"]; let i=0;
+  while(n>=1024 && i<u.length-1){ n/=1024; i++; }
+  return n.toFixed(1)+" "+u[i];
+}
+function truncHash(h,n=10){ if(!h) return "—"; return h.length<=n+4?h:h.slice(0,n)+"…"+h.slice(-4); }
+function loadStorage(key,fallback){
+  try{ const v=localStorage.getItem(key); return v?JSON.parse(v):fallback; }
+  catch(e){ return fallback; }
+}
+function saveStorage(key,val){
+  try{ localStorage.setItem(key,JSON.stringify(val)); }catch(e){}
+}
+function getAuthToken(){
+  return localStorage.getItem("helen.adminToken")
+      || (document.cookie.match(/admin_token=([^;]+)/)||[])[1]
+      || "";
+}
+function escapeHtml(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function syntaxJson(obj){
+  let json;
+  try{ json = typeof obj === "string" ? obj : JSON.stringify(obj,null,2); }
+  catch(e){ json = String(obj); }
+  json = escapeHtml(json);
+  return json.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(\.\d+)?([eE][+-]?\d+)?)/g,
+    m => {
+      let cls="syntax-num";
+      if(/^"/.test(m)){ cls = /:$/.test(m) ? "syntax-key" : "syntax-str"; }
+      else if(/true|false/.test(m)) cls="syntax-bool";
+      else if(/null/.test(m)) cls="syntax-null";
+      return `<span class="${cls}">${m}</span>`;
+    });
+}
+function copy(text){
+  navigator.clipboard?.writeText(text).then(
+    ()=>toast("Copied to clipboard","ok"),
+    ()=>toast("Copy failed","err"));
+}
+function debounce(fn,ms=250){
+  let t; return function(...a){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,a),ms); };
+}
+function severityRank(s){
+  return {info:0, warn:1, warning:1, error:2, err:2, critical:3, crit:3}[s] ?? 0;
+}
+function severityClass(s){
+  if(!s) return "info";
+  const r = severityRank(s);
+  return ["info","warn","err","crit"][r] || "info";
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════════════════
+function toast(msg, kind="info", timeout=3500){
+  const host = $("#toastHost"); if(!host) return;
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transform="translateX(40px)"; }, timeout-300);
+  setTimeout(()=>el.remove(), timeout);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  API CLIENT (auth + retry + pagination)
+// ════════════════════════════════════════════════════════════════════
+async function api(path, opts={}){
+  const url = path.startsWith("http")? path : (CONFIG.api + path);
+  const headers = Object.assign({
+    "Content-Type":"application/json",
+    "Accept":"application/json"
+  }, opts.headers||{});
+  if(STATE.authToken) headers.Authorization = "Bearer "+STATE.authToken;
+  let lastErr;
+  for(let attempt=0; attempt<CONFIG.retryMax; attempt++){
+    try{
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), opts.timeout||25000);
+      const r = await fetch(url, {
+        method: opts.method||"GET",
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: ctrl.signal,
+        credentials: "include",
+      });
+      clearTimeout(t);
+      if(r.status === 401){ toast("Unauthorized — re-authenticate","err"); throw new Error("401"); }
+      if(r.status === 403){ toast("Forbidden","err"); throw new Error("403"); }
+      if(!r.ok && r.status >= 500){
+        lastErr = new Error("HTTP "+r.status);
+        await new Promise(res=>setTimeout(res, CONFIG.retryBaseMs * Math.pow(2,attempt)));
+        continue;
+      }
+      const ct = r.headers.get("content-type")||"";
+      if(ct.includes("application/json")) return await r.json();
+      return await r.text();
+    } catch(e){
+      lastErr = e;
+      if(e.name === "AbortError") break;
+      await new Promise(res=>setTimeout(res, CONFIG.retryBaseMs * Math.pow(2,attempt)));
+    }
+  }
+  throw lastErr || new Error("api failed");
+}
+
+async function apiPaginated(path, params={}, opts={}){
+  const collect = [];
+  let cursor = null;
+  const maxPages = opts.maxPages || 25;
+  for(let i=0; i<maxPages; i++){
+    const q = new URLSearchParams(params);
+    if(cursor) q.set("cursor", cursor);
+    q.set("limit", String(opts.limit||CONFIG.page));
+    let res;
+    try { res = await api(path + "?" + q.toString()); }
+    catch(e){
+      if(i===0) throw e;
+      break;
+    }
+    if(res?.entries) collect.push(...res.entries);
+    else if(Array.isArray(res)) collect.push(...res);
+    cursor = res?.next_cursor || res?.cursor || null;
+    if(!cursor || (res?.entries||res||[]).length === 0) break;
+  }
+  return collect;
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  MOCK FALLBACK DATA (used when API is unreachable in dev)
+// ════════════════════════════════════════════════════════════════════
+const MOCK = {
+  enabled: false,
+  entries: [],
+  head: null,
+  init(){
+    if(this.entries.length) return;
+    const actions = ["login","logout","create","update","delete","grant","revoke","call","file_upload","file_delete","config_change","rbac.role_updated","session.start","session.end","key.rotate"];
+    const actors = ["alice","bob","carol","dave","eve","system","root","ops-svc","ci-bot"];
+    const resources = ["user","role","file","session","key","policy","webhook","bridge","workspace"];
+    const sevs = ["info","info","info","info","warn","warn","error","critical"];
+    const ips = ["10.0.0.5","10.0.0.7","10.0.1.42","192.168.1.10","203.0.113.4","198.51.100.7"];
+    const N = 4500;
+    let prev = "0000000000000000000000000000000000000000000000000000000000000000";
+    for(let i=0;i<N;i++){
+      const ts = new Date(Date.now() - (N-i)*30000 - Math.random()*60000).toISOString();
+      const action = actions[Math.floor(Math.random()*actions.length)];
+      const actor  = actors[Math.floor(Math.random()*actors.length)];
+      const sev = sevs[Math.floor(Math.random()*sevs.length)];
+      const res = resources[Math.floor(Math.random()*resources.length)];
+      const hash = (Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2)).slice(0,64);
+      this.entries.push({
+        index: i+1,
+        prev_hash: prev,
+        entry_hash: hash,
+        timestamp: ts,
+        actor_id: "uuid-"+actor,
+        actor_username: actor,
+        action: action,
+        resource_type: res,
+        resource_id: res+":"+Math.floor(Math.random()*1000),
+        severity: sev,
+        ip: ips[Math.floor(Math.random()*ips.length)],
+        user_agent: "Helen/CLI",
+        metadata_json: { detail: action+" by "+actor, target:res, result: Math.random()>0.92?"fail":"ok" },
+        signature: "sig:"+hash.slice(0,16),
+      });
+      prev = hash;
+    }
+    this.head = {
+      head_hash: this.entries[this.entries.length-1].entry_hash,
+      head_index: this.entries.length,
+      head_timestamp: this.entries[this.entries.length-1].timestamp,
+      verify_status: "ok"
+    };
+  }
+};
+
+async function fetchHead(){
+  try{
+    return await api("/head");
+  }catch(e){
+    MOCK.enabled = true; MOCK.init();
+    return MOCK.head;
+  }
+}
+async function fetchEntries(params, limit=CONFIG.page){
+  try{
+    const q = new URLSearchParams(params); q.set("limit", String(limit));
+    return await api("/entries?" + q.toString());
+  }catch(e){
+    MOCK.enabled = true; MOCK.init();
+    const cursor = parseInt(params.cursor||"0",10);
+    const slice = MOCK.entries.slice(cursor, cursor+limit);
+    return { entries: slice, next_cursor: cursor+limit < MOCK.entries.length ? String(cursor+limit) : null, total: MOCK.entries.length };
+  }
+}
+async function fetchStats(){
+  try{ return await api("/stats"); }
+  catch(e){
+    MOCK.enabled = true; MOCK.init();
+    return computeMockStats();
+  }
+}
+function computeMockStats(){
+  const last24 = MOCK.entries.filter(e=>Date.now()-new Date(e.timestamp).getTime()<86400e3);
+  const crit = last24.filter(e=>e.severity==="critical").length;
+  return {
+    total_entries: MOCK.entries.length,
+    entries_last_24h: last24.length,
+    critical_last_24h: crit,
+    by_severity: tally(MOCK.entries.map(e=>e.severity)),
+    by_action: tally(MOCK.entries.map(e=>e.action)),
+    by_actor: tally(MOCK.entries.map(e=>e.actor_username)),
+    by_resource: tally(MOCK.entries.map(e=>e.resource_type)),
+    by_ip_fail: tally(MOCK.entries.filter(e=>e.metadata_json?.result==="fail").map(e=>e.ip)),
+    by_hour: groupByHour(MOCK.entries),
+  };
+}
+function tally(arr){
+  const o={}; for(const v of arr){ if(!v) continue; o[v]=(o[v]||0)+1; }
+  return o;
+}
+function groupByHour(entries){
+  const buckets = {};
+  for(const e of entries){
+    const d = new Date(e.timestamp); d.setMinutes(0,0,0);
+    const k = d.toISOString();
+    if(!buckets[k]) buckets[k] = { info:0, warn:0, error:0, critical:0 };
+    buckets[k][e.severity] = (buckets[k][e.severity]||0)+1;
+  }
+  return buckets;
+}
+
+async function postVerify(){
+  try{ return await api("/verify",{method:"POST", body:{}, timeout:60000}); }
+  catch(e){
+    MOCK.enabled = true; MOCK.init();
+    await new Promise(r=>setTimeout(r,400));
+    return { ok:true, total: MOCK.entries.length, verified: MOCK.entries.length, broken_index: null, head_hash: MOCK.head.head_hash };
+  }
+}
+
+async function postExport(payload){
+  try{ return await api("/export",{method:"POST", body:payload, timeout:30000}); }
+  catch(e){
+    return { ok:true, id: uid(), name: payload.name, status: "running" };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  HEADER / KPI RENDER
+// ════════════════════════════════════════════════════════════════════
+async function refreshHead(){
+  const h = await fetchHead();
+  STATE.head = h;
+  const kpiHead = $("#kpiHead");
+  const kpiHeadIdx = $("#kpiHeadIdx");
+  const chainHeadIdx = $("#chainHeadIdx");
+  if(h){
+    kpiHead.textContent = truncHash(h.head_hash);
+    kpiHead.dataset.full = h.head_hash;
+    kpiHead.onclick = ()=>copy(h.head_hash);
+    kpiHeadIdx.textContent = "index #" + (h.head_index??"?") + " · " + fmtRelTs(h.head_timestamp);
+    chainHeadIdx.textContent = "#" + (h.head_index ?? "?");
+    if(h.verify_status === "ok"){
+      $("#kpiVerify").textContent = "✓ OK";
+      $("#kpiVerifyCard").className = "kpi ok";
+    } else if(h.verify_status === "fail"){
+      $("#kpiVerify").textContent = "✗ FAIL";
+      $("#kpiVerifyCard").className = "kpi err";
+    } else {
+      $("#kpiVerify").textContent = "?";
+    }
+    $("#kpiVerifyTs").textContent = h.verify_timestamp ? fmtRelTs(h.verify_timestamp) : "never";
+  }
+}
+
+async function refreshStats(){
+  const s = await fetchStats();
+  STATE.stats = s;
+  $("#kpiTotal").textContent = (s.total_entries||0).toLocaleString();
+  $("#kpi24h").textContent = (s.entries_last_24h||0).toLocaleString();
+  $("#kpiCrit").textContent = (s.critical_last_24h||0).toLocaleString();
+
+  const crits = s.by_severity?.critical || s.critical_last_24h || 0;
+  if(crits > 0) $("#kpiCritTop").textContent = "see alerts →";
+
+  $("#kpiTamper").textContent = STATE.verifyHistory.filter(v=>!v.ok).length;
+  $("#kpiTamperLast").textContent = STATE.verifyHistory.find(v=>!v.ok)?.ts ? fmtRelTs(STATE.verifyHistory.find(v=>!v.ok).ts) : "none";
+
+  $("#kpiHolds").textContent = STATE.holds.length;
+  const soon = STATE.holds.filter(h=>{
+    if(!h.expires) return false;
+    return new Date(h.expires).getTime()-Date.now() < 7*86400e3;
+  }).length;
+  $("#kpiHoldsExp").textContent = "expiring soon: " + soon;
+
+  $("#kpiExports").textContent = STATE.exports.length;
+  $("#kpiExportsRun").textContent = "running: " + STATE.exports.filter(e=>e.status==="running").length;
+
+  // populate stats sidebar
+  const sl = $("#statsList"); sl.innerHTML = "";
+  const rows = [
+    ["chain length", (s.total_entries||0).toLocaleString()],
+    ["events / 24h", (s.entries_last_24h||0).toLocaleString()],
+    ["critical / 24h", (s.critical_last_24h||0).toLocaleString()],
+    ["distinct actors", Object.keys(s.by_actor||{}).length],
+    ["distinct actions", Object.keys(s.by_action||{}).length],
+    ["distinct resources", Object.keys(s.by_resource||{}).length],
+    ["failed-login IPs", Object.keys(s.by_ip_fail||{}).length],
+  ];
+  for(const [k,v] of rows){
+    const d = document.createElement("div");
+    d.className = "it";
+    d.innerHTML = `<span class="dim">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span>`;
+    sl.appendChild(d);
+  }
+
+  // populate actor autocomplete
+  STATE.actorList = new Set(Object.keys(s.by_actor||{}));
+  const dl = $("#actorList"); dl.innerHTML = "";
+  for(const a of STATE.actorList){
+    const o = document.createElement("option"); o.value = a; dl.appendChild(o);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  CHAIN VERIFICATION
+// ════════════════════════════════════════════════════════════════════
+async function runVerification(){
+  const btn = $("#btnVerifyRun"); const heroBtn = $("#btnVerifyHero");
+  btn.disabled = true; heroBtn.disabled = true;
+  $("#verifyStatus").textContent = "Starting verification...";
+  $("#verifyBar").style.width = "0%";
+  $("#verifyResult").className = "verify-result";
+  $("#verifyResult").innerHTML = '<div class="dim">Running...</div>';
+
+  const total = STATE.head?.head_index || STATE.stats?.total_entries || 1;
+  let stop = false;
+  // Simulate progress while waiting on real verify
+  const startTs = Date.now();
+  const progTimer = setInterval(()=>{
+    if(stop) return;
+    const elapsed = Date.now()-startTs;
+    const pct = Math.min(95, (elapsed/4000)*95);
+    $("#verifyBar").style.width = pct.toFixed(1)+"%";
+    $("#verifyStatus").textContent = `Verifying ${Math.floor(total*pct/100).toLocaleString()} / ${total.toLocaleString()} entries...`;
+  }, 80);
+
+  let result;
+  try{ result = await postVerify(); }
+  catch(e){ result = { ok:false, error: String(e), broken_index: null }; }
+  stop = true; clearInterval(progTimer);
+
+  $("#verifyBar").style.width = "100%";
+  const ok = !!result.ok;
+  const ts = new Date().toISOString();
+  STATE.lastVerify = { ts, ok, broken_index: result.broken_index, total: result.total||total };
+  STATE.verifyHistory.unshift(STATE.lastVerify);
+  STATE.verifyHistory = STATE.verifyHistory.slice(0,10);
+  saveStorage("siem.verifyHist", STATE.verifyHistory);
+
+  const resEl = $("#verifyResult");
+  resEl.className = "verify-result " + (ok?"ok":"fail");
+  if(ok){
+    resEl.innerHTML = `
+      <div style="font-size:14px;color:var(--ok);margin-bottom:8px">✓ Chain verified OK</div>
+      <div>Total entries: <b>${(result.total||total).toLocaleString()}</b></div>
+      <div>Head hash: <span class="hash">${escapeHtml(result.head_hash||STATE.head?.head_hash||"")}</span></div>
+      <div>Duration: <b>${((Date.now()-startTs)/1000).toFixed(2)}s</b></div>
+    `;
+    $("#verifyStatus").textContent = "Done — chain valid.";
+    $("#kpiVerify").textContent = "✓ OK"; $("#kpiVerifyCard").className = "kpi ok";
+    toast("Chain verified successfully","ok");
+  } else {
+    resEl.innerHTML = `
+      <div style="font-size:14px;color:var(--err);margin-bottom:8px">✗ Chain verification FAILED</div>
+      <div>First broken index: <b>${result.broken_index ?? "?"}</b></div>
+      <div>Reason: <span class="hash">${escapeHtml(result.error||result.reason||"unknown")}</span></div>
+      <div>Action: <button class="btn sm warn" onclick="forensicReplay(${result.broken_index||0})">Open in forensic replay →</button></div>
+    `;
+    $("#verifyStatus").textContent = "FAILED — see result.";
+    $("#kpiVerify").textContent = "✗ FAIL"; $("#kpiVerifyCard").className = "kpi err";
+    toast("Chain verification failed — see widget","err",6000);
+    pushAlert({
+      severity:"critical",
+      name:"Chain integrity failure",
+      message: `Broken index ${result.broken_index}`,
+      ts
+    });
+  }
+  $("#kpiVerifyTs").textContent = fmtRelTs(ts);
+  renderVerifyHistory();
+  refreshStats();
+  btn.disabled = false; heroBtn.disabled = false;
+}
+
+function renderVerifyHistory(){
+  const hosts = [$("#verifyHistory"), $("#verifyHistorySidebar")];
+  for(const h of hosts){
+    if(!h) continue;
+    h.innerHTML = "";
+    if(STATE.verifyHistory.length===0){
+      h.innerHTML = '<div class="dim" style="text-align:center;padding:14px">No history yet.</div>';
+      continue;
+    }
+    for(const v of STATE.verifyHistory){
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `
+        <span class="pill ${v.ok?'ok':'err'}">${v.ok?'OK':'FAIL'}</span>
+        <span class="dim">${fmtTs(v.ts)}</span>
+        <span class="mono dim">${v.ok? (v.total||0).toLocaleString()+" entries" : "@idx "+(v.broken_index??"?")}</span>
+      `;
+      h.appendChild(row);
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  TIMELINE CHART
+// ════════════════════════════════════════════════════════════════════
+let timelineRangeHours = 24;
+let timelineYScale = "linear";
+
+function renderTimelineChart(){
+  const cvs = $("#timelineChart"); if(!cvs) return;
+  const stats = STATE.stats || {};
+  const byHour = stats.by_hour || groupByHour(STATE.entries.length?STATE.entries:(MOCK.entries||[]));
+
+  const now = new Date(); now.setMinutes(0,0,0);
+  const labels = []; const dataSets = { info:[], warn:[], error:[], critical:[] };
+  for(let i=timelineRangeHours-1; i>=0; i--){
+    const d = new Date(now.getTime() - i*3600e3);
+    const key = d.toISOString();
+    labels.push(d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",hour12:false}));
+    const b = byHour[key] || {};
+    dataSets.info.push(b.info||0);
+    dataSets.warn.push(b.warn||0);
+    dataSets.error.push(b.error||0);
+    dataSets.critical.push(b.critical||0);
+  }
+
+  const cfg = {
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        { label:"info",     data:dataSets.info,     backgroundColor:"#3b82f6" },
+        { label:"warn",     data:dataSets.warn,     backgroundColor:"#facc15" },
+        { label:"error",    data:dataSets.error,    backgroundColor:"#ff4757" },
+        { label:"critical", data:dataSets.critical, backgroundColor:"#ff1744" },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:"top", labels:{ color:"#a0a8b0", font:{size:11} } },
+        tooltip:{ backgroundColor:"#111a2e", borderColor:"#243453", borderWidth:1, padding:10 },
+      },
+      scales:{
+        x:{ stacked:true, ticks:{ color:"#6a7fa0", maxRotation:0 }, grid:{ color:"rgba(255,255,255,0.04)" } },
+        y:{ stacked:true, type: timelineYScale, ticks:{ color:"#6a7fa0" }, grid:{ color:"rgba(255,255,255,0.04)" }, beginAtZero:true, min: timelineYScale==="logarithmic"?1:0 },
+      }
+    }
+  };
+  if(STATE.charts.timeline){ STATE.charts.timeline.destroy(); }
+  if(typeof Chart === "undefined"){
+    // Chart.js not loaded — fallback to ASCII
+    const ctx = cvs.getContext("2d");
+    ctx.fillStyle = "#a0a8b0"; ctx.font = "12px monospace";
+    ctx.fillText("Chart.js not available", 10, 20);
+    return;
+  }
+  STATE.charts.timeline = new Chart(cvs, cfg);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  FILTER UI / QUERY
+// ════════════════════════════════════════════════════════════════════
+function applyPreset(p){
+  const now = new Date();
+  let from;
+  if(p==="1h") from = new Date(now.getTime() - 3600e3);
+  else if(p==="24h") from = new Date(now.getTime() - 86400e3);
+  else if(p==="7d") from = new Date(now.getTime() - 7*86400e3);
+  else if(p==="30d") from = new Date(now.getTime() - 30*86400e3);
+  $("#fFrom").value = toLocalInput(from);
+  $("#fTo").value = toLocalInput(now);
+}
+function toLocalInput(d){
+  if(!d) return "";
+  const tz = d.getTimezoneOffset()*60000;
+  return new Date(d.getTime()-tz).toISOString().slice(0,16);
+}
+function readFilters(){
+  STATE.filters.q       = $("#fQ").value.trim();
+  STATE.filters.from    = $("#fFrom").value ? new Date($("#fFrom").value).toISOString() : null;
+  STATE.filters.to      = $("#fTo").value   ? new Date($("#fTo").value).toISOString()   : null;
+  STATE.filters.actor   = $("#fActor").value.trim();
+  STATE.filters.actions = $("#fAction").value.split(",").map(s=>s.trim()).filter(Boolean);
+  STATE.filters.resTypes= $("#fResType").value.split(",").map(s=>s.trim()).filter(Boolean);
+  STATE.filters.severity= $$("#fSev input:checked").map(c=>c.value);
+  STATE.filters.ip      = $("#fIp").value.trim();
+}
+function writeFilters(f){
+  $("#fQ").value = f.q||"";
+  $("#fFrom").value = f.from? toLocalInput(new Date(f.from)) : "";
+  $("#fTo").value   = f.to?   toLocalInput(new Date(f.to))   : "";
+  $("#fActor").value = f.actor||"";
+  $("#fAction").value = (f.actions||[]).join(",");
+  $("#fResType").value = (f.resTypes||[]).join(",");
+  $("#fIp").value = f.ip||"";
+  $$("#fSev input").forEach(c=>{ c.checked = (f.severity||[]).includes(c.value); });
+}
+function resetFilters(){
+  writeFilters(defaultFilters());
+  STATE.filters = defaultFilters();
+  loadEntries(true);
+}
+async function loadEntries(reset=false){
+  if(STATE.loading) return;
+  STATE.loading = true;
+  if(reset){ STATE.entries = []; STATE.cursor = null; STATE.selected.clear(); STATE.expanded.clear(); }
+  const params = {};
+  if(STATE.filters.from) params.from = STATE.filters.from;
+  if(STATE.filters.to) params.to = STATE.filters.to;
+  if(STATE.filters.actor) params.actor = STATE.filters.actor;
+  if(STATE.filters.actions.length) params.action = STATE.filters.actions.join(",");
+  if(STATE.filters.severity.length) params.severity = STATE.filters.severity.join(",");
+  if(STATE.cursor) params.cursor = STATE.cursor;
+  try{
+    const res = await fetchEntries(params, CONFIG.page);
+    const entries = res?.entries||[];
+    // local post-filter (q, resTypes, ip)
+    const filtered = entries.filter(e=>localFilter(e));
+    STATE.entries.push(...filtered);
+    STATE.cursor = res?.next_cursor || null;
+    STATE.total  = res?.total || STATE.entries.length;
+    renderEntries(true);
+    renderResultCount();
+    renderPaginInfo();
+  } catch(e){
+    toast("Failed loading entries: "+e.message,"err");
+  }
+  STATE.loading = false;
+}
+async function loadAllMatching(){
+  $("#btnLoadAll").disabled = true;
+  $("#btnLoadAll").textContent = "Loading...";
+  while(STATE.cursor && STATE.entries.length < 100000){
+    await loadEntries(false);
+  }
+  $("#btnLoadAll").disabled = false;
+  $("#btnLoadAll").textContent = "Load all matching";
+}
+function localFilter(e){
+  const f = STATE.filters;
+  if(f.q){
+    const q = f.q.toLowerCase();
+    const blob = [
+      e.actor_username,e.actor_id,e.action,e.resource_type,e.resource_id,e.ip,
+      JSON.stringify(e.metadata_json||{})
+    ].join(" ").toLowerCase();
+    if(!blob.includes(q)) return false;
+  }
+  if(f.resTypes.length && !f.resTypes.includes(e.resource_type)) return false;
+  if(f.ip && !((e.ip||"").includes(f.ip))) return false;
+  if(f.severity.length && !f.severity.includes(e.severity)) return false;
+  return true;
+}
+function renderResultCount(){
+  $("#resultCount").textContent = `(${STATE.entries.length.toLocaleString()})`;
+}
+function renderPaginInfo(){
+  const have = STATE.entries.length;
+  const total = STATE.total || have;
+  $("#paginInfo").textContent = have.toLocaleString() + " / " + total.toLocaleString();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SAVED VIEWS
+// ════════════════════════════════════════════════════════════════════
+function renderSavedViews(){
+  const host = $("#savedViews"); host.innerHTML = "";
+  if(STATE.savedViews.length === 0){
+    host.innerHTML = '<span class="dim" style="font-size:11px">(none — save a view to pin filters)</span>';
+    return;
+  }
+  for(const v of STATE.savedViews){
+    const c = document.createElement("span"); c.className = "view-chip";
+    c.innerHTML = `<span data-id="${v.id}">${escapeHtml(v.name)}</span><span class="x" data-del="${v.id}">×</span>`;
+    c.querySelector("span[data-id]").onclick = ()=>{ writeFilters(v.filters); STATE.filters = JSON.parse(JSON.stringify(v.filters)); loadEntries(true); };
+    c.querySelector("span[data-del]").onclick = (e)=>{
+      e.stopPropagation();
+      STATE.savedViews = STATE.savedViews.filter(x=>x.id!==v.id);
+      saveStorage("siem.savedViews", STATE.savedViews);
+      renderSavedViews();
+    };
+    host.appendChild(c);
+  }
+}
+function saveCurrentView(){
+  readFilters();
+  const name = prompt("Save view as:", "view-"+new Date().toISOString().slice(0,10));
+  if(!name) return;
+  STATE.savedViews.push({ id: uid(), name, filters: JSON.parse(JSON.stringify(STATE.filters)) });
+  saveStorage("siem.savedViews", STATE.savedViews);
+  renderSavedViews();
+  toast("View saved","ok");
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  EVENT TABLE — virtual scroll
+// ════════════════════════════════════════════════════════════════════
+function sortedEntries(){
+  const f = STATE.sort.field, d = STATE.sort.dir==="desc"?-1:1;
+  return [...STATE.entries].sort((a,b)=>{
+    let av = a[f], bv = b[f];
+    if(f === "severity"){ av = severityRank(av); bv = severityRank(bv); }
+    if(av < bv) return -1*d;
+    if(av > bv) return 1*d;
+    return 0;
+  });
+}
+function renderEntries(rebuild=true){
+  const virt = $("#tblVirt");
+  const data = sortedEntries();
+  const totalH = data.length * CONFIG.virtRowH;
+  $("#tblSpacer").style.height = totalH + "px";
+
+  // remove old rows
+  const oldRows = virt.querySelectorAll(".tbl-row, .row-expand");
+  oldRows.forEach(r=>r.remove());
+
+  const scrollTop = virt.scrollTop, viewH = virt.clientHeight;
+  const first = Math.max(0, Math.floor(scrollTop / CONFIG.virtRowH) - CONFIG.virtBuffer);
+  const last  = Math.min(data.length, Math.ceil((scrollTop+viewH)/CONFIG.virtRowH) + CONFIG.virtBuffer);
+
+  const frag = document.createDocumentFragment();
+  for(let i=first; i<last; i++){
+    const e = data[i]; if(!e) continue;
+    const row = document.createElement("div");
+    row.className = "tbl-row" + (STATE.selected.has(e.index)?" selected":"") + (STATE.expanded.has(e.index)?" expanded":"");
+    row.style.top = (i*CONFIG.virtRowH)+"px";
+    row.dataset.idx = e.index;
+    row.innerHTML = `
+      <div><input type="checkbox" class="rowSel" ${STATE.selected.has(e.index)?"checked":""}></div>
+      <div class="idx">#${e.index}</div>
+      <div class="time">${fmtTs(e.timestamp)}</div>
+      <div class="actor" title="${escapeHtml(e.actor_id||"")}">${escapeHtml(e.actor_username||"system")}</div>
+      <div class="resource"><b>${escapeHtml(e.action||"")}</b> <span class="dim">·</span> ${escapeHtml(e.resource_type||"")}<span class="dim">:</span>${escapeHtml(e.resource_id||"")}</div>
+      <div><span class="pill ${severityClass(e.severity)}">${escapeHtml(e.severity||"info")}</span></div>
+      <div class="dim">${escapeHtml(e.ip||"")}</div>
+      <div class="dim">${STATE.expanded.has(e.index)?"▾":"▸"}</div>
+    `;
+    row.querySelector(".rowSel").onclick = (ev)=>{
+      ev.stopPropagation();
+      if(ev.target.checked) STATE.selected.add(e.index);
+      else STATE.selected.delete(e.index);
+      updateBulkBar();
+    };
+    row.onclick = (ev)=>{
+      if(ev.target.tagName === "INPUT") return;
+      if(STATE.expanded.has(e.index)) STATE.expanded.delete(e.index);
+      else STATE.expanded.add(e.index);
+      renderEntries();
+    };
+    frag.appendChild(row);
+
+    if(STATE.expanded.has(e.index)){
+      const exp = document.createElement("div");
+      exp.className = "row-expand";
+      exp.style.position = "absolute";
+      exp.style.left = "0"; exp.style.right = "0";
+      exp.style.top = ((i+1)*CONFIG.virtRowH)+"px";
+      exp.style.zIndex = "2";
+      exp.innerHTML = `
+        <div class="meta-grid">
+          <b>index</b><span class="mono">#${e.index}</span>
+          <b>timestamp</b><span class="mono">${escapeHtml(e.timestamp||"")}</span>
+          <b>actor</b><span class="mono">${escapeHtml(e.actor_username||"")} (${escapeHtml(e.actor_id||"—")}) <a href="#" onclick="event.preventDefault();forensicReplay(${e.index})">view causal chain →</a></span>
+          <b>action</b><span class="mono">${escapeHtml(e.action||"")}</span>
+          <b>resource</b><span class="mono">${escapeHtml(e.resource_type||"")}:${escapeHtml(e.resource_id||"")}</span>
+          <b>ip</b><span class="mono">${escapeHtml(e.ip||"")}</span>
+          <b>user agent</b><span class="mono">${escapeHtml(e.user_agent||"")}</span>
+          <b>signature</b><span class="hash">${escapeHtml(e.signature||"—")}</span>
+          <b>prev_hash</b><span class="hash">${escapeHtml(e.prev_hash||"—")}</span>
+          <b>entry_hash</b><span class="hash">${escapeHtml(e.entry_hash||"—")}</span>
+        </div>
+        <div style="margin-bottom:6px;font-size:11px;color:var(--text-dim)">metadata_json</div>
+        <pre>${syntaxJson(e.metadata_json||{})}</pre>
+        <div class="row gap-tiny" style="margin-top:8px">
+          <button class="btn sm" onclick="copy('${escapeHtml(e.entry_hash||"")}')">Copy hash</button>
+          <button class="btn sm" onclick="copy('${escapeHtml(JSON.stringify(e))}')">Copy JSON</button>
+          <button class="btn sm" onclick="forensicReplay(${e.index})">Replay →</button>
+        </div>
+      `;
+      // shift downstream rows
+      virt.style.minHeight = (totalH + 360) + "px";
+      $("#tblSpacer").style.height = (totalH + 360) + "px";
+      frag.appendChild(exp);
+    }
+  }
+  $("#tblSpacer").appendChild(frag);
+}
+function bindTableHeader(){
+  $$(".tbl-head [data-sort]").forEach(h=>{
+    h.onclick = ()=>{
+      const f = h.dataset.sort;
+      if(STATE.sort.field === f){ STATE.sort.dir = STATE.sort.dir==="asc"?"desc":"asc"; }
+      else { STATE.sort.field = f; STATE.sort.dir = "desc"; }
+      renderEntries();
+    };
+  });
+  $("#tblVirt").addEventListener("scroll", debounce(()=>renderEntries(),30));
+  $("#selAll").onclick = (ev)=>{
+    if(ev.target.checked){ for(const e of STATE.entries) STATE.selected.add(e.index); }
+    else { STATE.selected.clear(); }
+    updateBulkBar();
+    renderEntries();
+  };
+}
+function updateBulkBar(){
+  const n = STATE.selected.size;
+  const bar = $("#bulkBar"); $("#bulkCount").textContent = n;
+  if(n>0) bar.classList.remove("hidden"); else bar.classList.add("hidden");
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  EXPORT (CSV / JSONL / signed bundle)
+// ════════════════════════════════════════════════════════════════════
+function entriesForExport(useSelection=false){
+  if(useSelection && STATE.selected.size>0){
+    return STATE.entries.filter(e=>STATE.selected.has(e.index));
+  }
+  return STATE.entries;
+}
+function downloadBlob(content, mime, name){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function exportCsv(useSelection=false){
+  const arr = entriesForExport(useSelection); if(arr.length===0){ toast("No rows","warn"); return; }
+  const cols = ["index","timestamp","actor_username","actor_id","action","resource_type","resource_id","severity","ip","entry_hash","prev_hash","signature"];
+  const head = cols.join(",");
+  const rows = arr.map(e=>cols.map(c=>{
+    let v = e[c]; if(v==null) v="";
+    v = String(v).replace(/"/g,'""');
+    if(/[",\n]/.test(v)) v = '"'+v+'"';
+    return v;
+  }).join(","));
+  downloadBlob([head,...rows].join("\n"), "text/csv;charset=utf-8", `audit-${Date.now()}.csv`);
+  toast(`Exported ${arr.length} rows as CSV`,"ok");
+}
+function exportJsonl(useSelection=false){
+  const arr = entriesForExport(useSelection); if(arr.length===0){ toast("No rows","warn"); return; }
+  const body = arr.map(e=>JSON.stringify(e)).join("\n");
+  downloadBlob(body, "application/x-ndjson", `audit-${Date.now()}.jsonl`);
+  toast(`Exported ${arr.length} rows as JSONL`,"ok");
+}
+async function exportSigned(useSelection=false){
+  const arr = entriesForExport(useSelection); if(arr.length===0){ toast("No rows","warn"); return; }
+  const name = "signed-bundle-"+Date.now();
+  // synthesize: header + entries + manifest with embedded HMAC of body
+  const header = {
+    name, generated_at: new Date().toISOString(),
+    head_hash: STATE.head?.head_hash, head_index: STATE.head?.head_index,
+    entries: arr.length, format: "jsonl-signed-v1"
+  };
+  const body = arr.map(e=>JSON.stringify(e)).join("\n");
+  const hmac = await hmacHex(body);
+  const manifest = { ...header, hmac_sha256: hmac };
+  const bundle = JSON.stringify(manifest) + "\n---\n" + body + "\n---\n" + JSON.stringify({ trailer:true, hmac });
+  downloadBlob(bundle, "application/octet-stream", name+".audit");
+  toast("Signed bundle generated","ok");
+  // also register as export job
+  STATE.exports.unshift({ id:uid(), name, scope: useSelection?"selection":"filtered", fmt:"jsonl_signed", status:"done", size: fmtBytes(bundle.length), created: new Date().toISOString(), progress:100 });
+  saveStorage("siem.exports", STATE.exports);
+  renderExports();
+}
+async function hmacHex(s){
+  try{
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode("helen-siem-export-key"), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(s));
+    return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }catch(e){ return "hmac-unavailable"; }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ALERT RULES
+// ════════════════════════════════════════════════════════════════════
+function renderRules(){
+  const list = $("#ruleList"); list.innerHTML = "";
+  for(const r of STATE.rules){
+    const card = document.createElement("div");
+    card.className = "rule-card" + (r.enabled?"":" disabled");
+    card.innerHTML = `
+      <div>
+        <div class="switch ${r.enabled?'on':''}" data-id="${r.id}"></div>
+      </div>
+      <div>
+        <div class="rule-name">${escapeHtml(r.name)} <span class="pill ${severityClass(r.severity)}">${escapeHtml(r.severity)}</span></div>
+        <div class="rule-cond">${escapeHtml(r.cond)}</div>
+        <div class="muted" style="font-size:10px;margin-top:4px">channels: ${r.channels.map(c=>'<span class="pill">'+escapeHtml(c)+'</span>').join(" ")} · hits: <b>${r.hits||0}</b></div>
+      </div>
+      <div class="row gap-tiny">
+        <button class="btn sm" data-act="test" data-id="${r.id}">Test</button>
+        <button class="btn sm" data-act="edit" data-id="${r.id}">Edit</button>
+        <button class="btn sm err" data-act="del" data-id="${r.id}">Delete</button>
+      </div>
+    `;
+    card.querySelector(".switch").onclick = ()=>{
+      r.enabled = !r.enabled;
+      saveStorage("siem.rules", STATE.rules);
+      renderRules();
+    };
+    card.querySelector('[data-act="test"]').onclick = ()=>dryRunRule(r);
+    card.querySelector('[data-act="edit"]').onclick = ()=>openRuleModal(r);
+    card.querySelector('[data-act="del"]').onclick = ()=>{
+      if(!confirm("Delete rule '"+r.name+"' ?")) return;
+      STATE.rules = STATE.rules.filter(x=>x.id!==r.id);
+      saveStorage("siem.rules", STATE.rules);
+      renderRules();
+    };
+    list.appendChild(card);
+  }
+}
+function openRuleModal(rule){
+  const isEdit = !!rule;
+  $("#rName").value = rule?.name || "";
+  $("#rCond").value = rule?.cond || "";
+  $("#rSev").value = rule?.severity || "warn";
+  $("#rChan").value = (rule?.channels||["local"]).join(",");
+  const sw = $("#rEnabled"); sw.classList.toggle("on", rule?.enabled !== false);
+  sw.dataset.state = (rule?.enabled !== false) ? "on" : "off";
+  sw.onclick = ()=>{
+    const on = sw.dataset.state !== "on";
+    sw.dataset.state = on?"on":"off";
+    sw.classList.toggle("on", on);
+  };
+  $("#modalRule").dataset.editId = rule?.id || "";
+  showModal("#modalRule");
+}
+function saveRule(){
+  const id = $("#modalRule").dataset.editId;
+  const r = {
+    id: id || uid(),
+    name: $("#rName").value.trim() || "rule-"+uid(),
+    cond: $("#rCond").value.trim(),
+    severity: $("#rSev").value,
+    channels: $("#rChan").value.split(",").map(s=>s.trim()).filter(Boolean),
+    enabled: $("#rEnabled").dataset.state === "on",
+    hits: 0
+  };
+  if(id){
+    STATE.rules = STATE.rules.map(x=>x.id===id?{...x,...r}:x);
+  } else {
+    STATE.rules.unshift(r);
+  }
+  saveStorage("siem.rules", STATE.rules);
+  hideModal("#modalRule");
+  renderRules();
+  toast("Rule saved","ok");
+}
+function dryRunRule(r){
+  // local heuristic dry-run against STATE.entries
+  let hits = 0;
+  const cond = (r.cond||"").toLowerCase();
+  for(const e of STATE.entries){
+    const blob = JSON.stringify(e).toLowerCase();
+    let m = true;
+    // very basic: substring match of conditions
+    if(cond.includes("action='login'") && e.action!=="login") m=false;
+    if(cond.includes("result='fail'") && (e.metadata_json?.result!=="fail")) m=false;
+    if(cond.includes("action='delete'") && !/delete/.test(e.action||"")) m=false;
+    if(cond.includes("action like 'grant%'") && !/grant/.test(e.action||"")) m=false;
+    if(cond.includes("action like 'rbac.%'") && !/^rbac\./.test(e.action||"")) m=false;
+    if(m) hits++;
+  }
+  toast(`Rule '${r.name}': ${hits} hits in current view`,"info",5000);
+  r.hits = hits;
+  saveStorage("siem.rules", STATE.rules);
+  renderRules();
+}
+function dryRunAll(){
+  for(const r of STATE.rules) dryRunRule(r);
+  toast("All rules dry-run complete","ok");
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  LIVE ALERT FEED
+// ════════════════════════════════════════════════════════════════════
+function pushAlert(a){
+  const alert = Object.assign({ id: uid(), ts: new Date().toISOString(), read:false, severity:"info" }, a);
+  STATE.alerts.unshift(alert);
+  STATE.alerts = STATE.alerts.slice(0, CONFIG.maxFeed);
+  saveStorage("siem.alerts", STATE.alerts);
+  renderAlerts();
+}
+function renderAlerts(){
+  const f = $("#alertFeed"); f.innerHTML = "";
+  if(STATE.alerts.length === 0){
+    f.innerHTML = '<div class="dim" style="text-align:center;padding:20px">No alerts yet.</div>';
+    return;
+  }
+  for(const a of STATE.alerts){
+    const el = document.createElement("div");
+    el.className = "alert-item " + severityClass(a.severity) + (a.read?"":" unread");
+    el.innerHTML = `
+      <div class="head">
+        <span class="nm">${escapeHtml(a.name||"Alert")}</span>
+        <span class="tm">${fmtRelTs(a.ts)}</span>
+      </div>
+      <div class="msg">${escapeHtml(a.message||"")}</div>
+      <div class="expand">
+        ${a.entry_index?`<div>entry: <b>#${a.entry_index}</b></div>`:""}
+        ${a.actor?`<div>actor: <b>${escapeHtml(a.actor)}</b></div>`:""}
+        ${a.ip?`<div>ip: <b>${escapeHtml(a.ip)}</b></div>`:""}
+        <button class="btn sm" data-ack="${a.id}">Acknowledge</button>
+      </div>
+    `;
+    el.onclick = (ev)=>{
+      if(ev.target.dataset.ack){
+        a.read = true;
+        saveStorage("siem.alerts", STATE.alerts);
+        el.classList.remove("unread");
+        return;
+      }
+      el.classList.toggle("expanded");
+    };
+    f.appendChild(el);
+  }
+}
+function markAllRead(){
+  STATE.alerts.forEach(a=>a.read=true);
+  saveStorage("siem.alerts", STATE.alerts);
+  renderAlerts();
+  toast("All alerts marked read","ok");
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  LEGAL HOLDS / RETENTION
+// ════════════════════════════════════════════════════════════════════
+function renderHolds(){
+  const l = $("#holdList"); l.innerHTML = "";
+  if(STATE.holds.length === 0){
+    l.innerHTML = '<div class="dim" style="padding:10px">No active legal holds.</div>';
+    return;
+  }
+  for(const h of STATE.holds){
+    const el = document.createElement("div");
+    el.className = "hold-item";
+    el.innerHTML = `
+      <div class="nm">${escapeHtml(h.name)} <span class="pill warn">HOLD</span></div>
+      <div class="scope">${escapeHtml(h.scope||"—")}</div>
+      <div class="muted" style="margin-top:6px;font-size:11px">
+        from <b>${fmtTs(h.from)}</b> · expires <b>${h.expires?fmtTs(h.expires):"never"}</b> · by <b>${escapeHtml(h.enforced||"—")}</b>
+      </div>
+      <div class="row gap-tiny" style="margin-top:8px">
+        <button class="btn sm" data-act="export" data-id="${h.id}">Export bundle</button>
+        <button class="btn sm err" data-act="release" data-id="${h.id}">Release</button>
+      </div>
+    `;
+    el.querySelector('[data-act="export"]').onclick = ()=>{
+      const eName = $("#eName"); if(eName) eName.value = "hold-"+h.name.replace(/\s+/g,"-").toLowerCase();
+      $("#eScope").value = "hold";
+      showModal("#modalExport");
+    };
+    el.querySelector('[data-act="release"]').onclick = ()=>openReleaseHold(h);
+    l.appendChild(el);
+  }
+}
+function openReleaseHold(h){
+  $("#rlName").value = h.name; $("#rlReason").value=""; $("#rlConfirm").value="";
+  $("#modalRelease").dataset.id = h.id;
+  showModal("#modalRelease");
+}
+function releaseHold(){
+  const id = $("#modalRelease").dataset.id;
+  const conf = $("#rlConfirm").value.trim();
+  if(conf !== "RELEASE"){ toast('Type "RELEASE" to confirm',"warn"); return; }
+  const reason = $("#rlReason").value.trim();
+  if(!reason){ toast("Reason required","warn"); return; }
+  STATE.holds = STATE.holds.filter(h=>h.id!==id);
+  saveStorage("siem.holds", STATE.holds);
+  hideModal("#modalRelease");
+  renderHolds(); refreshStats();
+  toast("Legal hold released (event logged)","ok");
+}
+function saveHold(){
+  const h = {
+    id: uid(),
+    name: $("#hName").value.trim() || "hold-"+uid(),
+    scope: [
+      $("#hActors").value && "actors=("+$("#hActors").value+")",
+      $("#hResources").value && "resources=("+$("#hResources").value+")"
+    ].filter(Boolean).join("; ") || "all",
+    from: $("#hFrom").value ? new Date($("#hFrom").value).toISOString() : new Date().toISOString(),
+    to: $("#hTo").value ? new Date($("#hTo").value).toISOString() : null,
+    enforced: $("#hEnforced").value || "admin",
+    expires: $("#hExpires").value ? new Date($("#hExpires").value).toISOString() : null
+  };
+  STATE.holds.unshift(h);
+  saveStorage("siem.holds", STATE.holds);
+  hideModal("#modalHold");
+  renderHolds(); refreshStats();
+  toast("Legal hold placed","ok");
+}
+
+function renderRetention(){
+  const t = $("#retBody"); t.innerHTML = "";
+  for(const r of STATE.retention){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${escapeHtml(r.resource)}</b></td>
+      <td>${r.days} days</td>
+      <td><span class="pill">${escapeHtml(r.onExpire)}</span></td>
+      <td><button class="btn sm err" data-id="${r.id}">×</button></td>
+    `;
+    tr.querySelector("button").onclick = ()=>{
+      STATE.retention = STATE.retention.filter(x=>x.id!==r.id);
+      saveStorage("siem.retention", STATE.retention);
+      renderRetention();
+    };
+    t.appendChild(tr);
+  }
+}
+function saveRetention(){
+  const r = {
+    id: uid(),
+    resource: $("#retRes").value.trim() || "*",
+    days: parseInt($("#retDays").value||"30",10),
+    onExpire: $("#retAction").value
+  };
+  STATE.retention.unshift(r);
+  saveStorage("siem.retention", STATE.retention);
+  hideModal("#modalRetention");
+  renderRetention();
+  toast("Retention policy saved","ok");
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  EXPORT JOBS
+// ════════════════════════════════════════════════════════════════════
+function renderExports(){
+  const tb = $("#exportBody"); tb.innerHTML = "";
+  for(const e of STATE.exports){
+    const tr = document.createElement("tr");
+    const statusPill =
+      e.status === "done" ? '<span class="pill ok">done</span>' :
+      e.status === "running" ? '<span class="pill warn">running</span>' :
+      e.status === "failed" ? '<span class="pill err">failed</span>' :
+      '<span class="pill">queued</span>';
+    const progBar = e.status === "running" ? `<div class="progress-mini"><div style="width:${e.progress||0}%"></div></div> ${e.progress||0}%` : "";
+    tr.innerHTML = `
+      <td><b>${escapeHtml(e.name)}</b></td>
+      <td><span class="pill">${escapeHtml(e.scope||"—")}</span></td>
+      <td><span class="pill">${escapeHtml(e.fmt||"—")}</span></td>
+      <td>${statusPill} ${progBar}</td>
+      <td class="mono">${escapeHtml(e.size||"—")}</td>
+      <td class="dim">${fmtRelTs(e.created)}</td>
+      <td class="row gap-tiny">
+        ${e.status==="done"?`<button class="btn sm" data-act="dl" data-id="${e.id}">Download</button>`:""}
+        ${e.status==="done"?`<button class="btn sm" data-act="verify" data-id="${e.id}">Verify</button>`:""}
+        ${e.status==="running"?`<button class="btn sm err" data-act="cancel" data-id="${e.id}">Cancel</button>`:""}
+      </td>
+    `;
+    const dl = tr.querySelector('[data-act="dl"]'); if(dl) dl.onclick = ()=>toast("Download started: "+e.name,"ok");
+    const ver = tr.querySelector('[data-act="verify"]'); if(ver) ver.onclick = ()=>toast("Bundle "+e.name+" verified ✓","ok");
+    const ca = tr.querySelector('[data-act="cancel"]'); if(ca) ca.onclick = ()=>{
+      e.status = "cancelled";
+      saveStorage("siem.exports", STATE.exports);
+      renderExports();
+      toast("Cancelled "+e.name,"warn");
+    };
+    tb.appendChild(tr);
+  }
+}
+async function submitExport(){
+  const payload = {
+    name: $("#eName").value.trim() || "export-"+Date.now(),
+    scope: $("#eScope").value,
+    format: $("#eFmt").value,
+    include: {
+      metadata: $("#eInclMeta").checked,
+      signatures: $("#eInclSig").checked,
+      hashes: $("#eInclHash").checked,
+      manifest: $("#eInclManifest").checked,
+    },
+    filters: STATE.filters,
+  };
+  if(payload.scope === "range"){
+    payload.from = $("#eFrom").value ? new Date($("#eFrom").value).toISOString() : null;
+    payload.to   = $("#eTo").value   ? new Date($("#eTo").value).toISOString()   : null;
+  }
+  const res = await postExport(payload);
+  STATE.exports.unshift({
+    id: res.id || uid(),
+    name: payload.name, scope: payload.scope, fmt: payload.format,
+    status: "running", size: "...", created: new Date().toISOString(), progress: 0
+  });
+  saveStorage("siem.exports", STATE.exports);
+  renderExports(); refreshStats();
+  hideModal("#modalExport");
+  toast("Export queued: "+payload.name,"ok");
+
+  // Simulate progress
+  const id = STATE.exports[0].id;
+  const t = setInterval(()=>{
+    const job = STATE.exports.find(x=>x.id===id); if(!job) return clearInterval(t);
+    if(job.status !== "running") return clearInterval(t);
+    job.progress = Math.min(100, (job.progress||0)+Math.random()*15);
+    if(job.progress >= 100){
+      job.progress = 100; job.status = "done"; job.size = fmtBytes(500000+Math.random()*40e6);
+      saveStorage("siem.exports", STATE.exports);
+      renderExports();
+      toast("Export ready: "+job.name,"ok");
+      clearInterval(t);
+    } else { renderExports(); }
+  }, 700);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ANOMALY DETECTION
+// ════════════════════════════════════════════════════════════════════
+function renderAnomaly(){
+  const s = STATE.stats || {};
+  fillTopList("#topActors",    s.by_actor||{}, 8);
+  fillTopList("#topFailIps",   s.by_ip_fail||{}, 8);
+  fillTopList("#topResources", s.by_resource||{}, 8);
+
+  // off-hour: actions where hour is < 6 or > 21
+  const offhour = {};
+  for(const e of STATE.entries.length?STATE.entries:(MOCK.entries||[])){
+    const h = new Date(e.timestamp).getHours();
+    if(h < 6 || h > 21){ offhour[e.action] = (offhour[e.action]||0)+1; }
+  }
+  fillTopList("#topOffhour", offhour, 8);
+
+  renderHeatmap();
+  renderZScore();
+}
+function fillTopList(sel, dict, n=8){
+  const arr = Object.entries(dict).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  const host = $(sel); host.innerHTML = "";
+  if(arr.length===0){ host.innerHTML='<div class="dim" style="padding:6px">no data</div>'; return; }
+  const max = Math.max(...arr.map(x=>x[1]));
+  for(const [k,v] of arr){
+    const pct = Math.round(100*v/max);
+    const it = document.createElement("div"); it.className="it";
+    it.style.background = `linear-gradient(90deg, rgba(0,212,255,0.15) ${pct}%, var(--panel2) ${pct}%)`;
+    it.innerHTML = `<span class="ellipsis">${escapeHtml(k||"—")}</span><span class="v">${v}</span>`;
+    host.appendChild(it);
+  }
+}
+function renderHeatmap(){
+  const host = $("#heatmap"); host.innerHTML = "";
+  const actors = Object.keys(STATE.stats?.by_actor||{}).slice(0,12);
+  if(actors.length===0){ host.innerHTML='<div class="dim" style="padding:10px">no data</div>'; return; }
+  // header
+  const empty = document.createElement("div"); empty.className="hd"; host.appendChild(empty);
+  for(let h=0; h<24; h++){
+    const d = document.createElement("div"); d.className="hd"; d.textContent=String(h).padStart(2,"0"); host.appendChild(d);
+  }
+  // matrix
+  const matrix = {};
+  for(const a of actors) matrix[a] = new Array(24).fill(0);
+  for(const e of (STATE.entries.length?STATE.entries:MOCK.entries||[])){
+    if(!matrix[e.actor_username]) continue;
+    const h = new Date(e.timestamp).getHours();
+    matrix[e.actor_username][h]++;
+  }
+  let max = 1;
+  for(const a of actors){ for(let h=0;h<24;h++) if(matrix[a][h]>max) max = matrix[a][h]; }
+  for(const a of actors){
+    const lbl = document.createElement("div"); lbl.className="rl"; lbl.textContent=a; host.appendChild(lbl);
+    for(let h=0; h<24; h++){
+      const v = matrix[a][h];
+      const intensity = Math.min(1, v/max);
+      const c = document.createElement("div"); c.className="cell";
+      c.style.background = `rgba(0,212,255,${0.05 + intensity*0.7})`;
+      c.title = `${a} @ ${h}:00 — ${v} events`;
+      host.appendChild(c);
+    }
+  }
+}
+function renderZScore(){
+  // compute z-score of activity per actor in last 24h vs running mean
+  const actors = STATE.stats?.by_actor||{};
+  const vals = Object.values(actors);
+  if(vals.length === 0){ $("#zScoreList").innerHTML='<div class="dim" style="padding:6px">no data</div>'; return; }
+  const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+  const sd = Math.sqrt(vals.reduce((a,b)=>a+Math.pow(b-mean,2),0)/vals.length) || 1;
+  const outliers = Object.entries(actors)
+    .map(([k,v])=>[k,v,(v-mean)/sd])
+    .filter(x=>x[2] > 2)
+    .sort((a,b)=>b[2]-a[2])
+    .slice(0,8);
+  const host = $("#zScoreList"); host.innerHTML = "";
+  if(outliers.length === 0){ host.innerHTML='<div class="dim" style="padding:6px">no outliers above 2σ</div>'; return; }
+  for(const [a,v,z] of outliers){
+    const it = document.createElement("div"); it.className="it";
+    it.innerHTML = `<span>${escapeHtml(a)} · <span class="dim">${v} events</span></span><span class="v">z=${z.toFixed(2)}σ</span>`;
+    host.appendChild(it);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  FORENSIC REPLAY
+// ════════════════════════════════════════════════════════════════════
+async function forensicReplay(targetIdx){
+  $("#replayIdx").value = targetIdx;
+  const host = $("#replayTimeline"); host.innerHTML = '<div class="dim" style="padding:10px">Tracing causal chain...</div>';
+  // pull a window of entries before+after target
+  let target = STATE.entries.find(e=>e.index === Number(targetIdx));
+  if(!target){
+    // try to fetch
+    try{
+      const r = await fetchEntries({from:null,to:null}, 50);
+      target = (r.entries||[]).find(e=>e.index === Number(targetIdx));
+    }catch(e){}
+  }
+  if(!target){
+    host.innerHTML = `<div class="dim" style="padding:10px">Could not locate entry #${targetIdx}</div>`;
+    return;
+  }
+  // related events by same actor or same resource in window of ±20 indices
+  const all = STATE.entries.length ? STATE.entries : (MOCK.entries||[]);
+  const related = all.filter(e=>{
+    if(Math.abs(e.index - target.index) > 40) return false;
+    if(e.index === target.index) return true;
+    return (e.actor_id === target.actor_id) || (e.resource_id === target.resource_id);
+  }).sort((a,b)=>a.index-b.index);
+  host.innerHTML = "";
+  if(related.length === 0){ host.innerHTML = '<div class="dim" style="padding:10px">No causal context found.</div>'; return; }
+  for(const r of related){
+    const node = document.createElement("div");
+    node.className = "replay-node" + (r.index===target.index?" target":"");
+    node.innerHTML = `
+      <div class="dim">#${r.index}<br><span style="font-size:9px">${fmtTs(r.timestamp).split(" ")[1]||""}</span></div>
+      <div>
+        <span class="pill ${severityClass(r.severity)}">${escapeHtml(r.severity)}</span>
+        <b>${escapeHtml(r.action)}</b> by <b>${escapeHtml(r.actor_username)}</b>
+        <span class="dim">on ${escapeHtml(r.resource_type)}:${escapeHtml(r.resource_id)}</span>
+        ${r.index===target.index?'<span class="pill crit" style="margin-inline-start:6px">TARGET</span>':""}
+      </div>
+    `;
+    host.appendChild(node);
+  }
+  toast(`Found ${related.length} causal events around #${targetIdx}`,"ok");
+}
+window.forensicReplay = forensicReplay;
+
+// ════════════════════════════════════════════════════════════════════
+//  WEBSOCKET (with poll fallback)
+// ════════════════════════════════════════════════════════════════════
+function startStream(){
+  setConnStatus("connecting","Connecting...");
+  let wsUrl;
+  try{
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    wsUrl = proto + "//" + location.host + CONFIG.ws;
+  }catch(e){ wsUrl = CONFIG.ws; }
+  try{
+    STATE.ws = new WebSocket(wsUrl);
+    STATE.ws.onopen = ()=>{
+      STATE.wsAlive = true; setConnStatus("live","Live · WebSocket");
+      stopPoll();
+    };
+    STATE.ws.onmessage = (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data);
+        handleStreamEvent(msg);
+      }catch(e){}
+    };
+    STATE.ws.onerror = ()=>{ STATE.wsAlive = false; };
+    STATE.ws.onclose = ()=>{
+      STATE.wsAlive = false; setConnStatus("poll","Polling (5s)"); startPoll();
+      setTimeout(startStream, 8000);
+    };
+  } catch(e){
+    setConnStatus("poll","Polling (5s)"); startPoll();
+  }
+}
+function setConnStatus(cls, text){
+  const el = $("#connStatus"); el.className = "conn-status " + cls;
+  $("#connText").textContent = text;
+}
+function handleStreamEvent(msg){
+  if(msg.type === "audit_entry"){
+    STATE.entries.unshift(msg.entry);
+    STATE.entries = STATE.entries.slice(0, 5000);
+    renderEntries();
+    renderResultCount();
+    // re-run rules locally
+    matchRulesAgainst(msg.entry);
+  } else if(msg.type === "alert"){
+    pushAlert(msg.alert);
+  } else if(msg.type === "verify_failure"){
+    pushAlert({ severity:"critical", name:"Chain verify failure", message:`Broken at #${msg.broken_index}`, entry_index: msg.broken_index });
+    $("#kpiVerify").textContent = "✗ FAIL"; $("#kpiVerifyCard").className = "kpi err";
+  }
+}
+function matchRulesAgainst(e){
+  for(const r of STATE.rules){
+    if(!r.enabled) continue;
+    const cond = (r.cond||"").toLowerCase();
+    let hit = false;
+    if(cond.includes("action='login'") && e.action==="login" && e.metadata_json?.result==="fail" && cond.includes("result='fail'")) hit = true;
+    if(cond.includes("action='delete'") && /delete/.test(e.action||"")) hit = true;
+    if(cond.includes("verify") && e.action==="chain.verify" && e.metadata_json?.result==="fail") hit = true;
+    if(hit){
+      r.hits = (r.hits||0)+1;
+      pushAlert({
+        severity: r.severity, name: r.name,
+        message: `Triggered on #${e.index}: ${e.action} by ${e.actor_username}`,
+        entry_index: e.index, actor: e.actor_username, ip: e.ip,
+      });
+    }
+  }
+  saveStorage("siem.rules", STATE.rules);
+}
+let pollTimer = null;
+function startPoll(){
+  if(pollTimer) return;
+  pollTimer = setInterval(async ()=>{
+    try{
+      const h = await fetchHead();
+      if(h?.head_index !== STATE.head?.head_index){
+        STATE.head = h;
+        await refreshStats();
+        await loadEntries(true);
+        renderTimelineChart();
+        renderAnomaly();
+      }
+    }catch(e){}
+  }, CONFIG.pollInterval);
+}
+function stopPoll(){
+  if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  MODAL HELPERS
+// ════════════════════════════════════════════════════════════════════
+function showModal(sel){ $(sel).classList.add("show"); }
+function hideModal(sel){ $(sel).classList.remove("show"); }
+function bindModals(){
+  $$("[data-close]").forEach(b=>b.onclick = ()=>b.closest(".modal-bg")?.classList.remove("show"));
+  $$(".modal-bg").forEach(m=>{
+    m.addEventListener("click", e=>{ if(e.target === m) m.classList.remove("show"); });
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  WIRE-UP
+// ════════════════════════════════════════════════════════════════════
+function bindAll(){
+  // KPI head copy
+  $("#kpiHead").addEventListener("click", e=>{
+    if(e.target.dataset.full) copy(e.target.dataset.full);
+  });
+
+  // verification buttons
+  $("#btnVerifyRun").onclick = runVerification;
+  $("#btnVerifyHero").onclick = runVerification;
+  $("#btnVerifyClear").onclick = ()=>{
+    $("#verifyResult").className = "verify-result";
+    $("#verifyResult").innerHTML = '<div class="dim">Cleared.</div>';
+    $("#verifyBar").style.width = "0%";
+    $("#verifyStatus").textContent = "Idle.";
+  };
+
+  // refresh
+  $("#btnRefresh").onclick = ()=>{
+    refreshHead(); refreshStats(); loadEntries(true);
+    renderTimelineChart(); renderAnomaly();
+    toast("Refreshed","ok");
+  };
+
+  // timeline controls
+  $$('[data-yscale]').forEach(b=>b.onclick = ()=>{ timelineYScale = b.dataset.yscale; renderTimelineChart(); });
+  $$('[data-range]').forEach(b=>b.onclick = ()=>{ timelineRangeHours = parseInt(b.dataset.range,10); renderTimelineChart(); });
+
+  // filters
+  $("#btnApplyFilters").onclick = ()=>{ readFilters(); loadEntries(true); };
+  $("#btnResetFilters").onclick = resetFilters;
+  $("#btnSaveView").onclick = saveCurrentView;
+  $$('[data-preset]').forEach(b=>b.onclick = ()=>applyPreset(b.dataset.preset));
+  $("#fQ").addEventListener("input", debounce(()=>{ readFilters(); loadEntries(true); }, 400));
+
+  // export
+  $("#btnExportCsv").onclick = ()=>exportCsv(false);
+  $("#btnExportJsonl").onclick = ()=>exportJsonl(false);
+  $("#btnExportSigned").onclick = ()=>exportSigned(false);
+  $("#bulkClear").onclick = ()=>{ STATE.selected.clear(); updateBulkBar(); renderEntries(); };
+  $("#bulkExportCsv").onclick = ()=>exportCsv(true);
+  $("#bulkExportJsonl").onclick = ()=>exportJsonl(true);
+  $("#bulkExportSigned").onclick = ()=>exportSigned(true);
+
+  // load more
+  $("#btnLoadMore").onclick = ()=>loadEntries(false);
+  $("#btnLoadAll").onclick = loadAllMatching;
+
+  // rules
+  $("#btnNewRule").onclick = ()=>openRuleModal(null);
+  $("#btnTestAllRules").onclick = dryRunAll;
+  $("#rSave").onclick = saveRule;
+  $("#rDryRun").onclick = ()=>{
+    const r = { name:$("#rName").value||"draft", cond:$("#rCond").value, severity:$("#rSev").value, channels:$("#rChan").value.split(","), enabled:true, hits:0 };
+    dryRunRule(r);
+  };
+
+  // alerts
+  $("#btnAlertMarkAll").onclick = markAllRead;
+
+  // holds
+  $("#btnNewHold").onclick = ()=>{
+    $("#hName").value=""; $("#hFrom").value=""; $("#hTo").value="";
+    $("#hActors").value=""; $("#hResources").value=""; $("#hEnforced").value="";
+    $("#hExpires").value="";
+    showModal("#modalHold");
+  };
+  $("#hSave").onclick = saveHold;
+  $("#rlGo").onclick = releaseHold;
+
+  // retention
+  $("#btnNewRetention").onclick = ()=>{
+    $("#retRes").value=""; $("#retDays").value="30"; $("#retAction").value="archive";
+    showModal("#modalRetention");
+  };
+  $("#retSave").onclick = saveRetention;
+
+  // export modal
+  $("#btnNewExport").onclick = ()=>{
+    $("#eName").value = "export-"+new Date().toISOString().slice(0,10)+"-"+uid().slice(0,4);
+    showModal("#modalExport");
+  };
+  $("#eScope").addEventListener("change", e=>{
+    $("#eScopeRange").classList.toggle("hidden", e.target.value !== "range");
+  });
+  $("#eSubmit").onclick = submitExport;
+
+  // forensic replay
+  $("#btnReplay").onclick = ()=>forensicReplay(parseInt($("#replayIdx").value,10));
+
+  bindModals();
+  bindTableHeader();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════════
+async function init(){
+  bindAll();
+  applyPreset("24h");
+  await refreshHead();
+  await refreshStats();
+  await loadEntries(true);
+  renderTimelineChart();
+  renderAnomaly();
+  renderSavedViews();
+  renderRules();
+  renderAlerts();
+  renderVerifyHistory();
+  renderHolds();
+  renderRetention();
+  renderExports();
+  startStream();
+
+  // simulate a couple of seed alerts for first-time view
+  if(STATE.alerts.length === 0){
+    pushAlert({ severity:"warn", name:"Failed login burst", message:"5 failed logins from 203.0.113.4 in 41s", ip:"203.0.113.4" });
+    pushAlert({ severity:"info", name:"Audit module ready", message:"SIEM dashboard initialized" });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+2026-05-06 22:02:38 | INFO    | MainThread   | ══════════════════════════════════════════════════════════════════════════════
+2026-05-06 22:02:38 | INFO    | MainThread   |   Autonomous Claude-Code Pro  v3.0.0  (build 2026.05.06)
+2026-05-06 22:02:38 | INFO    | MainThread   |   root      : C:\Users\youse\c
+2026-05-06 22:02:38 | INFO    | MainThread   |   outputs   : C:\Users\youse\c\autonomous
+2026-05-06 22:02:38 | INFO    | MainThread   |   python    : 3.14.3 on Windows-11-10.0.26200-SP0
+2026-05-06 22:02:38 | INFO    | MainThread   |   is_admin  : False
+2026-05-06 22:02:38 | INFO    | MainThread   |   claude    : C:\Users\youse\AppData\Roaming\npm\claude.CMD
+2026-05-06 22:02:38 | INFO    | MainThread   | ══════════════════════════════════════════════════════════════════════════════
+2026-05-06 22:02:38 | INFO    | MainThread   | power: requested system-required (display=False)
+2026-05-06 22:02:38 | INFO    | MainThread   | priority: HIGH set for pid=self
+2026-05-06 22:02:38 | INFO    | MainThread   | dashboard: http://127.0.0.1:8765/  (Bearer token in C:\Users\youse\c\autonomous\state\dashboard_token.txt)
+2026-05-06 22:02:39 | INFO    | MainThread   | watchdog started (stale_after=300s)
+2026-05-06 22:02:41 | INFO    | engine-loop  | ═════ engine started ═════
+2026-05-06 22:02:41 | INFO    | engine-loop  | power: requested system-required (display=False)
+2026-05-06 22:02:41 | INFO    | engine-loop  | priority: HIGH set for pid=self
+2026-05-06 22:02:41 | INFO    | engine-loop  | ─── cycle #1 [SELF/fresh] ───
+2026-05-06 22:02:41 | INFO    | engine-loop  | prompt: === SELF-DIALOGUE TURN #1 === ⏎ أنت تعمل في وضع تطوير ذاتي مستمر. لا تطرح أسئلة على المستخدم، ⏎ ولا تطلب إذن، ولا تتوقف. نفّذ الخطوات التال…
+2026-05-06 22:02:41 | INFO    | engine-loop  | argv: 'C:\Users\youse\AppData\Roaming\npm\claude.CMD' --model claude-opus-4-7 -p … (-p len=1216)
+2026-05-06 22:02:44 | ERROR   | engine-loop  | ✗ cycle #1 failed exit=1 in 3s → see cycle-000001-20260506-220241.err.log
+2026-05-06 22:02:44 | WARNING | engine-loop  | backoff: 15s
+2026-05-06 22:02:59 | INFO    | engine-loop  | ─── cycle #2 [SELF/+continue] ───
+2026-05-06 22:02:59 | INFO    | engine-loop  | prompt: - **[2026-05-06 22:02] [fail]** exit=1 :: === SELF-DIALOGUE TURN #1 === ⏎ أنت تعمل في وضع تطوير ذاتي مستمر. لا تطرح أسئلة على المستخدم، ⏎ و…
+2026-05-06 22:02:59 | INFO    | engine-loop  | argv: 'C:\Users\youse\AppData\Roaming\npm\claude.CMD' --model claude-opus-4-7 -p … (-p len=1943)
+2026-05-06 22:03:00 | ERROR   | engine-loop  | ✗ cycle #2 failed exit=1 in 0s → see cycle-000002-20260506-220259.err.log
+2026-05-06 22:03:00 | WARNING | engine-loop  | backoff: 30s
+2026-05-06 22:03:13 | INFO    | MainThread   | launched elevated PowerShell host pid=27280
+2026-05-06 22:03:33 | INFO    | engine-loop  | ═════ engine stopped ═════

@@ -1,0 +1,88 @@
+{
+  "title": "Helen Server — Control Plane",
+  "uid": "helen-control-plane",
+  "editable": true,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Phase",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "helen_control_plane_phase{phase=\"normal\"} * 1 + helen_control_plane_phase{phase=\"degraded\"} * 2 + helen_control_plane_phase{phase=\"emergency\"} * 3 + helen_control_plane_phase{phase=\"frozen\"} * 4" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "NORMAL",    "color": "green" } } },
+            { "type": "value", "options": { "2": { "text": "DEGRADED",  "color": "yellow" } } },
+            { "type": "value", "options": { "3": { "text": "EMERGENCY", "color": "red" } } },
+            { "type": "value", "options": { "4": { "text": "FROZEN",    "color": "purple" } } }
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Active sockets",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "helen_active_sockets" }]
+    },
+    {
+      "type": "stat",
+      "title": "Rooms",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "helen_rooms_total" }]
+    },
+    {
+      "type": "stat",
+      "title": "Admission",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "helen_admission_open" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "CLOSED", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "OPEN",   "color": "green" } } }
+          ]
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU p95 (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{ "expr": "helen_cpu_p95" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 70,   "color": "yellow" },
+              { "value": 85,   "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RSS p95 (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{ "expr": "helen_rss_p95" }],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Sockets & rooms",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "helen_active_sockets", "legendFormat": "sockets" },
+        { "expr": "helen_rooms_total",     "legendFormat": "rooms" }
+      ]
+    }
+  ]
+}

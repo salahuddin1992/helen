@@ -1,0 +1,181 @@
+/* ──────────────────────────────────────────────────────────────
+   Helen — English
+   Keep keys identical to the LocalizedStringKey literals used in
+   Swift source. The keys ARE the English copy.
+   ────────────────────────────────────────────────────────────── */
+
+/* Common */
+"Continue"               = "Continue";
+"Cancel"                 = "Cancel";
+"Done"                   = "Done";
+"Save"                   = "Save";
+"Delete"                 = "Delete";
+"Edit"                   = "Edit";
+"Search"                 = "Search";
+"Yesterday"              = "Yesterday";
+"Back"                   = "Back";
+"More"                   = "More";
+
+/* Onboarding */
+"Welcome to Helen"       = "Welcome to Helen";
+"Sign in to keep talking — even when there's no internet."
+                          = "Sign in to keep talking — even when there's no internet.";
+"Username"                = "Username";
+"yourname"                = "yourname";
+"Password"                = "Password";
+"Letters and numbers only"= "Letters and numbers only";
+"Forgot password?"        = "Forgot password?";
+"New here?"               = "New here?";
+"Create an account"       = "Create an account";
+
+/* Tabs */
+"Chats"                   = "Chats";
+"Contacts"                = "Contacts";
+"Profile"                 = "Profile";
+"Settings"                = "Settings";
+
+/* Contacts */
+"%lld people on your network" = "%lld people on your network";
+"Add contact"             = "Add contact";
+"Search people"           = "Search people";
+"All"                     = "All";
+"Online"                  = "Online";
+"Recent"                  = "Recent";
+"No matches"              = "No matches";
+"Try a different name or check the spelling."
+                          = "Try a different name or check the spelling.";
+"Online now"              = "Online now";
+"Away"                    = "Away";
+"Offline"                 = "Offline";
+"Active now"              = "Active now";
+"Phone"                   = "Phone";
+"Last seen"               = "Last seen";
+"About"                   = "About";
+"Message"                 = "Message";
+"Voice"                   = "Voice";
+"Video"                   = "Video";
+"Email"                   = "Email";
+"Share contact"           = "Share contact";
+"Mute"                    = "Mute";
+"Block"                   = "Block";
+
+/* Chats */
+"Search chats"            = "Search chats";
+"Unread"                  = "Unread";
+"Groups"                  = "Groups";
+"No conversations"        = "No conversations";
+"Start a new chat to see it here."
+                          = "Start a new chat to see it here.";
+"New chat"                = "New chat";
+"Last seen recently"      = "Last seen recently";
+"Attach"                  = "Attach";
+"Emoji"                   = "Emoji";
+"Send"                    = "Send";
+"Record voice message"    = "Record voice message";
+
+/* Profile */
+"Edit profile"            = "Edit profile";
+"Messages"                = "Messages";
+"Channels"                = "Channels";
+"Account"                 = "Account";
+"Privacy & Security"      = "Privacy & Security";
+"Two-factor, app lock, sessions" = "Two-factor, app lock, sessions";
+"Notifications"           = "Notifications";
+"Sounds, alerts, badges"  = "Sounds, alerts, badges";
+"Storage & Data"          = "Storage & Data";
+"Manage cache and downloads" = "Manage cache and downloads";
+
+/* Settings */
+"Appearance"              = "Appearance";
+"System"                  = "System";
+"Light"                   = "Light";
+"Dark"                    = "Dark";
+"Privacy"                 = "Privacy";
+"Sounds, banners, badges" = "Sounds, banners, badges";
+"Read receipts"           = "Read receipts";
+"Let others see when you read" = "Let others see when you read";
+"Version"                 = "Version";
+"Terms"                   = "Terms";
+"Privacy policy"          = "Privacy policy";
+"Sign out"                = "Sign out";
+
+/* Call screen */
+"Connected on Wi-Fi"      = "Connected on Wi-Fi";
+"Search contacts"         = "Search contacts";
+"Recents"                 = "Recents";
+"Favorites"               = "Favorites";
+"Add new contact"         = "Add new contact";
+"New contact"             = "New contact";
+"Name"                    = "Name";
+"Full name"               = "Full name";
+"Save contact"            = "Save contact";
+"Nothing here yet"        = "Nothing here yet";
+"No contacts match your search."
+                          = "No contacts match your search.";
+"Your recent calls will appear here."
+                          = "Your recent calls will appear here.";
+"Star a contact to find them faster."
+                          = "Star a contact to find them faster.";
+"Configure your call experience here."
+                          = "Configure your call experience here.";
+"Call"                    = "Call";
+"Close"                   = "Close";
+"Open profile for %@"     = "Open profile for %@";
+
+/* States */
+"Loading"                 = "Loading";
+"Something went wrong"    = "Something went wrong";
+"Try again"               = "Try again";
+
+/* Contact profile */
+"Mobile"                  = "Mobile";
+"Email"                   = "Email";
+"Company"                 = "Company";
+"Title"                   = "Title";
+"Notes"                   = "Notes";
+"Read more"               = "Read more";
+"Show less"               = "Show less";
+"Recent activity"         = "Recent activity";
+"See all"                 = "See all";
+"Edit Contact"            = "Edit Contact";
+"FaceTime"                = "FaceTime";
+"Mute notifications"      = "Mute notifications";
+"Block contact"           = "Block contact";
+"Add to favorites"        = "Add to favorites";
+"Remove from favorites"   = "Remove from favorites";
+"Double-tap to copy"      = "Double-tap to copy";
+
+/* Recents */
+"Search recents"          = "Search recents";
+"Missed"                  = "Missed";
+"Today"                   = "Today";
+"No missed calls"         = "No missed calls";
+"No recent calls"         = "No recent calls";
+"When you make or receive a call, it'll show up here."
+                          = "When you make or receive a call, it'll show up here.";
+"Incoming"                = "Incoming";
+"Outgoing"                = "Outgoing";
+"Incoming video"          = "Incoming video";
+"Outgoing video"          = "Outgoing video";
+"Missed video"            = "Missed video";
+"Call info"               = "Call info";
+
+/* Active call */
+"Mute"                    = "Mute";
+"Speaker"                 = "Speaker";
+"Add Call"                = "Add Call";
+"Keypad"                  = "Keypad";
+"End"                     = "End";
+"Hide"                    = "Hide";
+"On"                      = "On";
+"Off"                     = "Off";
+"Hangs up the current call" = "Hangs up the current call";
+"Call duration %@"        = "Call duration %@";
+"Key %@"                  = "Key %@";
+
+/* Accessibility */
+"%lld unread"             = "%lld unread";
+"Avatar for %@"           = "Avatar for %@";
+"Show password"           = "Show password";
+"Hide password"           = "Hide password";
+"Clear"                   = "Clear";

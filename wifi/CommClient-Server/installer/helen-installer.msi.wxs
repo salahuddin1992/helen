@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phase 3 / Module Q — WiX source for MSI build (Group Policy deployment).
+  Properties for unattended install:
+    SERVERURL   — public base URL the desktop client should auto-connect to
+    AUTOSTART   — 1/0, controls service auto-start
+    INSTALLADMIN — 1/0, installs the admin UI alongside the server
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Helen CommClient"
+           Language="1033"
+           Version="1.3.0"
+           Manufacturer="CommClient Project"
+           UpgradeCode="9d7e8a1c-7f1b-4c0c-b4f7-2c2d6e15a201">
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="CommClient Project"
+             Description="Helen CommClient unified MSI installer." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Helen is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Public properties (settable via msiexec / GPO transform) -->
+    <Property Id="SERVERURL"   Value="" />
+    <Property Id="AUTOSTART"   Value="1" />
+    <Property Id="INSTALLADMIN" Value="1" />
+
+    <Property Id="ARPPRODUCTICON" Value="HelenIcon.exe" />
+    <Icon Id="HelenIcon.exe" SourceFile="..\admin\static\favicon.ico" />
+
+    <!-- Directory layout -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="HELENROOT" Name="Helen">
+          <Directory Id="SERVERDIR" Name="server" />
+          <Directory Id="DESKTOPDIR" Name="desktop" />
+          <Directory Id="ADMINDIR"  Name="admin" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="StartMenuFolder" Name="Helen" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <!-- Server component (mandatory) -->
+    <DirectoryRef Id="SERVERDIR">
+      <Component Id="ServerBinaries" Guid="{83D4F2F0-FD0F-4F5B-94B0-7C8DBCA5A001}">
+        <File Id="HelenServerExe"
+              Source="..\dist\server\helen-server.exe"
+              KeyPath="yes" />
+        <ServiceInstall Id="HelenServerService"
+                        Name="HelenServer"
+                        DisplayName="Helen CommClient Server"
+                        Type="ownProcess"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Description="Helen CommClient backend service" />
+        <ServiceControl Id="StartHelenServer"
+                        Name="HelenServer"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="no" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Desktop component -->
+    <DirectoryRef Id="DESKTOPDIR">
+      <Component Id="DesktopApp" Guid="{83D4F2F0-FD0F-4F5B-94B0-7C8DBCA5A002}">
+        <File Id="HelenDesktopExe"
+              Source="..\..\CommClient-Desktop\dist\win-unpacked\Helen.exe"
+              KeyPath="yes" />
+        <RegistryKey Root="HKCR" Key="helen">
+          <RegistryValue Type="string" Value="URL:Helen Protocol" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+        </RegistryKey>
+        <RegistryKey Root="HKCR" Key="helen\shell\open\command">
+          <RegistryValue Type="string"
+                         Value="&quot;[DESKTOPDIR]Helen.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+      </Component>
+    </DirectoryRef>
+
+    <!-- Admin UI (optional, gated on INSTALLADMIN) -->
+    <DirectoryRef Id="ADMINDIR">
+      <Component Id="AdminUI" Guid="{83D4F2F0-FD0F-4F5B-94B0-7C8DBCA5A003}">
+        <Condition><![CDATA[INSTALLADMIN="1"]]></Condition>
+        <File Id="AdminIndex"
+              Source="..\admin\index.html"
+              KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Complete" Title="Helen CommClient"
+             Level="1" Display="expand"
+             ConfigurableDirectory="HELENROOT">
+      <Feature Id="FeatureServer"  Title="Server"  Level="1" Absent="disallow">
+        <ComponentRef Id="ServerBinaries" />
+      </Feature>
+      <Feature Id="FeatureDesktop" Title="Desktop" Level="1">
+        <ComponentRef Id="DesktopApp" />
+      </Feature>
+      <Feature Id="FeatureAdmin"   Title="Admin UI" Level="1">
+        <ComponentRef Id="AdminUI" />
+      </Feature>
+    </Feature>
+
+    <!-- Firewall rules (NetFwTypeLib via custom action — placeholder)  -->
+    <CustomAction Id="ConfigureFirewall"
+                  Directory="HELENROOT"
+                  ExeCommand='netsh advfirewall firewall add rule name="Helen HTTP/WS" dir=in action=allow protocol=TCP localport=3000'
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no" />
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureFirewall" After="InstallServices">NOT Installed</Custom>
+    </InstallExecuteSequence>
+
+  </Product>
+</Wix>

@@ -1,0 +1,924 @@
+<!doctype html>
+<!--
+    Helen Mobile — iPhone 16 Pro Max sized web simulator.
+    Open in a Chromium DevTools device-emulation pane set to
+    iPhone 16 Pro Max (430 x 932 CSS points) for the correct layout.
+
+    Viewport handling: we pin the layout container to 430 CSS px wide
+    and 932 tall so it looks identical on a desktop browser as it
+    would on-device. On a real iPhone the meta viewport below takes
+    over and the container expands to fill the safe area.
+-->
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport"
+      content="width=430, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0b1220" />
+<title>Helen Mobile</title>
+<!-- No-cache directives so the LAN deploy never serves stale code.
+     Chrome respects the meta tag; the link/script tags below also
+     get cache-busted via a tiny inline bootstrap below. -->
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+<meta http-equiv="Pragma"        content="no-cache" />
+<meta http-equiv="Expires"       content="0" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- iPhone 16 Pro Max silhouette frame (visible only on desktop where
+     viewport > 430). On the device itself the `.device-frame` hides
+     via CSS media query so the app fills the screen. -->
+<div class="device-frame">
+  <div class="device-notch"></div>
+  <div class="device-viewport" id="viewport">
+
+    <!-- Dynamic Island placeholder — Safe area visual cue. -->
+    <div class="dyn-island" aria-hidden="true"></div>
+
+    <!-- Status bar (simulated, since we're not running on-device). -->
+    <div class="status-bar">
+      <span class="status-time" id="statusTime">9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true">
+          <rect x="0" y="8" width="3" height="4" rx="1"></rect>
+          <rect x="5" y="6" width="3" height="6" rx="1"></rect>
+          <rect x="10" y="3" width="3" height="9" rx="1"></rect>
+          <rect x="15" y="0" width="3" height="12" rx="1"></rect>
+        </svg>
+        <svg viewBox="0 0 16 12" width="16" height="12" aria-hidden="true">
+          <path d="M8 10a2 2 0 100 0.01M2 4a9 9 0 0112 0M5 7a5 5 0 016 0"
+                fill="none" stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" />
+        </svg>
+        <svg viewBox="0 0 24 12" width="24" height="12" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="20" height="11" rx="3"
+                fill="none" stroke="currentColor" />
+          <rect x="22" y="4" width="2" height="4" rx="0.5" />
+          <rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor" />
+        </svg>
+      </span>
+    </div>
+
+    <!-- Active screen — content slot. Screens are plain <section>s
+         toggled by the router below; we're avoiding a framework on
+         purpose so this stays legible as a reference. -->
+    <main class="screen-stack" id="screenStack">
+
+      <!-- Onboarding — choose connection method. -->
+      <section class="screen" data-screen="onboarding" hidden>
+        <header class="nav-bar">
+          <h1>Welcome to Helen</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="hero">
+            <div class="hero-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="56" height="56">
+                <path d="M24 3l18 9v12c0 10-7.5 18.5-18 21-10.5-2.5-18-11-18-21V12l18-9z"
+                      fill="url(#heroGrad)" />
+                <path d="M18 24l4 4 8-8" fill="none" stroke="#fff"
+                      stroke-width="2.5" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                <defs>
+                  <linearGradient id="heroGrad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0" stop-color="#4cc2ff" />
+                    <stop offset="1" stop-color="#2f80ed" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2>Connect to your server</h2>
+            <p class="hero-sub">
+              Pick how you want to reach the Helen Server.
+            </p>
+          </div>
+
+          <!-- Method picker — three primary options. -->
+          <div class="segmented" role="tablist" aria-label="Connection method">
+            <button class="seg-btn seg-active" data-method="wifi"
+                    role="tab" aria-selected="true">
+              <span aria-hidden="true">📶</span> WiFi
+            </button>
+            <button class="seg-btn" data-method="bridge"
+                    role="tab" aria-selected="false">
+              <span aria-hidden="true">🌐</span> Bridge
+            </button>
+            <button class="seg-btn" data-method="manual"
+                    role="tab" aria-selected="false">
+              <span aria-hidden="true">⚙</span> Manual
+            </button>
+          </div>
+
+          <!-- WiFi method — auto-discovery on the local network. -->
+          <div class="method-pane" data-pane="wifi">
+            <div class="card">
+              <p class="muted method-desc">
+                Scans this Wi-Fi network for a Helen Server. Tries
+                <code>helen.local</code> first (mDNS), then a small
+                set of common LAN addresses. Tap any result to use it.
+              </p>
+              <button class="btn btn-primary" id="wifiScanBtn">
+                <span id="wifiScanLabel">Scan local network</span>
+              </button>
+              <div class="hint" id="wifiScanStatus"></div>
+              <ul class="list inline-list" id="wifiResults"></ul>
+            </div>
+          </div>
+
+          <!-- Bridge method — paste a rendezvous tunnel URL. -->
+          <div class="method-pane" data-pane="bridge" hidden>
+            <div class="card">
+              <p class="muted method-desc">
+                Connects through a public <strong>Helen-Rendezvous</strong>
+                tunnel — works from any network, no LAN required. Paste
+                the URL your operator shared (looks like
+                <code>https://rdv.example/t/&lt;id&gt;</code>).
+              </p>
+              <label class="field">
+                <span class="field-label">Tunnel URL</span>
+                <input type="url" id="bridgeUrl"
+                       placeholder="https://rdv.example:9090/t/abc123def"
+                       autocapitalize="off" autocomplete="off"
+                       spellcheck="false" />
+              </label>
+              <button class="btn btn-primary" id="bridgeContinue">
+                Verify & connect
+              </button>
+              <div class="hint" id="bridgeStatus"></div>
+            </div>
+          </div>
+
+          <!-- Manual method — type any server URL. -->
+          <div class="method-pane" data-pane="manual" hidden>
+            <div class="card">
+              <p class="muted method-desc">
+                Type the server URL directly. Use this when WiFi
+                discovery is blocked (guest networks) and you don't
+                have a bridge URL.
+              </p>
+              <label class="field">
+                <span class="field-label">Server URL</span>
+                <input type="url" id="onboardUrl"
+                       placeholder="http://192.168.1.132:3000"
+                       value="http://localhost:3000"
+                       autocapitalize="off" autocomplete="off"
+                       spellcheck="false" />
+              </label>
+              <button class="btn btn-primary" id="onboardContinue">
+                Continue
+              </button>
+              <button class="btn btn-secondary" id="onboardDiscover">
+                Probe /api/discovery
+              </button>
+              <div class="hint" id="onboardStatus"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Auth — register / login. -->
+      <section class="screen" data-screen="auth" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back>‹ Back</button>
+          <h1 id="authTitle">Sign in</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="segmented" role="tablist" aria-label="Auth mode">
+            <button class="seg-btn seg-active" data-mode="login"
+                    role="tab" aria-selected="true">Sign in</button>
+            <button class="seg-btn" data-mode="register"
+                    role="tab" aria-selected="false">Register</button>
+          </div>
+
+          <div class="card">
+            <label class="field">
+              <span class="field-label">Username</span>
+              <input id="authUser" autocapitalize="none"
+                     autocomplete="username" spellcheck="false" />
+            </label>
+            <label class="field" id="authDisplayWrap" hidden>
+              <span class="field-label">Display name</span>
+              <input id="authDisplay" autocomplete="name" />
+            </label>
+            <label class="field">
+              <span class="field-label">Password</span>
+              <input id="authPass" type="password"
+                     autocomplete="current-password" />
+            </label>
+            <button class="btn btn-primary" id="authSubmit">Sign in</button>
+            <div class="hint" id="authStatus"></div>
+          </div>
+
+          <p class="foot-hint" id="authServerEcho"></p>
+        </div>
+      </section>
+
+      <!-- Channels list. -->
+      <section class="screen" data-screen="channels" hidden>
+        <header class="nav-bar large-title">
+          <h1>Chats</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="btnRefresh" title="Refresh"
+                    aria-label="Refresh connection">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path d="M23 4v6h-6M1 20v-6h6"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M3.5 9a9 9 0 0114.8-3.4L23 10M1 14l4.7 4.4A9 9 0 0020.5 15"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button class="nav-icon-btn" id="btnNewChat" title="New chat"
+                    aria-label="New chat">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor"
+                      stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="search-bar">
+          <input id="chanSearch" placeholder="Search" />
+        </div>
+        <div class="scroll-body pad0">
+          <ul class="list" id="channelList"></ul>
+          <div class="empty-state" id="channelEmpty" hidden>
+            <p>No chats yet.</p>
+            <button class="btn btn-ghost" id="emptyNewChat">
+              Start a new chat
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Contacts — searchable user picker. Double-duty: open for a
+           DM (single-select tap → create DM) OR as a group-member
+           picker (multi-select → back). Mode stored in data-mode. -->
+      <section class="screen" data-screen="contacts" hidden data-mode="dm">
+        <header class="nav-bar">
+          <button class="nav-back" data-back="channels">‹ Chats</button>
+          <h1 id="contactsTitle">New chat</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="contactsDone" hidden title="Done">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M5 13l4 4 10-10" fill="none"
+                      stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="search-bar">
+          <input id="contactSearch" placeholder="Search by name or @username" />
+        </div>
+        <div id="contactChips" class="chip-row" hidden></div>
+        <div class="scroll-body pad0">
+          <ul class="list" id="contactList" style="padding:0;"></ul>
+          <p class="hint" id="contactHint"
+             style="padding:10px 18px;"></p>
+        </div>
+      </section>
+
+      <!-- New group — name + selected members + create. -->
+      <section class="screen" data-screen="newGroup" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="channels">‹ Chats</button>
+          <h1>New group</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="groupCreate" title="Create">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M5 13l4 4 10-10" fill="none"
+                      stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <div class="hero" style="margin:20px 0 14px;">
+            <div class="hero-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="56" height="56">
+                <circle cx="24" cy="18" r="7" fill="#7c5cff" />
+                <circle cx="10" cy="22" r="5" fill="#4cc2ff" opacity="0.8" />
+                <circle cx="38" cy="22" r="5" fill="#5cd7a5" opacity="0.8" />
+                <path d="M24 27c-8 0-14 5-14 10v4h28v-4c0-5-6-10-14-10z" fill="#7c5cff" opacity="0.4" />
+              </svg>
+            </div>
+          </div>
+          <div class="card">
+            <label class="field">
+              <span class="field-label">Group name</span>
+              <input id="groupName" placeholder="e.g. Team Atlas"
+                     maxlength="128" />
+            </label>
+            <label class="field">
+              <span class="field-label">Description (optional)</span>
+              <input id="groupDesc" placeholder="What's this group about?"
+                     maxlength="1000" />
+            </label>
+            <button class="btn btn-ghost" type="button" id="groupPickBtn">
+              <span id="groupMembersLbl">Add members</span>
+            </button>
+          </div>
+          <div class="chip-row" id="groupChips"></div>
+          <div class="hint" id="groupStatus"></div>
+        </div>
+      </section>
+
+      <!-- Channel info — members list + add/leave/remove. -->
+      <section class="screen" data-screen="channelInfo" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="chat">‹ Chat</button>
+          <h1 id="channelInfoTitle">Info</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="addMemberBtn" title="Add">
+              <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor"
+                      stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <div class="hero" id="channelInfoHero" style="margin:16px 0 14px;"></div>
+          <div class="section-label" id="channelInfoLabel">Members</div>
+          <div class="list" id="memberList"></div>
+          <div style="padding:16px;">
+            <button class="btn btn-destructive" id="leaveChannelBtn"
+                    style="width:100%;">Leave channel</button>
+          </div>
+          <div class="hint" id="channelInfoStatus"></div>
+        </div>
+      </section>
+
+      <!-- Chat — per-channel message stream. -->
+      <section class="screen" data-screen="chat" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back>‹ Chats</button>
+          <h1 id="chatTitle">Chat</h1>
+          <div class="nav-trailing">
+            <span class="presence-dot" id="chatPresence"
+                  aria-label="connection state"></span>
+            <button class="nav-icon-btn" id="chatVoiceBtn" title="Voice call"
+                    style="margin-inline-start:4px;">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button class="nav-icon-btn" id="chatVideoBtn" title="Video call"
+                    style="margin-inline-start:4px;">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <polygon points="23 7 16 12 23 17 23 7" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"
+                      fill="none" stroke="currentColor" stroke-width="2" />
+              </svg>
+            </button>
+            <button class="nav-icon-btn" id="chatInfoBtn" title="Info"
+                    style="margin-inline-start:4px;">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <circle cx="12" cy="12" r="9" fill="none"
+                        stroke="currentColor" stroke-width="1.8" />
+                <circle cx="12" cy="8" r="1.2" fill="currentColor" />
+                <path d="M12 11v6" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button class="nav-icon-btn" id="chatMoreBtn" title="More"
+                    style="margin-inline-start:4px;">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <circle cx="5"  cy="12" r="1.6" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+                <circle cx="19" cy="12" r="1.6" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <ul class="chat-log" id="chatLog"></ul>
+        <form class="composer" id="composerForm" autocomplete="off">
+          <button type="button" class="composer-plus" aria-label="Attach">
+            +
+          </button>
+          <input type="text" id="composerInput"
+                 placeholder="iMessage" autocomplete="off" />
+          <button type="submit" class="composer-send"
+                  aria-label="Send message">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M12 19V5M5 12l7-7 7 7" fill="none"
+                    stroke="currentColor" stroke-width="2.4"
+                    stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- Network — live path info + bridge status. -->
+      <section class="screen" data-screen="network" hidden>
+        <header class="nav-bar large-title">
+          <h1>Network</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="glass-card">
+            <div class="stat-row">
+              <span class="stat-label">Server</span>
+              <span class="stat-value mono" id="netServerUrl">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Status</span>
+              <span class="stat-value">
+                <span class="presence-dot" id="netPresence"></span>
+                <span id="netStatus">checking…</span>
+              </span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Latency</span>
+              <span class="stat-value mono" id="netLatency">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Transport</span>
+              <span class="stat-value mono" id="netTransport">WebSocket</span>
+            </div>
+          </div>
+
+          <h3 class="section-head">Connection paths</h3>
+          <div class="glass-card" id="pathList">
+            <p class="muted">Tap Refresh to probe.</p>
+          </div>
+
+          <h3 class="section-head">Federation bridges</h3>
+          <div class="glass-card" id="bridgeList">
+            <p class="muted">Requires admin role.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Profile / settings. -->
+      <section class="screen" data-screen="profile" hidden>
+        <header class="nav-bar large-title">
+          <h1>Profile</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="glass-card center-col">
+            <div class="avatar" id="profileAvatar"></div>
+            <h2 id="profileName">—</h2>
+            <p class="muted mono" id="profileId">—</p>
+          </div>
+          <div class="glass-card">
+            <div class="stat-row">
+              <span class="stat-label">Display name</span>
+              <span class="stat-value" id="profileDisplay">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Role</span>
+              <span class="stat-value" id="profileRole">user</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Server</span>
+              <span class="stat-value mono" id="profileServer">—</span>
+            </div>
+          </div>
+          <div class="glass-card" style="padding:4px 0;">
+            <button class="stat-row stat-row-tap" id="rowMedia"
+                    style="width:100%; text-align:left; background:none; border:0;
+                           color:inherit; cursor:pointer; padding:14px 16px;">
+              <span class="stat-label">🎥 Media &amp; camera</span>
+              <span class="stat-value" id="profileMediaSummary">—</span>
+            </button>
+            <button class="stat-row stat-row-tap" id="rowStorage"
+                    style="width:100%; text-align:left; background:none; border:0;
+                           color:inherit; cursor:pointer; padding:14px 16px;
+                           border-top: 0.5px solid rgba(255,255,255,0.06);">
+              <span class="stat-label">💾 Storage</span>
+              <span class="stat-value" id="profileStorageSummary">—</span>
+            </button>
+            <button class="stat-row stat-row-tap" id="rowAutoCleanup"
+                    style="width:100%; text-align:left; background:none; border:0;
+                           color:inherit; cursor:pointer; padding:14px 16px;
+                           border-top: 0.5px solid rgba(255,255,255,0.06);">
+              <span class="stat-label">🧹 Auto-cleanup</span>
+              <span class="stat-value" id="profileCleanupSummary">—</span>
+            </button>
+          </div>
+          <button class="btn btn-secondary" id="btnEditProfile"
+                  style="margin-bottom:8px;">Edit profile</button>
+          <button class="btn btn-secondary" id="btnChangePassword"
+                  style="margin-bottom:8px;">Change password</button>
+          <button class="btn btn-secondary" id="btnPickDevices"
+                  style="margin-bottom:8px;">🎥 Camera &amp; microphone</button>
+          <button class="btn btn-destructive" id="btnLogout">Sign out</button>
+          <p class="foot-hint center">
+            iPhone 16 Pro Max · 430×932 pt · Helen Mobile v1.0
+          </p>
+        </div>
+      </section>
+
+      <!-- Media & camera — device + quality controls. -->
+      <section class="screen" data-screen="media" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="profile">‹ Profile</button>
+          <h1>Media &amp; camera</h1>
+        </header>
+        <div class="scroll-body">
+          <div class="media-preview" id="mediaPreview">
+            <video id="mediaVideo" playsinline muted autoplay></video>
+            <div class="media-preview-overlay" id="mediaPreviewMeta">
+              camera preview
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; padding:10px 16px 4px;">
+            <button class="btn btn-primary" id="btnPreviewStart"
+                    style="flex:1;">Start preview</button>
+            <button class="btn btn-ghost" id="btnPreviewStop"
+                    style="flex:1;" disabled>Stop</button>
+          </div>
+
+          <div class="section-label">Session mode</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <label class="stat-row media-radio">
+              <input type="radio" name="mediaMode" value="video" />
+              <span>
+                <strong>Video</strong>
+                <em>Camera + mic + text</em>
+              </span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="mediaMode" value="audio" />
+              <span>
+                <strong>Audio only</strong>
+                <em>Mic + text, no camera</em>
+              </span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="mediaMode" value="text" />
+              <span>
+                <strong>Text only</strong>
+                <em>Messages — no camera or mic</em>
+              </span>
+            </label>
+          </div>
+
+          <div class="section-label">Video quality</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <label class="stat-row media-radio">
+              <input type="radio" name="quality" value="auto" />
+              <span><strong>Auto</strong><em>Best the camera supports</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="quality" value="low" />
+              <span><strong>Low · 480p</strong><em>640 × 480 · 15 fps</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="quality" value="medium" />
+              <span><strong>Medium · 720p</strong><em>1280 × 720 · 30 fps</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="quality" value="high" />
+              <span><strong>High · 1080p</strong><em>1920 × 1080 · 30 fps</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="quality" value="max" />
+              <span><strong>Max</strong><em>4K if supported · 60 fps</em></span>
+            </label>
+          </div>
+
+          <div class="section-label">Camera</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <div class="stat-row" style="gap:10px;">
+              <select id="cameraSelect" class="media-select">
+                <option value="">— no cameras detected —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-label">Microphone</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <div class="stat-row" style="gap:10px;">
+              <select id="micSelect" class="media-select">
+                <option value="">— no microphones detected —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-label">Detected capabilities</div>
+          <div class="glass-card" style="padding:4px 0;" id="mediaCaps">
+            <div class="stat-row">
+              <span class="stat-label">Status</span>
+              <span class="stat-value" id="capsStatus">not probed</span>
+            </div>
+          </div>
+
+          <p class="hint" id="mediaHint" style="padding:12px 18px;"></p>
+        </div>
+      </section>
+
+      <!-- Storage — usage + per-file management. -->
+      <section class="screen" data-screen="storage" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="profile">‹ Profile</button>
+          <h1>Storage</h1>
+          <div class="nav-trailing">
+            <button class="nav-icon-btn" id="btnStorageRefresh" title="Refresh">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path d="M23 4v6h-6M1 20v-6h6"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M3.5 9a9 9 0 0114.8-3.4L23 10M1 14l4.7 4.4A9 9 0 0020.5 15"
+                      fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div class="scroll-body">
+          <!-- Total usage + segmented bar. -->
+          <div class="glass-card" style="padding:14px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span class="stat-label" style="font-size:13px;">Total usage</span>
+              <span id="totalUsageText" style="font-size:22px; font-weight:700;">—</span>
+            </div>
+            <div id="usageBar" class="usage-bar"></div>
+            <div id="usageLegend" class="usage-legend"></div>
+          </div>
+
+          <!-- Category tiles. -->
+          <div class="kpi-grid" id="storageTypes">
+            <div class="kpi-tile" data-cat="image">
+              <div class="kpi-label">🖼 Images</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">0 files</div>
+            </div>
+            <div class="kpi-tile" data-cat="video">
+              <div class="kpi-label">🎬 Videos</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">0 files</div>
+            </div>
+            <div class="kpi-tile" data-cat="audio">
+              <div class="kpi-label">🎵 Audio</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">0 files</div>
+            </div>
+            <div class="kpi-tile" data-cat="document">
+              <div class="kpi-label">📄 Documents</div>
+              <div class="kpi-value" data-slot="value">—</div>
+              <div class="kpi-sub"  data-slot="sub">0 files</div>
+            </div>
+          </div>
+
+          <!-- Scope + type filter chips. -->
+          <div class="section-label">Filter</div>
+          <div style="padding:0 16px 10px; display:flex; flex-wrap:wrap; gap:6px;">
+            <button class="filter-chip seg-active" data-scope="all">All chats</button>
+            <button class="filter-chip" data-scope="group">Groups</button>
+            <button class="filter-chip" data-scope="dm">DMs</button>
+          </div>
+          <div style="padding:0 16px 10px; display:flex; flex-wrap:wrap; gap:6px;">
+            <button class="filter-chip seg-active" data-cat="all">All</button>
+            <button class="filter-chip" data-cat="image">🖼</button>
+            <button class="filter-chip" data-cat="video">🎬</button>
+            <button class="filter-chip" data-cat="audio">🎵</button>
+            <button class="filter-chip" data-cat="document">📄</button>
+          </div>
+
+          <!-- Actions bar. -->
+          <div style="padding:0 16px 10px; display:flex; gap:8px;">
+            <button class="btn btn-destructive" id="btnDeleteFiltered"
+                    style="flex:1; padding:10px;">Delete selected</button>
+            <button class="btn btn-ghost" id="btnSelectAll"
+                    style="flex:1; padding:10px;">Select all</button>
+          </div>
+
+          <!-- File list. -->
+          <ul class="list" id="fileList" style="padding:0;"></ul>
+          <p class="hint" id="storageHint" style="padding:12px 18px;"></p>
+
+          <!-- Local storage (browser). -->
+          <div class="section-label">On this device</div>
+          <div class="glass-card" id="localStoragePanel" style="padding:4px 0;">
+            <div class="stat-row">
+              <span class="stat-label">Cached messages</span>
+              <span class="stat-value mono" id="localCacheSize">—</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Settings &amp; state</span>
+              <span class="stat-value mono" id="localPrefsSize">—</span>
+            </div>
+            <div class="stat-row">
+              <button class="btn btn-ghost" id="btnClearLocal"
+                      style="width:100%; padding:10px;">Clear local cache</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Auto-cleanup settings. -->
+      <section class="screen" data-screen="autoCleanup" hidden>
+        <header class="nav-bar">
+          <button class="nav-back" data-back="profile">‹ Profile</button>
+          <h1>Auto-cleanup</h1>
+        </header>
+        <div class="scroll-body">
+          <p class="hint" style="padding:12px 18px; text-align:center;
+                                 line-height:1.5;">
+            Helen deletes old files and messages automatically based on
+            the rules you set here. Manual deletes still work; this just
+            keeps storage from growing forever.
+          </p>
+
+          <div class="section-label">Retention period</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="never" />
+              <span><strong>Never</strong><em>Keep everything forever</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="1d" />
+              <span><strong>1 day</strong><em>Delete after 24 hours</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="1w" />
+              <span><strong>1 week</strong><em>Delete after 7 days</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="1m" />
+              <span><strong>1 month</strong><em>Delete after 30 days</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="3m" />
+              <span><strong>3 months</strong><em>Delete after 90 days</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="radio" name="cleanupAge" value="1y" />
+              <span><strong>1 year</strong><em>Delete after 365 days</em></span>
+            </label>
+          </div>
+
+          <div class="section-label">Apply to</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-scope="group" />
+              <span><strong>Group chats</strong><em>Files shared in groups</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-scope="dm" />
+              <span><strong>Direct messages</strong><em>One-to-one files</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-scope="channel" />
+              <span><strong>Channels</strong><em>Broadcast channels</em></span>
+            </label>
+          </div>
+
+          <div class="section-label">What to clean</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-type="image" />
+              <span><strong>🖼 Images</strong><em>Photos, screenshots</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-type="video" />
+              <span><strong>🎬 Videos</strong><em>Recordings, shared clips</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-type="audio" />
+              <span><strong>🎵 Audio</strong><em>Voice notes, clips</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-type="document" />
+              <span><strong>📄 Documents</strong><em>PDF, spreadsheets, text</em></span>
+            </label>
+            <label class="stat-row media-radio">
+              <input type="checkbox" data-type="message" />
+              <span><strong>💬 Message text</strong><em>Just words — local cache only</em></span>
+            </label>
+          </div>
+
+          <div class="section-label">Last auto-cleanup</div>
+          <div class="glass-card" style="padding:4px 0;">
+            <div class="stat-row">
+              <span class="stat-label">Last run</span>
+              <span class="stat-value mono" id="cleanupLastRun">never</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Files removed</span>
+              <span class="stat-value mono" id="cleanupLastCount">—</span>
+            </div>
+            <div class="stat-row">
+              <button class="btn btn-primary" id="btnRunCleanupNow"
+                      style="width:100%; padding:10px;">Run cleanup now</button>
+            </div>
+          </div>
+
+          <p class="hint" id="cleanupStatus" style="padding:12px 18px;"></p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Tab bar — bottom navigation. Hidden on onboarding/auth. -->
+    <nav class="tab-bar" id="tabBar" aria-label="Main navigation" hidden>
+      <button class="tab-btn tab-active" data-tab="channels">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path d="M21 11.5a8.38 8.38 0 01-0.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-0.9L3 21l1.9-5.7A8.5 8.5 0 0119.5 8.1a8.38 8.38 0 011.5 3.4z"
+                fill="none" stroke="currentColor" stroke-width="1.7"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Chats</span>
+      </button>
+      <button class="tab-btn" data-tab="network">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path d="M5 12.55a11 11 0 0114 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h0.01"
+                fill="none" stroke="currentColor" stroke-width="1.7"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Network</span>
+      </button>
+      <button class="tab-btn" data-tab="profile">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
+                fill="none" stroke="currentColor" stroke-width="1.7"
+                stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="12" cy="7" r="4" fill="none" stroke="currentColor"
+                  stroke-width="1.7" />
+        </svg>
+        <span>Profile</span>
+      </button>
+    </nav>
+
+    <!-- Home indicator bar (iOS). -->
+    <div class="home-indicator" aria-hidden="true"></div>
+
+    <!-- Toast region. -->
+    <!-- Action sheet (New DM / New Group / By code). -->
+    <div class="sheet-backdrop" id="newChatSheet" hidden>
+      <div class="sheet">
+        <h3 class="sheet-title">New</h3>
+        <button class="sheet-option" data-action="dm">
+          <span class="sheet-icon" style="background:linear-gradient(135deg,#4cc2ff,#7c5cff);">✉</span>
+          <div>New chat
+            <div class="sheet-cap">One-to-one message</div>
+          </div>
+        </button>
+        <button class="sheet-option" data-action="group">
+          <span class="sheet-icon" style="background:linear-gradient(135deg,#7c5cff,#39e6b4);">👥</span>
+          <div>New group
+            <div class="sheet-cap">Chat with multiple people</div>
+          </div>
+        </button>
+        <button class="sheet-option" data-action="bycode">
+          <span class="sheet-icon" style="background:linear-gradient(135deg,#f5a524,#ff7a8e);">🔗</span>
+          <div>Add by share code
+            <div class="sheet-cap">Paste a user's share code</div>
+          </div>
+        </button>
+        <button class="sheet-option cancel" data-action="cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Share code prompt sheet. -->
+    <div class="sheet-backdrop" id="codeSheet" hidden>
+      <div class="sheet">
+        <h3 class="sheet-title">Add by share code</h3>
+        <input id="codeInput" type="text" placeholder="Paste share code"
+               autocapitalize="none" autocorrect="off" />
+        <button class="sheet-option" data-code-go="go"
+                style="background:linear-gradient(135deg,#4cc2ff,#7c5cff);
+                       border:0; color:#fff; justify-content:center;
+                       font-weight:600;">Find & start chat</button>
+        <button class="sheet-option cancel" data-code-go="cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+  </div>
+</div>
+
+<!-- Desktop caption outside the device frame. -->
+<div class="device-caption">iPhone 16 Pro Max — 430 × 932 pt</div>
+
+<!-- Socket.IO client (served by Helen when we're in a real LAN, but
+     for this static simulator we pull it from the CDN so the file
+     works without a Helen server on first load — the app still
+     refuses to connect until the user supplies a reachable URL). -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        crossorigin="anonymous"></script>
+<script src="config.js"></script>
+<!-- Bake a per-pageload version into app.js so Chrome can't serve a
+     stale cached copy after we ship a fix. The `?v=` query mirrors any
+     `?v=` on the page URL (so the operator can pin a known build), or
+     falls back to the current timestamp on each cold load. -->
+<script>
+    (function(){
+        var pinned = new URL(location.href).searchParams.get('v');
+        var v = pinned || ('t' + Date.now());
+        document.write('<script src="app.js?v=' + v + '"><\/script>');
+    })();
+</script>
+</body>
+</html>

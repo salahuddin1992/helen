@@ -1,0 +1,49 @@
+[Unit]
+Description=Helen LAN Communications Server
+Documentation=Internal LAN deployment — see DEPLOY-GUIDE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=helen
+Group=helen
+WorkingDirectory=/opt/helen-server
+ExecStart=/opt/helen-server/Helen-Server
+EnvironmentFile=-/opt/helen-server/.env
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+# Resource limits — generous for LAN comm workload, prevents runaway leaks
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security hardening — restrict the surface even on a private LAN
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# PyInstaller --onedir flattens data into /opt/helen-server/_internal/
+# but our app writes to /opt/helen-server/data (resolved at runtime
+# from settings.SQLITE_PATH). Keep both paths writable so an upgrade
+# from a legacy --onefile layout still finds its data dir.
+ReadWritePaths=/opt/helen-server/data /opt/helen-server/_internal/data /opt/helen-server/logs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+# Logging — journalctl picks these up
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=helen-server
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+2026-05-06 22:15:21 [WARNING] autonomous-agent: Process is not elevated. Re-launching with UAC prompt…
+2026-05-06 22:15:30 [WARNING] autonomous-agent: Process is not elevated. Re-launching with UAC prompt…
+2026-05-06 22:16:58 [WARNING] autonomous-agent: Process is not elevated. Re-launching with UAC prompt…
+2026-05-06 22:17:00 [INFO] autonomous-agent: [cyan]process priority set → HIGH[/cyan]
+2026-05-06 22:17:00 [INFO] autonomous-agent: [cyan]sleep prevention engaged[/cyan]
+2026-05-06 22:17:00 [INFO] autonomous-agent: [bold green]watchdog: starting orchestrator[/bold green]
+2026-05-06 22:17:00 [INFO] autonomous-agent: [bold cyan]══════ iteration #1 ══════[/bold cyan]
+2026-05-06 22:17:00 [INFO] autonomous-agent: [magenta]meta-brain:[/magenta] empty history — using SEED_PROMPT
+2026-05-06 22:17:00 [INFO] autonomous-agent: <rich.panel.Panel object at 0x0000016551362CF0>
+2026-05-06 22:17:00 [INFO] autonomous-agent: [bold blue]→ worker iteration[/bold blue] cwd=C:\Users\youse\c (continue=False)
+2026-05-06 22:17:04 [INFO] autonomous-agent: iteration #1 [red]FAIL[/red] (3539 ms)
+2026-05-06 22:17:04 [ERROR] autonomous-agent: error: exit 1
+2026-05-06 22:17:06 [INFO] autonomous-agent: [bold cyan]══════ iteration #2 ══════[/bold cyan]
+2026-05-06 22:17:06 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:17:16 [INFO] autonomous-agent: [bold cyan]══════ iteration #3 ══════[/bold cyan]
+2026-05-06 22:17:16 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:17:31 [INFO] autonomous-agent: [bold cyan]══════ iteration #4 ══════[/bold cyan]
+2026-05-06 22:17:31 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:17:51 [INFO] autonomous-agent: [bold cyan]══════ iteration #5 ══════[/bold cyan]
+2026-05-06 22:17:51 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:54:58 [WARNING] autonomous-agent: Process is not elevated. Re-launching with UAC prompt…
+2026-05-06 22:55:01 [INFO] autonomous-agent: [cyan]process priority set → HIGH[/cyan]
+2026-05-06 22:55:01 [INFO] autonomous-agent: [cyan]sleep prevention engaged[/cyan]
+2026-05-06 22:55:01 [INFO] autonomous-agent: [bold green]watchdog: starting orchestrator[/bold green]
+2026-05-06 22:55:01 [INFO] autonomous-agent: [bold cyan]══════ iteration #1 ══════[/bold cyan]
+2026-05-06 22:55:01 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:55:06 [INFO] autonomous-agent: [bold cyan]══════ iteration #2 ══════[/bold cyan]
+2026-05-06 22:55:06 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:55:16 [INFO] autonomous-agent: [bold cyan]══════ iteration #3 ══════[/bold cyan]
+2026-05-06 22:55:16 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:55:31 [INFO] autonomous-agent: [bold cyan]══════ iteration #4 ══════[/bold cyan]
+2026-05-06 22:55:31 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)
+2026-05-06 22:55:51 [INFO] autonomous-agent: [bold cyan]══════ iteration #5 ══════[/bold cyan]
+2026-05-06 22:55:51 [ERROR] autonomous-agent: meta-brain failed: 'ascii' codec can't encode characters in position 0-1: ordinal not in range(128)

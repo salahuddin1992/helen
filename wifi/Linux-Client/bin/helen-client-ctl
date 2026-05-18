@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# helen-client-ctl — thin utility for the end-user client.
+# (Client itself is an Electron GUI; this is for CI / support.)
+set -euo pipefail
+
+GREEN=$'\033[32m'; RED=$'\033[31m'; RST=$'\033[0m'
+_ok()   { printf '%s✓%s %s\n' "${GREEN}" "${RST}" "$*"; }
+_fail() { printf '%s✗%s %s\n' "${RED}" "${RST}" "$*" >&2; }
+
+case "${1:-help}" in
+    start|open)
+        exec helen "$@"
+        ;;
+    diag)
+        # Collect per-user Electron logs for support
+        out="${2:-${HOME}/helen-client-diag-$(date +%Y%m%d-%H%M%S).tar.gz}"
+        stage="$(mktemp -d)"
+        trap 'rm -rf "${stage}"' EXIT
+        mkdir -p "${stage}/logs" "${stage}/config"
+        [[ -d "${HOME}/.config/Helen/logs" ]] && cp -r "${HOME}/.config/Helen/logs/." "${stage}/logs/" 2>/dev/null || true
+        for f in "${HOME}/.config/Helen/"{Preferences,Cookies,Local\ State}; do
+            [[ -f "${f}" ]] && cp "${f}" "${stage}/config/" 2>/dev/null || true
+        done
+        uname -a > "${stage}/uname.txt"
+        cat /etc/os-release >> "${stage}/uname.txt" 2>/dev/null || true
+        tar -czf "${out}" -C "${stage}" .
+        _ok "diag bundle: ${out}"
+        ;;
+    reset)
+        if [[ "${2:-}" != "--yes" ]]; then
+            echo "this wipes ~/.config/Helen and ~/.cache/Helen — pass --yes to confirm"
+            exit 1
+        fi
+        rm -rf "${HOME}/.config/Helen" "${HOME}/.cache/Helen"
+        _ok "client state cleared"
+        ;;
+    doctor)
+        # Sanity-check: is the client installed? Can it reach a server?
+        if command -v helen >/dev/null 2>&1; then _ok "helen launcher present"
+        else _fail "helen not in PATH"; fi
+        if [[ -f /usr/share/applications/helen.desktop ]]; then _ok "desktop entry"
+        else _fail "no desktop entry"; fi
+        if command -v xdg-desktop-portal >/dev/null 2>&1; then _ok "xdg-desktop-portal (needed for screen share)"
+        else _fail "xdg-desktop-portal missing — screen share will fail on Wayland"; fi
+        ;;
+    *)
+        cat <<EOF
+usage: helen-client-ctl <cmd>
+
+  start [args]   launch the client (alias of 'helen')
+  diag [path]    collect ~/.config/Helen logs into a tarball
+  reset --yes    wipe per-user state (~/.config/Helen and ~/.cache/Helen)
+  doctor         sanity-check installation + portal availability
+EOF
+        ;;
+esac

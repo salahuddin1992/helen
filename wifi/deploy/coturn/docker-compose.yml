@@ -1,0 +1,39 @@
+# ============================================================
+# Helen — coturn (TURN/STUN) production deployment
+# ============================================================
+# Single-node coturn for Helen-Server's WebRTC fallback. Pairs with
+# /api/turn/ice-config which mints short-lived HMAC credentials so
+# every Helen client can punch through symmetric NAT.
+#
+# Deploy:
+#   1. Set TURN_REALM and TURN_SECRET env (must match Helen-Server)
+#   2. Open UDP/TCP 3478 + UDP 49152-65535 on host firewall
+#   3. docker compose up -d
+#   4. Restart Helen-Server with HELEN_TURN_SECRET / HELEN_TURN_REALM
+#      so /api/turn/ice-config returns matching credentials
+#
+# Ports:
+#   3478/udp   — STUN + TURN classic
+#   3478/tcp   — TURN over TCP (firewall fallback)
+#   5349/tcp   — TURN over TLS (corp networks blocking 3478)
+#   49152-65535/udp — relay range
+# ============================================================
+
+version: '3.8'
+
+services:
+  coturn:
+    image: coturn/coturn:4.6.2
+    container_name: helen-turn
+    restart: unless-stopped
+    network_mode: host        # host net so relay ports work natively
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./logs:/var/log/coturn
+    environment:
+      - TURNSERVER_ENABLED=1
+    healthcheck:
+      test: ["CMD", "turnutils_uclient", "-u", "test", "-w", "test", "-p", "3478", "127.0.0.1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3

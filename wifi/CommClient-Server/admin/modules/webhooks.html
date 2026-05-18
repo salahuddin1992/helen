@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- Phase 6 / Module AF — Webhooks v2 admin module. Self-contained. -->
+<style>
+  :root {
+    --wh-fg:#e4e7eb; --wh-bg:#0e141b; --wh-bg2:#171f27;
+    --wh-border:#222e3a; --wh-accent:#f7b955; --wh-warn:#ffb347;
+    --wh-danger:#ff5f6d; --wh-ok:#46d39a;
+  }
+  .wh-wrap { color:var(--wh-fg); font-family:system-ui,sans-serif; padding:18px; }
+  .wh-section { background:var(--wh-bg2); border:1px solid var(--wh-border);
+                border-radius:12px; padding:18px; margin-bottom:18px; }
+  .wh-btn { background:var(--wh-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .wh-btn.secondary { background:#2a3340; color:var(--wh-fg); }
+  .wh-btn.danger { background:var(--wh-danger); color:#fff; }
+  .wh-input, .wh-select { width:100%; background:#0a1018; color:var(--wh-fg);
+                          border:1px solid var(--wh-border); border-radius:8px;
+                          padding:8px 10px; box-sizing:border-box; }
+  .wh-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .wh-tbl th, .wh-tbl td { padding:6px 8px; border-bottom:1px solid var(--wh-border);
+                           text-align:left; vertical-align:top; }
+  .wh-pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px;
+             background:#2a3340; }
+  .wh-pill.ok { background:#22432e; color:var(--wh-ok); }
+  .wh-pill.warn { background:#4a3e1f; color:var(--wh-warn); }
+  .wh-pill.bad { background:#4a2326; color:var(--wh-danger); }
+  .wh-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px; }
+  .wh-card { background:var(--wh-bg2); border:1px solid var(--wh-border);
+             padding:14px; border-radius:12px; }
+  .wh-card .label { font-size:12px; opacity:.7; }
+  .wh-card .val { font-size:22px; font-weight:600; margin-top:6px; }
+  pre.wh-out { background:#0a1018; padding:10px; border-radius:8px; overflow:auto;
+               font-size:12px; max-height:280px; }
+  .wh-grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+</style>
+
+<div class="wh-wrap">
+  <div class="wh-cards" id="wh-cards"></div>
+
+  <div class="wh-section">
+    <h3 style="margin:0 0 12px;">Add subscription</h3>
+    <div class="wh-grid3">
+      <div>
+        <label>Name</label>
+        <input class="wh-input" id="wh-name"/>
+      </div>
+      <div>
+        <label>URL</label>
+        <input class="wh-input" id="wh-url" placeholder="https://example.com/hook"/>
+      </div>
+      <div>
+        <label>Events (CSV — use "*" for all)</label>
+        <input class="wh-input" id="wh-events" value="*"/>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="wh-btn" id="wh-create">Create</button>
+    </div>
+  </div>
+
+  <div class="wh-section">
+    <h3 style="margin:0 0 12px;">Subscriptions (all workspaces)</h3>
+    <table class="wh-tbl" id="wh-subs-tbl"></table>
+  </div>
+
+  <div class="wh-section">
+    <h3 style="margin:0 0 12px;">Recent deliveries</h3>
+    <input class="wh-input" id="wh-deliv-sub" placeholder="subscription_id"/>
+    <button class="wh-btn secondary" id="wh-load-deliv" style="margin-top:8px;">Load deliveries</button>
+    <table class="wh-tbl" id="wh-deliv-tbl" style="margin-top:12px;"></table>
+  </div>
+
+  <div class="wh-section">
+    <h3 style="margin:0 0 12px;">Dead-letter queue</h3>
+    <table class="wh-tbl" id="wh-dlq-tbl"></table>
+  </div>
+</div>
+
+<script>
+(function(){
+  function $(s){ return document.querySelector(s); }
+
+  async function loadMetrics(){
+    const m = await apiFetch('/api/admin/webhooks/metrics?period_hours=24');
+    $('#wh-cards').innerHTML =
+      card('Total (24h)', m.total) +
+      card('Delivered', m.delivered) +
+      card('Success rate', m.success_rate==null?'-':Math.round(m.success_rate*100)+'%') +
+      card('p95 latency', (m.p95_latency_ms||0)+' ms');
+  }
+
+  async function loadSubs(){
+    const r = await apiFetch('/api/admin/webhooks/subscriptions');
+    $('#wh-subs-tbl').innerHTML = '<thead><tr><th>name</th><th>url</th>'
+      + '<th>events</th><th>state</th><th>fails</th><th>actions</th></tr></thead><tbody>'
+      + (r.items||[]).map(s=>{
+        const open = s.disabled_until && new Date(s.disabled_until) > new Date();
+        const pill = open ? '<span class="wh-pill bad">tripped</span>'
+                          : s.enabled ? '<span class="wh-pill ok">live</span>'
+                                       : '<span class="wh-pill warn">paused</span>';
+        return '<tr><td>'+s.name+'</td>'
+          +'<td style="word-break:break-all">'+s.url+'</td>'
+          +'<td>'+(s.events||[]).join(', ')+'</td>'
+          +'<td>'+pill+'</td>'
+          +'<td>'+s.failure_count+' / '+s.consecutive_failures+'</td>'
+          +'<td><button class="wh-btn secondary" data-rst="'+s.id+'">Reset CB</button></td></tr>';
+      }).join('') + '</tbody>';
+    $('#wh-subs-tbl').querySelectorAll('[data-rst]').forEach(b=>{
+      b.onclick = async ()=>{
+        await apiFetch('/api/admin/webhooks/subscriptions/'+b.dataset.rst+'/reset-circuit',{method:'POST'});
+        loadSubs();
+      };
+    });
+  }
+
+  async function loadDLQ(){
+    const r = await apiFetch('/api/admin/webhooks/dead-letters');
+    $('#wh-dlq-tbl').innerHTML = '<thead><tr><th>delivery</th><th>sub</th><th>reason</th>'
+      + '<th>created</th><th>actions</th></tr></thead><tbody>'
+      + (r.items||[]).map(d=>(
+        '<tr><td>'+d.delivery_id.slice(0,8)+'</td>'
+        +'<td>'+d.subscription_id.slice(0,8)+'</td>'
+        +'<td>'+d.reason+'</td><td>'+(d.created_at||'-')+'</td>'
+        +'<td>'+(d.requeued?'requeued':
+          '<button class="wh-btn secondary" data-rq="'+d.id+'">Requeue</button>')+'</td></tr>'
+      )).join('') + '</tbody>';
+    $('#wh-dlq-tbl').querySelectorAll('[data-rq]').forEach(b=>{
+      b.onclick = async ()=>{
+        await apiFetch('/api/admin/webhooks/dead-letters/'+b.dataset.rq+'/requeue',{method:'POST'});
+        loadDLQ();
+      };
+    });
+  }
+
+  $('#wh-create').onclick = async ()=>{
+    const body = {
+      name: $('#wh-name').value,
+      url: $('#wh-url').value,
+      events: $('#wh-events').value.split(',').map(s=>s.trim()).filter(Boolean),
+      filters: {},
+    };
+    await apiFetch('/api/webhooks',{method:'POST', body:JSON.stringify(body)});
+    $('#wh-name').value=''; $('#wh-url').value=''; $('#wh-events').value='*';
+    loadSubs();
+  };
+
+  $('#wh-load-deliv').onclick = async ()=>{
+    const sid = $('#wh-deliv-sub').value.trim();
+    if(!sid) return;
+    const r = await apiFetch('/api/webhooks/'+sid+'/deliveries');
+    $('#wh-deliv-tbl').innerHTML = '<thead><tr><th>id</th><th>event</th><th>status</th>'
+      + '<th>attempt</th><th>status code</th><th>latency</th><th>created</th></tr></thead><tbody>'
+      + (r.items||[]).map(d=>(
+        '<tr><td>'+d.id.slice(0,8)+'</td><td>'+d.event_type+'</td>'
+        +'<td><span class="wh-pill '+(d.status==='delivered'?'ok':d.status==='dead'?'bad':'warn')+'">'+d.status+'</span></td>'
+        +'<td>'+d.attempt+'</td><td>'+(d.response_status||'-')+'</td>'
+        +'<td>'+(d.latency_ms||0)+' ms</td><td>'+(d.created_at||'-')+'</td></tr>'
+      )).join('') + '</tbody>';
+  };
+
+  function card(label, val){
+    return '<div class="wh-card"><div class="label">'+label+'</div>'
+         + '<div class="val">'+val+'</div></div>';
+  }
+
+  loadMetrics(); loadSubs(); loadDLQ();
+})();
+</script>
+
+</script>
+</body>
+</html>

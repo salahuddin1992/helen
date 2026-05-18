@@ -1,0 +1,76 @@
+[
+  {
+    "plugin": {
+      "slug": "calendar-sync",
+      "version": "1.2.0",
+      "name": "Calendar Sync",
+      "author": "Helen Core",
+      "category": "productivity",
+      "permissions": [
+        "channels:read",
+        "users:list"
+      ],
+      "installed": true,
+      "enabled": true
+    }
+  },
+  {
+    "plugin": {
+      "slug": "translation-ar-en",
+      "version": "0.9.1",
+      "name": "Arabic ↔ English Translator",
+      "author": "Helen Community",
+      "category": "ai",
+      "permissions": [
+        "messages:send"
+      ],
+      "installed": true,
+      "enabled": true
+    }
+  },
+  {
+    "plugin": {
+      "slug": "matrix-bridge",
+      "version": "2.0.0",
+      "name": "Matrix Bridge",
+      "author": "Helen Federation Team",
+      "category": "bridges",
+      "permissions": [
+        "federation:*",
+        "messages:send",
+        "channels:read"
+      ],
+      "installed": false,
+      "enabled": false
+    }
+  },
+  {
+    "plugin": {
+      "slug": "anomaly-detector",
+      "version": "1.0.3",
+      "name": "Anomaly Detector",
+      "author": "Helen Security",
+      "category": "security",
+      "permissions": [
+        "audit:read",
+        "users:list"
+      ],
+      "installed": false,
+      "enabled": false
+    }
+  },
+  {
+    "plugin": {
+      "slug": "sms-gateway",
+      "version": "1.1.0",
+      "name": "SMS Gateway",
+      "author": "Helen Community",
+      "category": "integrations",
+      "permissions": [
+        "messages:send"
+      ],
+      "installed": false,
+      "enabled": false
+    }
+  }
+]

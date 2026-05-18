@@ -1,0 +1,128 @@
+name: Helen CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel stale runs on the same ref when a new push lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend ─────────────────────────────────────────────────────
+  pytest:
+    name: Server pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: CommClient-Server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: CommClient-Server/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        run: python -m pytest tests/ -q --tb=short
+        env:
+          PYTHONIOENCODING: utf-8
+
+  # ── Desktop (TypeScript) ────────────────────────────────────────
+  desktop:
+    name: Desktop typecheck + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: CommClient-Desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: CommClient-Desktop/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npx eslint src --quiet
+
+  # ── Group-call standalone ───────────────────────────────────────
+  group-call:
+    name: Group-call standalone syntax + headless verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install group-call deps
+        working-directory: iOS/group-call-app
+        run: npm ci
+
+      - name: Syntax checks
+        run: |
+          node --check iOS/web-simulator/app.js
+          node --check iOS/group-call-app/server.js
+          node --check iOS/group-call-app/server-core.js
+          node --check iOS/group-call-app/electron-main.js
+          node --check iOS/group-call-app/public/client.js
+          node --check Helen-Shell/main.js
+
+      - name: Boot group-call server
+        working-directory: iOS/group-call-app
+        run: |
+          PORT=3099 node server.js &
+          echo $! > server.pid
+          sleep 3
+          curl -fs http://127.0.0.1:3099/healthz
+
+      - name: Install puppeteer-core for verify
+        working-directory: CommClient-Desktop
+        run: npm install --no-save puppeteer-core
+
+      - name: Headless 4-tab mesh verify
+        run: node CommClient-Desktop/scripts/verify-group-call-app.mjs
+        env:
+          CHROME: /usr/bin/google-chrome
+
+      - name: Stop group-call server
+        if: always()
+        working-directory: iOS/group-call-app
+        run: kill $(cat server.pid) 2>/dev/null || true
+
+  # ── Aggregate gate ──────────────────────────────────────────────
+  ci-pass:
+    name: CI pass
+    needs: [pytest, desktop, group-call]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          if [ "${{ needs.pytest.result }}"     != "success" ] ||
+             [ "${{ needs.desktop.result }}"    != "success" ] ||
+             [ "${{ needs.group-call.result }}" != "success" ]; then
+            echo "One or more upstream jobs failed."
+            exit 1
+          fi
+          echo "All checks green."

@@ -1,0 +1,108 @@
+{
+  "auth": {
+    "enabled": true,
+    "locked": true,
+    "desc": "Identity, JWT issuance, session registry"
+  },
+  "signaling": {
+    "enabled": true,
+    "locked": true,
+    "desc": "WebSocket negotiation, SDP/ICE routing"
+  },
+  "messaging": {
+    "enabled": true,
+    "locked": true,
+    "desc": "Text delivery, offline queue, ack/read"
+  },
+  "presence": {
+    "enabled": true,
+    "locked": true,
+    "desc": "Online/typing/last-seen heartbeats"
+  },
+  "database": {
+    "enabled": true,
+    "locked": true,
+    "desc": "Persistent store (users, channels, messages)"
+  },
+  "admin": {
+    "enabled": true,
+    "locked": true,
+    "desc": "Operator REST + WS surface"
+  },
+  "sfu": {
+    "enabled": true,
+    "locked": false,
+    "desc": "Selective Forwarding Unit (group video)"
+  },
+  "relay": {
+    "enabled": true,
+    "locked": false,
+    "desc": "TURN-like blind relay for NAT fallback"
+  },
+  "recording": {
+    "enabled": true,
+    "locked": false,
+    "desc": "Disk-record SFU streams (high IO)"
+  },
+  "file_transfer": {
+    "enabled": true,
+    "locked": false,
+    "desc": "Chunked resumable upload/download"
+  },
+  "metrics": {
+    "enabled": true,
+    "locked": false,
+    "desc": "Telemetry push + decision inputs"
+  },
+  "federation": {
+    "enabled": false,
+    "locked": false,
+    "desc": "Cross-server bridging"
+  },
+  "auto_degrade": {
+    "enabled": true,
+    "locked": false,
+    "desc": "Auto-downshift media under stress"
+  },
+  "policy_mode": {
+    "value": "auto",
+    "locked": false,
+    "options": [
+      "auto",
+      "chat_only",
+      "audio_only",
+      "video_ok",
+      "no_sfu_p2p_only",
+      "no_relay"
+    ],
+    "desc": "Forced media strategy (overrides auto-degrade if not auto)"
+  },
+  "sfu_max_participants": {
+    "value": 20,
+    "locked": false,
+    "min": 2,
+    "max": 500,
+    "desc": "Hard cap before SFU refuses new publishers"
+  },
+  "cpu_downshift_pct": {
+    "value": 80,
+    "locked": false,
+    "min": 40,
+    "max": 95,
+    "desc": "CPU% threshold that forces audio-only"
+  },
+  "loss_audio_pct": {
+    "value": 8,
+    "locked": false,
+    "min": 1,
+    "max": 50,
+    "desc": "Packet-loss%% threshold that forces audio-only"
+  },
+  "loss_chat_pct": {
+    "value": 15,
+    "locked": false,
+    "min": 1,
+    "max": 80,
+    "desc": "Packet-loss%% threshold that forces chat-only"
+  }
+}

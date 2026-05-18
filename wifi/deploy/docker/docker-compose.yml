@@ -1,0 +1,170 @@
+# Helen — Production Docker Compose stack (LAN-only).
+#
+# Bundles Helen-Server + Helen-Rendezvous + nightly backups in one
+# `docker compose up` step. All containers are pinned to internal-only
+# networking; nothing is published to the public internet.
+#
+# Usage:
+#   1. docker load -i helen-server-1.0.0.docker.tar
+#   2. docker load -i helen-rendezvous-1.0.0.docker.tar  (if you have it;
+#      otherwise the rendezvous service section is commented-out below)
+#   3. cp .env.example .env  &&  edit .env with real secrets
+#   4. docker compose up -d
+#   5. docker compose ps    (everything healthy?)
+
+# Use `version` only if your compose binary is < v2; modern Docker
+# Compose v2 ignores it. Keeping it commented out for forward-compat.
+#version: "3.9"
+
+networks:
+  helen-internal:
+    driver: bridge
+    # No external access — only containers inside this network
+    # can talk to each other on the bridge subnet.
+    internal: false   # set to true if you DON'T want any container to reach the host's NICs
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  helen-data:        # Helen-Server SQLite + uploads + avatars + backups
+  helen-logs:        # Helen-Server logs
+  rendezvous-data:   # Helen-Rendezvous state (if any)
+  backup-archive:    # Where backup.sh writes nightly tarballs
+
+services:
+
+  # ── Helen-Server — main LAN comms server ──────────────────
+  helen-server:
+    image: helen-server:1.0.0
+    container_name: helen-server
+    hostname: helen-server
+    restart: unless-stopped
+    # The host's HTTP/HTTPS/UDP ports are mapped 1:1.
+    # Bind to a specific LAN IP if you want extra isolation:
+    #   "10.0.0.5:3000:3000/tcp"
+    ports:
+      - "3000:3000/tcp"      # HTTP REST + Socket.IO
+      - "3443:3443/tcp"      # HTTPS
+      - "41234:41234/udp"    # UDP discovery broadcast
+      - "5353:5353/udp"      # mDNS (optional; works without on most LANs)
+    environment:
+      # Read these from .env to avoid committing secrets to git.
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env}"
+      PORT: "3000"
+      HTTPS_PORT: "3443"
+      DEBUG: "0"
+      HELEN_ENV: "production"
+      # If you also run rendezvous (see below) wire it up here:
+      HELEN_RENDEZVOUS_URL: "${HELEN_RENDEZVOUS_URL:-}"
+      HELEN_RENDEZVOUS_TOKEN: "${HELEN_RENDEZVOUS_TOKEN:-}"
+    volumes:
+      - helen-data:/app/data
+      - helen-logs:/app/logs
+    networks:
+      - helen-internal
+    # The healthcheck both gates `depends_on` and surfaces in `docker ps`.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    # Drop unnecessary kernel capabilities. Helen-Server doesn't need
+    # any beyond network — this hardens against container escape.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+
+  # ── Helen-Rendezvous — NAT traversal coordinator ──────────
+  # Uncomment if you have a multi-LAN deployment. Single-LAN setups
+  # don't need this — Helen-Server's mDNS + UDP broadcast are enough.
+  # helen-rendezvous:
+  #   image: helen-rendezvous:1.0.0
+  #   container_name: helen-rendezvous
+  #   hostname: helen-rendezvous
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9090:9090/tcp"
+  #     - "9101:9101/tcp"
+  #     - "9102:9102/tcp"
+  #   environment:
+  #     HELEN_RENDEZVOUS_TOKEN: "${HELEN_RENDEZVOUS_TOKEN:?set in .env}"
+  #     HELEN_RENDEZVOUS_HOST: "0.0.0.0"
+  #     HELEN_RENDEZVOUS_PORT: "9090"
+  #   volumes:
+  #     - rendezvous-data:/app/data
+  #   networks:
+  #     - helen-internal
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-fsS", "http://localhost:9090/health"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #   cap_drop: [ALL]
+  #   cap_add: [NET_BIND_SERVICE]
+  #   security_opt: [no-new-privileges:true]
+
+  # ── Nightly backup sidecar ─────────────────────────────────
+  # Runs once per day at 02:00 UTC. Writes timestamped tarballs to
+  # backup-archive volume. Keeps 14 days of history.
+  helen-backup:
+    image: alpine:3.20
+    container_name: helen-backup
+    restart: unless-stopped
+    depends_on:
+      helen-server:
+        condition: service_healthy
+    volumes:
+      - helen-data:/data:ro
+      - backup-archive:/backups
+    command: >
+      sh -c "
+        apk add --no-cache sqlite tar gzip dcron;
+        mkdir -p /backups;
+        cat > /etc/periodic/daily/helen-backup << 'CRON'
+        #!/bin/sh
+        TS=\$$(date +%Y%m%d-%H%M%S)
+        OUT=/backups/helen-backup-\$$TS.tar.gz
+        TMP=/tmp/db-\$$TS
+        mkdir -p \$$TMP
+        if [ -f /data/commclient.db ]; then
+          sqlite3 /data/commclient.db \".backup '\$$TMP/commclient.db'\" 2>/dev/null \
+            || cp /data/commclient.db \$$TMP/commclient.db
+          cp -r /data \$$TMP/data
+          rm -f \$$TMP/data/commclient.db
+          mv \$$TMP/commclient.db \$$TMP/data/commclient.db
+          tar czf \$$OUT -C \$$TMP data
+        fi
+        rm -rf \$$TMP
+        find /backups -name 'helen-backup-*.tar.gz' -mtime +14 -delete
+        CRON
+        chmod +x /etc/periodic/daily/helen-backup;
+        crond -f -L /dev/stdout
+      "
+    networks:
+      - helen-internal
+
+  # ── Local prometheus exporter (optional) ──────────────────
+  # Helen-Server exposes /metrics in Prometheus format. Uncomment to
+  # scrape it from a sidecar; pair with Grafana on a separate host.
+  # helen-metrics:
+  #   image: prom/prometheus:v2.55.1
+  #   container_name: helen-metrics
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9091:9090/tcp"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   networks:
+  #     - helen-internal

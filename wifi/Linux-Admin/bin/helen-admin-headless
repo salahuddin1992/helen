@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# helen-admin-headless — serve the Helen-Admin web panel on Linux
+# without pywebview (which needs system GTK bindings).
+#
+# The admin HTML is bundled inside the Helen-Server's _internal/admin
+# directory. We start a tiny Python http.server pointed at it on
+# the loopback interface (or LAN if --expose-on-lan is set) and the
+# operator opens it in any browser.
+#
+# Usage:
+#   helen-admin-headless                 # http://localhost:5173
+#   helen-admin-headless --expose-on-lan # http://0.0.0.0:5173
+#   helen-admin-headless --port 8080     # custom port
+#
+# Connects to the local Helen-Server at the URL the user enters in
+# the admin panel (defaults to http://localhost:3000).
+
+set -euo pipefail
+
+PORT=5173
+HOST=127.0.0.1
+ADMIN_DIR="${HELEN_ADMIN_DIR:-/opt/helen/server/_internal/admin}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --port)            PORT="$2"; shift 2;;
+        --expose-on-lan)   HOST=0.0.0.0; shift;;
+        --admin-dir)       ADMIN_DIR="$2"; shift 2;;
+        --help|-h)
+            grep '^#' "$0" | sed 's/^# \{0,1\}//'
+            exit 0;;
+        *)  echo "unknown flag: $1" >&2; exit 2;;
+    esac
+done
+
+if [[ ! -d "$ADMIN_DIR" ]]; then
+    echo "✗ Helen admin assets not found at $ADMIN_DIR" >&2
+    echo "  Install Helen-Server first (apt install ./helen-server*.deb" >&2
+    echo "  or extract helen-server-linux-1.0.0.tar.gz)" >&2
+    exit 3
+fi
+
+if ! command -v python3 >/dev/null; then
+    echo "✗ python3 missing — apt install python3" >&2
+    exit 4
+fi
+
+echo "→ serving Helen-Admin from $ADMIN_DIR"
+echo "  open http://${HOST}:${PORT}/ in any browser"
+echo "  (Ctrl-C to stop)"
+cd "$ADMIN_DIR"
+exec python3 -m http.server "$PORT" --bind "$HOST"

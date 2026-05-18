@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8" />
+ <title>Helen — Plugins</title>
+ <meta name="viewport" content="width=device-width,initial-scale=1" />
+ <style>
+  :root { --bg:#0d111b; --panel:#161b27; --line:#262d3d; --fg:#e7eaf2;
+          --muted:#7d869b; --accent:#5d8bff; --good:#37c39d; --warn:#f0b133; --bad:#ef5a5a; }
+  * { box-sizing: border-box }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg);
+         margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 16px }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  .tab { padding:10px 18px; cursor:pointer; color:var(--muted);
+         border-bottom:2px solid transparent; }
+  .tab.active { color:var(--fg); border-color:var(--accent); }
+  .panel { background: var(--panel); border:1px solid var(--line); border-radius:10px;
+           padding:16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left }
+  th { color:var(--muted); font-weight:500 }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px }
+  .pill.installed,.pill.approved { background:rgba(55,195,157,0.15); color:var(--good) }
+  .pill.disabled,.pill.pending,.pill.draft { background:rgba(125,134,155,0.18); color:var(--muted) }
+  .pill.error,.pill.rejected { background:rgba(239,90,90,0.15); color:var(--bad) }
+  .btn { background:var(--accent); border:none; color:#fff; padding:6px 12px;
+         border-radius:6px; cursor:pointer; }
+  .btn.bad { background:var(--bad); }
+  .btn.warn { background:var(--warn); color:#19130a; }
+  .perms { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px }
+  .perms .p { font-size:11px; background:#0f1422; padding:2px 6px; border-radius:6px;
+              color:var(--muted) }
+  pre { background:#0a0e16; padding:10px; border-radius:6px; overflow:auto;
+        font-size:12px; color:var(--muted) }
+ </style>
+</head>
+<body>
+ <h1>Plugin Management</h1>
+ <div class="tabs">
+   <div class="tab active" data-tab="marketplace">Marketplace</div>
+   <div class="tab" data-tab="installed">Installed</div>
+   <div class="tab" data-tab="manifests">Manifests</div>
+   <div class="tab" data-tab="keys">Trusted Keys</div>
+   <div class="tab" data-tab="audit">Audit</div>
+ </div>
+ <div id="view"></div>
+
+<script>
+const TOKEN = localStorage.getItem("helen_admin_token") || "";
+const ADMIN = (p, init) => fetch("/api/admin/plugins"+p, {
+  headers: { "Authorization": "Bearer "+TOKEN, ...(init?.headers||{}) },
+  ...init || {},
+}).then(r => r.ok ? r.json() : r.json().then(e => { throw e }));
+const USER = (p, init) => fetch("/api/plugins"+p, {
+  headers: { "Authorization": "Bearer "+TOKEN, ...(init?.headers||{}) },
+  ...init || {},
+}).then(r => r.ok ? r.json() : r.json().then(e => { throw e }));
+
+async function renderMarketplace() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await USER("/marketplace");
+  v.innerHTML = `<div class="panel">
+    <button class="btn" onclick="syncMarketplace()">Sync from Remote</button>
+    <table style="margin-top:12px">
+      <thead><tr><th>Plugin</th><th>Author</th><th>Version</th><th>Downloads</th>
+                 <th>Rating</th><th></th></tr></thead>
+      <tbody>${data.items.map(p => `
+        <tr>
+          <td><b>${p.name}</b><div style="color:var(--muted);font-size:11px">${p.slug}</div>
+              <div style="margin-top:4px">${p.description||""}</div>
+              <div class="perms">${(p.permissions||[]).map(x=>'<span class="p">'+x+'</span>').join("")}</div></td>
+          <td>${p.author||"—"}</td>
+          <td>${p.version}</td>
+          <td>${p.downloads.toLocaleString()}</td>
+          <td>${p.rating_avg ? p.rating_avg.toFixed(1) : "—"}</td>
+          <td><button class="btn" onclick="installPlugin('${p.slug}','${p.version}')">Install</button></td>
+        </tr>`).join("")}</tbody>
+    </table></div>`;
+}
+
+async function syncMarketplace() {
+  await ADMIN("/marketplace/sync", { method:"POST" });
+  renderMarketplace();
+}
+
+async function installPlugin(slug, version) {
+  await USER("/install", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ slug, version, config: {} }),
+  });
+  alert("Installed " + slug);
+}
+
+async function renderInstalled() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await USER("/installed");
+  v.innerHTML = `<div class="panel">
+    <table><thead><tr><th>Plugin</th><th>Version</th><th>Status</th><th>Permissions</th>
+                       <th></th></tr></thead>
+    <tbody>${data.items.map(i => `
+      <tr>
+        <td><b>${i.name}</b><div style="color:var(--muted);font-size:11px">${i.slug}</div></td>
+        <td>${i.version}</td>
+        <td><span class="pill ${i.status}">${i.status}</span></td>
+        <td><div class="perms">${(i.permissions||[]).map(x=>'<span class="p">'+x+'</span>').join("")}</div></td>
+        <td>
+          <button class="btn warn" onclick="togglePlugin('${i.id}','${i.status}')">${i.status==="installed"?"Disable":"Enable"}</button>
+          <button class="btn bad" onclick="uninstallPlugin('${i.id}')">Uninstall</button>
+          <button class="btn" onclick="viewLogs('${i.id}')">Logs</button>
+        </td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+async function togglePlugin(id, status) {
+  const action = status === "installed" ? "disable" : "enable";
+  await USER(`/installed/${id}/${action}`, { method:"PATCH" });
+  renderInstalled();
+}
+async function uninstallPlugin(id) {
+  if (!confirm("Uninstall this plugin?")) return;
+  await USER(`/installed/${id}`, { method:"DELETE" });
+  renderInstalled();
+}
+async function viewLogs(id) {
+  const data = await USER(`/installed/${id}/logs`);
+  const v = document.getElementById("view");
+  v.innerHTML = `<div class="panel">
+    <button class="btn" onclick="renderInstalled()">← Back</button>
+    <h3>Recent Events</h3>
+    <pre>${JSON.stringify(data.items, null, 2)}</pre></div>`;
+}
+
+async function renderManifests() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await ADMIN("/manifests");
+  v.innerHTML = `<div class="panel">
+    <table><thead><tr><th>Slug</th><th>Name</th><th>Version</th><th>Author</th>
+                       <th>Signed By</th><th></th></tr></thead>
+    <tbody>${data.items.map(m => `
+      <tr>
+        <td><code>${m.slug}</code></td>
+        <td>${m.name}</td>
+        <td>${m.version}</td>
+        <td>${m.author||"—"}</td>
+        <td>${m.signed_by||"—"}</td>
+        <td>
+          <button class="btn" onclick="approveManifest('${m.id}')">Approve</button>
+          <button class="btn bad" onclick="rejectManifest('${m.id}')">Reject</button>
+        </td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+async function approveManifest(id) {
+  await ADMIN(`/manifests/${id}/approve`, { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" });
+  renderManifests();
+}
+async function rejectManifest(id) {
+  await ADMIN(`/manifests/${id}/reject`, { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" });
+  renderManifests();
+}
+
+async function renderKeys() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await ADMIN("/trusted-keys");
+  const items = Object.entries(data.items);
+  v.innerHTML = `<div class="panel">
+    <button class="btn" onclick="genKeypair()">Generate New Keypair</button>
+    <button class="btn" onclick="addKey()">Add Trusted Key</button>
+    <table style="margin-top:12px"><thead><tr><th>Name</th><th>Public Key</th><th></th></tr></thead>
+    <tbody>${items.map(([name, k]) => `
+      <tr>
+        <td><code>${name}</code></td>
+        <td><code>${k.slice(0,32)}…</code></td>
+        <td><button class="btn bad" onclick="rmKey('${name}')">Remove</button></td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+async function addKey() {
+  const name = prompt("Key name:"); if (!name) return;
+  const pubkey_b64 = prompt("Public key (base64):"); if (!pubkey_b64) return;
+  await ADMIN("/trusted-keys", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ name, pubkey_b64 }),
+  });
+  renderKeys();
+}
+async function rmKey(name) {
+  await ADMIN(`/trusted-keys/${encodeURIComponent(name)}`, { method:"DELETE" });
+  renderKeys();
+}
+async function genKeypair() {
+  const r = await ADMIN("/keypairs", { method:"POST" });
+  alert("Private key (save offline!):\n\n" + r.private_key_b64 + "\n\nPublic key:\n" + r.public_key_b64);
+}
+
+async function renderAudit() {
+  const v = document.getElementById("view"); v.innerHTML = '<div class="panel">Loading…</div>';
+  const data = await ADMIN("/audit");
+  v.innerHTML = `<div class="panel">
+    <table><thead><tr><th>Time</th><th>Event</th><th>Install</th><th>Duration</th><th>Payload</th></tr></thead>
+    <tbody>${data.items.map(e => `
+      <tr>
+        <td>${e.occurred_at ? new Date(e.occurred_at).toLocaleString() : "—"}</td>
+        <td><span class="pill">${e.event}</span></td>
+        <td><code>${(e.installation_id||"").slice(0,8)}…</code></td>
+        <td>${e.duration_ms}ms</td>
+        <td><code>${JSON.stringify(e.payload).slice(0,80)}</code></td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+const renderers = { marketplace: renderMarketplace, installed: renderInstalled,
+                    manifests: renderManifests, keys: renderKeys, audit: renderAudit };
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  renderers[t.dataset.tab]();
+}));
+renderMarketplace();
+</script>
+</body>
+</html>

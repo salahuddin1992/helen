@@ -1,0 +1,179 @@
+/* ──────────────────────────────────────────────────────────────
+   Helen — العربية
+   ────────────────────────────────────────────────────────────── */
+
+/* Common */
+"Continue"               = "متابعة";
+"Cancel"                 = "إلغاء";
+"Done"                   = "تم";
+"Save"                   = "حفظ";
+"Delete"                 = "حذف";
+"Edit"                   = "تعديل";
+"Search"                 = "بحث";
+"Yesterday"              = "أمس";
+"Back"                   = "رجوع";
+"More"                   = "المزيد";
+
+/* Onboarding */
+"Welcome to Helen"       = "أهلاً بك في Helen";
+"Sign in to keep talking — even when there's no internet."
+                          = "سجّل الدخول لتبقى متصلاً — حتى من دون إنترنت.";
+"Username"                = "اسم المستخدم";
+"yourname"                = "اسمك";
+"Password"                = "كلمة المرور";
+"Letters and numbers only"= "حروف وأرقام فقط";
+"Forgot password?"        = "نسيت كلمة المرور؟";
+"New here?"               = "حساب جديد؟";
+"Create an account"       = "أنشئ حساباً";
+
+/* Tabs */
+"Chats"                   = "المحادثات";
+"Contacts"                = "جهات الاتصال";
+"Profile"                 = "الملف الشخصي";
+"Settings"                = "الإعدادات";
+
+/* Contacts */
+"%lld people on your network" = "%lld شخصاً على شبكتك";
+"Add contact"             = "إضافة جهة اتصال";
+"Search people"           = "ابحث عن شخص";
+"All"                     = "الكل";
+"Online"                  = "متصل";
+"Recent"                  = "الأحدث";
+"No matches"              = "لا توجد نتائج";
+"Try a different name or check the spelling."
+                          = "جرّب اسماً آخر أو تحقّق من الإملاء.";
+"Online now"              = "متصل الآن";
+"Away"                    = "غير متفرّغ";
+"Offline"                 = "غير متصل";
+"Active now"              = "نشط الآن";
+"Phone"                   = "الهاتف";
+"Last seen"               = "آخر ظهور";
+"About"                   = "نبذة";
+"Message"                 = "رسالة";
+"Voice"                   = "اتصال صوتي";
+"Video"                   = "اتصال مرئي";
+"Email"                   = "بريد إلكتروني";
+"Share contact"           = "مشاركة جهة الاتصال";
+"Mute"                    = "كتم الإشعارات";
+"Block"                   = "حظر";
+
+/* Chats */
+"Search chats"            = "ابحث في المحادثات";
+"Unread"                  = "غير مقروء";
+"Groups"                  = "المجموعات";
+"No conversations"        = "لا توجد محادثات";
+"Start a new chat to see it here."
+                          = "ابدأ محادثة جديدة لتظهر هنا.";
+"New chat"                = "محادثة جديدة";
+"Last seen recently"      = "آخر ظهور قريب";
+"Attach"                  = "إرفاق";
+"Emoji"                   = "رمز";
+"Send"                    = "إرسال";
+"Record voice message"    = "تسجيل رسالة صوتية";
+
+/* Profile */
+"Edit profile"            = "تعديل الملف الشخصي";
+"Messages"                = "الرسائل";
+"Channels"                = "القنوات";
+"Account"                 = "الحساب";
+"Privacy & Security"      = "الخصوصية والأمان";
+"Two-factor, app lock, sessions" = "التحقق بخطوتين، قفل التطبيق، الجلسات";
+"Notifications"           = "الإشعارات";
+"Sounds, alerts, badges"  = "الأصوات، التنبيهات، الشارات";
+"Storage & Data"          = "التخزين والبيانات";
+"Manage cache and downloads" = "إدارة الذاكرة المؤقتة والتنزيلات";
+
+/* Settings */
+"Appearance"              = "المظهر";
+"System"                  = "النظام";
+"Light"                   = "فاتح";
+"Dark"                    = "داكن";
+"Privacy"                 = "الخصوصية";
+"Sounds, banners, badges" = "الأصوات، البانرات، الشارات";
+"Read receipts"           = "إيصالات القراءة";
+"Let others see when you read" = "السماح للآخرين برؤية وقت قراءتك";
+"Version"                 = "الإصدار";
+"Terms"                   = "شروط الاستخدام";
+"Privacy policy"          = "سياسة الخصوصية";
+"Sign out"                = "تسجيل الخروج";
+
+/* Call screen */
+"Connected on Wi-Fi"      = "متصل عبر Wi-Fi";
+"Search contacts"         = "ابحث في جهات الاتصال";
+"Recents"                 = "الأخيرة";
+"Favorites"               = "المفضّلة";
+"Add new contact"         = "إضافة جهة اتصال";
+"New contact"             = "جهة اتصال جديدة";
+"Name"                    = "الاسم";
+"Full name"               = "الاسم الكامل";
+"Save contact"            = "حفظ جهة الاتصال";
+"Nothing here yet"        = "لا يوجد شيء بعد";
+"No contacts match your search."
+                          = "لا توجد نتائج مطابقة لبحثك.";
+"Your recent calls will appear here."
+                          = "ستظهر هنا اتصالاتك الأخيرة.";
+"Star a contact to find them faster."
+                          = "أضف جهات اتصال إلى المفضّلة للوصول السريع.";
+"Configure your call experience here."
+                          = "خصّص تجربة الاتصال من هنا.";
+"Call"                    = "اتصال";
+"Close"                   = "إغلاق";
+"Open profile for %@"     = "فتح الملف الشخصي لـ %@";
+
+/* States */
+"Loading"                 = "جارٍ التحميل";
+"Something went wrong"    = "حدث خطأ ما";
+"Try again"               = "إعادة المحاولة";
+
+/* Contact profile */
+"Mobile"                  = "هاتف";
+"Email"                   = "البريد الإلكتروني";
+"Company"                 = "الشركة";
+"Title"                   = "المسمى الوظيفي";
+"Notes"                   = "ملاحظات";
+"Read more"               = "اقرأ المزيد";
+"Show less"               = "عرض أقل";
+"Recent activity"         = "النشاط الأخير";
+"See all"                 = "عرض الكل";
+"Edit Contact"            = "تعديل جهة الاتصال";
+"FaceTime"                = "فيس تايم";
+"Mute notifications"      = "كتم الإشعارات";
+"Block contact"           = "حظر جهة الاتصال";
+"Add to favorites"        = "إضافة للمفضّلة";
+"Remove from favorites"   = "إزالة من المفضّلة";
+"Double-tap to copy"      = "اضغط مرتين للنسخ";
+
+/* Recents */
+"Search recents"          = "ابحث في السجل";
+"Missed"                  = "فائتة";
+"Today"                   = "اليوم";
+"No missed calls"         = "لا توجد مكالمات فائتة";
+"No recent calls"         = "لا توجد مكالمات أخيرة";
+"When you make or receive a call, it'll show up here."
+                          = "عند إجراء أو استقبال مكالمة، ستظهر هنا.";
+"Incoming"                = "واردة";
+"Outgoing"                = "صادرة";
+"Incoming video"          = "مكالمة فيديو واردة";
+"Outgoing video"          = "مكالمة فيديو صادرة";
+"Missed video"            = "مكالمة فيديو فائتة";
+"Call info"               = "تفاصيل المكالمة";
+
+/* Active call */
+"Mute"                    = "كتم";
+"Speaker"                 = "السمّاعة";
+"Add Call"                = "إضافة مكالمة";
+"Keypad"                  = "لوحة الاتصال";
+"End"                     = "إنهاء";
+"Hide"                    = "إخفاء";
+"On"                      = "تشغيل";
+"Off"                     = "إيقاف";
+"Hangs up the current call" = "إنهاء المكالمة الحالية";
+"Call duration %@"        = "مدة المكالمة %@";
+"Key %@"                  = "زر %@";
+
+/* Accessibility */
+"%lld unread"             = "%lld غير مقروء";
+"Avatar for %@"           = "صورة %@";
+"Show password"           = "إظهار كلمة المرور";
+"Hide password"           = "إخفاء كلمة المرور";
+"Clear"                   = "مسح";

@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: helen
+
+commonLabels:
+  app.kubernetes.io/part-of: helen
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - server-deployment.yaml
+  - server-service.yaml
+  - server-pvc.yaml
+  - router-deployment.yaml
+  - router-service.yaml
+  - postgres-statefulset.yaml
+  - redis-deployment.yaml
+  - rendezvous-statefulset.yaml
+  - secrets-template.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+
+images:
+  - name: helen/server
+    newTag: "1.0.0"
+  - name: helen/router
+    newTag: "1.0.0"
+  - name: helen/rendezvous
+    newTag: "1.0.0"
+
+configMapGenerator:
+  - name: helen-server-config
+    literals:
+      - HELEN_DATA_DIR=/data
+      - HELEN_LAN_ONLY_STRICT=1
+      - LOG_LEVEL=INFO
+
+# Patches to apply per overlay (dev/staging/prod)
+patches: []

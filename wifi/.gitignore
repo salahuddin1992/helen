@@ -1,0 +1,75 @@
+# ── OS ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# ── Python (CommClient-Server) ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.spec.bak
+CommClient-Server/build/
+CommClient-Server/dist/
+CommClient-Server/dist-linux/
+CommClient-Server/.coverage
+CommClient-Server/htmlcov/
+
+# ── Node / Electron / Capacitor ───────────────────────────────────
+node_modules/
+.npm/
+*.log
+npm-debug.log*
+CommClient-Desktop/dist/
+CommClient-Desktop/dist-electron/
+CommClient-Desktop/release/
+CommClient-Desktop/build/
+CommClient-Desktop/dev-data/
+CommClient-Mobile/www/assets/
+CommClient-Mobile/android/.gradle/
+CommClient-Mobile/android/app/build/
+CommClient-Mobile/android/build/
+CommClient-Mobile/android/local.properties
+CommClient-Mobile/ios/App/Pods/
+CommClient-Mobile/ios/App/build/
+CommClient-Mobile/ios/DerivedData/
+CommClient-Mobile/ios/App/App.xcworkspace/xcuserdata/
+CommClient-Mobile/ios/App/App.xcodeproj/xcuserdata/
+CommClient-Web/dist/
+
+# ── Xcode (iOS Native) ────────────────────────────────────────────
+iOS/HelenApp/build/
+iOS/HelenApp/*.xcodeproj/
+iOS/HelenApp/DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# ── Android signing / secrets ─────────────────────────────────────
+# Keep the keystore — needed for reproducible release builds.
+# Do NOT keep credentials.
+CommClient-Mobile/android/keystore/keystore.properties
+CommClient-Mobile/android/keystore/*.password
+
+# ── Large build artifacts at repo root ────────────────────────────
+# These are produced by build scripts; CI/Actions republish them.
+helen-server-*.docker.tar
+helen-server-linux-*.tar.gz
+helen-rendezvous-linux-*.tar.gz
+helen-admin-linux-*.tar.gz
+
+# ── Logs / temp ───────────────────────────────────────────────────
+logs/
+*.tmp
+*.bak
+.gradle/

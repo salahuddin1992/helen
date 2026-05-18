@@ -1,0 +1,3755 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helen QoS Live View - مراقبة جودة المكالمات</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+:root {
+  --bg: #0a1020;
+  --panel: #111a2e;
+  --panel-2: #0d1424;
+  --border: #1a2a3a;
+  --border-hi: #2a3f55;
+  --text: #e0e6ed;
+  --text-dim: #a0a8b0;
+  --text-muted: #6b7280;
+  --accent: #00d4ff;
+  --accent-2: #0ea5e9;
+  --ok: #4ade80;
+  --warn: #facc15;
+  --err: #ff4757;
+  --link: #3b82f6;
+  --purple: #a78bfa;
+  --pink: #f472b6;
+  --orange: #fb923c;
+  --shadow: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-hi: 0 8px 24px rgba(0,0,0,0.5);
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', 'Cairo', 'Tahoma', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  outline: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--panel-2); }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-2); }
+
+/* Top Global Bar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-bottom: 1px solid var(--border-hi);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.brand-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg);
+  font-weight: 900;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-right: auto;
+}
+
+.tick-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tick-control select {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.btn {
+  padding: 6px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background: var(--border);
+  border-color: var(--accent);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.btn-danger {
+  background: var(--err);
+  border-color: var(--err);
+  color: white;
+}
+
+.btn-warn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: var(--bg);
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+  animation: pulse 2s infinite;
+}
+
+.status-dot.paused {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+  animation: none;
+}
+
+.status-dot.disconnected {
+  background: var(--err);
+  box-shadow: 0 0 8px var(--err);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 6px;
+  padding: 4px 10px;
+  gap: 6px;
+}
+
+.search-box input {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  width: 200px;
+  font-size: 13px;
+}
+
+/* Main Layout */
+.main-container {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Aggregate Strip */
+.aggregate-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hi);
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--accent);
+}
+
+.metric-card.warn::before { background: var(--warn); }
+.metric-card.err::before { background: var(--err); }
+.metric-card.ok::before { background: var(--ok); }
+
+.metric-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.metric-unit {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.metric-sub .ok { color: var(--ok); }
+.metric-sub .warn { color: var(--warn); }
+.metric-sub .err { color: var(--err); }
+
+/* Panels */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title .badge {
+  background: var(--accent);
+  color: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-body {
+  padding: 14px 18px;
+}
+
+.panel-body.no-pad { padding: 0; }
+
+/* Tables */
+.table-wrapper {
+  overflow-x: auto;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.qos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.qos-table th, .qos-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.qos-table thead th {
+  background: var(--panel-2);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  cursor: pointer;
+  user-select: none;
+}
+
+.qos-table thead th:hover {
+  color: var(--accent);
+}
+
+.qos-table thead th .sort-ind {
+  margin-right: 4px;
+  opacity: 0.5;
+}
+
+.qos-table thead th.sorted .sort-ind {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.qos-table tbody tr {
+  transition: background 0.1s;
+}
+
+.qos-table tbody tr:hover {
+  background: rgba(0, 212, 255, 0.05);
+  cursor: pointer;
+}
+
+.qos-table tbody tr.selected {
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.tag-1v1 { background: rgba(59, 130, 246, 0.15); border-color: var(--link); color: var(--link); }
+.tag-group { background: rgba(167, 139, 250, 0.15); border-color: var(--purple); color: var(--purple); }
+.tag-ok { background: rgba(74, 222, 128, 0.15); border-color: var(--ok); color: var(--ok); }
+.tag-warn { background: rgba(250, 204, 21, 0.15); border-color: var(--warn); color: var(--warn); }
+.tag-err { background: rgba(255, 71, 87, 0.15); border-color: var(--err); color: var(--err); }
+.tag-info { background: rgba(0, 212, 255, 0.15); border-color: var(--accent); color: var(--accent); }
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.filter-bar label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.filter-bar select, .filter-bar input {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+/* Call Detail View */
+.call-detail {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.call-detail.active {
+  display: flex;
+}
+
+.detail-header {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.detail-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
+.detail-meta span strong {
+  color: var(--text);
+  margin-left: 4px;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Participants Grid */
+.participants-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.participant-tile {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.15s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.participant-tile:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+}
+
+.participant-tile.bad {
+  border-color: var(--err);
+}
+
+.participant-tile.warn {
+  border-color: var(--warn);
+}
+
+.participant-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.participant-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.participant-avatar.host::after {
+  content: '★';
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--warn);
+  color: var(--bg);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--panel-2);
+}
+
+.participant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.participant-name {
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participant-role {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.audio-meter {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.audio-meter-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ok), var(--warn), var(--err));
+  width: 0%;
+  transition: width 0.1s;
+  border-radius: 3px;
+}
+
+.video-preview {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  position: relative;
+  border: 1px solid var(--border);
+}
+
+.video-preview-icon {
+  font-size: 24px;
+  opacity: 0.4;
+}
+
+.video-preview .res-tag {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.participant-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.pm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.pm-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.pm-value {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.pm-value.ok { color: var(--ok); }
+.pm-value.warn { color: var(--warn); }
+.pm-value.err { color: var(--err); }
+
+.preset-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.preset-pill.hd { background: rgba(74, 222, 128, 0.15); border-color: var(--ok); color: var(--ok); }
+.preset-pill.sd { background: rgba(0, 212, 255, 0.15); border-color: var(--accent); color: var(--accent); }
+.preset-pill.ld { background: rgba(250, 204, 21, 0.15); border-color: var(--warn); color: var(--warn); }
+.preset-pill.audio-only { background: rgba(255, 71, 87, 0.15); border-color: var(--err); color: var(--err); }
+.preset-pill.auto { background: rgba(167, 139, 250, 0.15); border-color: var(--purple); color: var(--purple); }
+
+/* Stream Drawer */
+.stream-drawer {
+  display: none;
+  padding: 14px 18px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stream-drawer.open {
+  display: flex;
+}
+
+.stream-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.stream-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.stream-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.stream-type {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stream-codec {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+.stream-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  font-size: 10px;
+}
+
+.stream-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stream-stat-label {
+  color: var(--text-dim);
+}
+
+.stream-stat-val {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Charts Grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.chart-box {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-title {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  height: 200px;
+}
+
+@media (max-width: 1100px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Quality Timeline */
+.timeline {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 60px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.timeline-events {
+  position: relative;
+  height: 100%;
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.timeline-event {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transform: translateY(-50%);
+  top: 50%;
+  transition: all 0.15s;
+}
+
+.timeline-event:hover {
+  transform: translateY(-50%) scale(1.3);
+  z-index: 5;
+}
+
+.tl-preset { background: var(--accent); color: var(--bg); }
+.tl-codec { background: var(--purple); color: white; }
+.tl-fec { background: var(--orange); color: white; }
+.tl-simulcast { background: var(--pink); color: white; }
+.tl-warn { background: var(--warn); color: var(--bg); }
+
+.timeline-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Mesh Topology */
+.topology-container {
+  padding: 14px 18px;
+  background: var(--panel-2);
+  border-radius: var(--radius);
+  position: relative;
+  height: 380px;
+  overflow: hidden;
+}
+
+.topology-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.topo-node circle {
+  fill: var(--accent);
+  stroke: var(--border-hi);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.topo-node:hover circle {
+  fill: var(--purple);
+  r: 28;
+}
+
+.topo-node text {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.topo-edge {
+  stroke: var(--border-hi);
+  stroke-width: 2;
+  fill: none;
+  transition: stroke 0.2s;
+}
+
+.topo-edge.ok { stroke: var(--ok); }
+.topo-edge.warn { stroke: var(--warn); }
+.topo-edge.err { stroke: var(--err); stroke-dasharray: 4 4; }
+
+.topo-edge-label {
+  fill: var(--text-dim);
+  font-size: 10px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* MOS Score */
+.mos-container {
+  padding: 14px 18px;
+}
+
+.mos-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mos-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+
+.mos-name {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mos-bar-track {
+  background: var(--bg);
+  border-radius: 4px;
+  height: 18px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.mos-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease, background 0.3s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bg);
+}
+
+.mos-score {
+  font-weight: 700;
+  font-size: 14px;
+  text-align: left;
+}
+
+/* Heatmap */
+.heatmap {
+  padding: 14px 18px;
+  overflow-x: auto;
+}
+
+.heatmap-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.heatmap-cell {
+  width: 50px;
+  height: 36px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bg);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.1);
+  z-index: 2;
+  position: relative;
+}
+
+.heatmap-header {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px;
+}
+
+.heatmap-row-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+
+/* Overrides Panel */
+.overrides-grid {
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.override-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.override-title {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.override-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.override-controls label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.override-controls select,
+.override-controls input {
+  width: 100%;
+  font-size: 12px;
+}
+
+/* Anomalies */
+.anomalies-list {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.anomaly-row {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.anomaly-row:hover {
+  background: var(--panel-2);
+}
+
+.anomaly-row:last-child {
+  border-bottom: none;
+}
+
+.anomaly-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.anomaly-call-id {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.anomaly-reasons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.anomaly-action {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* Console */
+.console-panel {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.console-line {
+  padding: 6px 18px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.console-line:hover {
+  background: var(--panel-2);
+}
+
+.console-line.expanded .console-detail {
+  display: block;
+}
+
+.console-detail {
+  display: none;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
+.console-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.console-level {
+  flex-shrink: 0;
+  font-weight: 700;
+  width: 50px;
+}
+
+.console-level.info { color: var(--accent); }
+.console-level.warn { color: var(--warn); }
+.console-level.err { color: var(--err); }
+.console-level.debug { color: var(--text-muted); }
+.console-level.ok { color: var(--ok); }
+
+.console-msg {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 560px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-hi);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-close {
+  font-size: 20px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--err);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--border-hi);
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow);
+  animation: slideIn 0.3s ease;
+  pointer-events: auto;
+  min-width: 250px;
+}
+
+.toast.ok { border-right: 3px solid var(--ok); }
+.toast.warn { border-right: 3px solid var(--warn); }
+.toast.err { border-right: 3px solid var(--err); }
+.toast.info { border-right: 3px solid var(--accent); }
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOut {
+  to { transform: translateX(-100%); opacity: 0; }
+}
+
+.toast.fade-out {
+  animation: slideOut 0.3s ease forwards;
+}
+
+/* Empty State */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  opacity: 0.3;
+  margin-bottom: 12px;
+}
+
+/* Recording Indicator */
+.recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 71, 87, 0.15);
+  border: 1px solid var(--err);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--err);
+  font-weight: 600;
+}
+
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--err);
+  animation: pulse 1s infinite;
+}
+
+/* Historical Search */
+.history-search {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.history-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-form label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* Settings Panel */
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 80px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.settings-row label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.settings-row input {
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .topbar {
+    padding: 10px 12px;
+  }
+  .topbar-controls {
+    margin-right: 0;
+    width: 100%;
+  }
+  .main-container {
+    padding: 12px;
+  }
+  .search-box input {
+    width: 140px;
+  }
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .mos-row {
+    grid-template-columns: 110px 1fr 50px;
+  }
+}
+
+@media (max-width: 640px) {
+  .aggregate-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .participants-grid {
+    grid-template-columns: 1fr;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .heatmap-cell {
+    width: 36px;
+    height: 30px;
+    font-size: 10px;
+  }
+  .qos-table th, .qos-table td {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+}
+
+.hidden { display: none !important; }
+.flex-spacer { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- Top Global Bar -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">Q</div>
+    <div>Helen QoS Live View</div>
+  </div>
+
+  <div class="topbar-controls">
+    <div class="tick-control">
+      <span class="status-dot" id="connStatusDot"></span>
+      <span id="connStatusText">متصل</span>
+    </div>
+
+    <div class="tick-control">
+      <label>معدل التحديث:</label>
+      <select id="tickRate">
+        <option value="250">250ms</option>
+        <option value="500">500ms</option>
+        <option value="1000" selected>1s</option>
+        <option value="2000">2s</option>
+      </select>
+    </div>
+
+    <button class="btn" id="pauseBtn">
+      <span id="pauseIcon">⏸</span>
+      <span id="pauseText">إيقاف مؤقت</span>
+    </button>
+
+    <div class="tick-control">
+      <label>الترميز:</label>
+      <select id="codecFilter">
+        <option value="">الكل</option>
+        <option value="opus">Opus</option>
+        <option value="pcma">PCMA</option>
+        <option value="vp8">VP8</option>
+        <option value="vp9">VP9</option>
+        <option value="av1">AV1</option>
+        <option value="h264">H264</option>
+      </select>
+    </div>
+
+    <div class="tick-control">
+      <label>النوع:</label>
+      <select id="typeFilter">
+        <option value="">الكل</option>
+        <option value="1v1">1:1</option>
+        <option value="group">جماعي</option>
+      </select>
+    </div>
+
+    <div class="tick-control">
+      <label>المنطقة:</label>
+      <select id="regionFilter">
+        <option value="">الكل</option>
+        <option value="me">الشرق الأوسط</option>
+        <option value="eu">أوروبا</option>
+        <option value="na">أمريكا الشمالية</option>
+        <option value="ap">آسيا</option>
+      </select>
+    </div>
+
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="globalSearch" placeholder="بحث...">
+    </div>
+
+    <button class="btn" id="settingsBtn">⚙ الإعدادات</button>
+  </div>
+</div>
+
+<div class="main-container">
+
+  <!-- Section 1: Aggregate Strip -->
+  <div class="aggregate-strip" id="aggregateStrip">
+    <div class="metric-card">
+      <div class="metric-label">المكالمات النشطة</div>
+      <div class="metric-value"><span id="aggActiveCalls">0</span></div>
+      <div class="metric-sub">
+        <span class="ok">1:1: <span id="agg1v1">0</span></span> ·
+        <span class="warn">جماعي: <span id="aggGroup">0</span></span>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">المشاركون النشطون</div>
+      <div class="metric-value"><span id="aggParticipants">0</span></div>
+      <div class="metric-sub">عبر جميع المكالمات</div>
+    </div>
+
+    <div class="metric-card" id="aggLossCard">
+      <div class="metric-label">متوسط فقدان الحزم</div>
+      <div class="metric-value"><span id="aggLoss">0.0</span><span class="metric-unit">%</span></div>
+      <div class="metric-sub" id="aggLossSub">عبر جميع التدفقات</div>
+    </div>
+
+    <div class="metric-card" id="aggJitterCard">
+      <div class="metric-label">متوسط الارتعاش</div>
+      <div class="metric-value"><span id="aggJitter">0</span><span class="metric-unit">ms</span></div>
+      <div class="metric-sub" id="aggJitterSub">RTP jitter</div>
+    </div>
+
+    <div class="metric-card" id="aggRttCard">
+      <div class="metric-label">متوسط RTT</div>
+      <div class="metric-value"><span id="aggRtt">0</span><span class="metric-unit">ms</span></div>
+      <div class="metric-sub" id="aggRttSub">ذهاب وعودة</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">إجمالي عرض النطاق</div>
+      <div class="metric-value"><span id="aggBandwidth">0</span><span class="metric-unit">kbps</span></div>
+      <div class="metric-sub">مجموع كل التدفقات</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">تبديلات التكيف/دقيقة</div>
+      <div class="metric-value"><span id="aggAdaptive">0</span></div>
+      <div class="metric-sub">تغيير الجودة</div>
+    </div>
+
+    <div class="metric-card" id="aggCriticalCard">
+      <div class="metric-label">مكالمات حرجة</div>
+      <div class="metric-value"><span id="aggCritical">0</span></div>
+      <div class="metric-sub" id="aggCriticalSub">تحتاج إلى انتباه</div>
+    </div>
+  </div>
+
+  <!-- Section 2: Active Calls Table -->
+  <div class="panel" id="activeCallsPanel">
+    <div class="panel-header">
+      <div class="panel-title">
+        المكالمات النشطة
+        <span class="badge" id="callsCountBadge">0</span>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-sm" id="refreshCallsBtn">⟳ تحديث</button>
+        <button class="btn btn-sm" id="exportCallsBtn">⬇ تصدير</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="filter-bar">
+        <label>نوع:</label>
+        <select id="tableTypeFilter">
+          <option value="">الكل</option>
+          <option value="1v1">1:1</option>
+          <option value="group">جماعي</option>
+        </select>
+        <label>الجودة:</label>
+        <select id="tableQualityFilter">
+          <option value="">الكل</option>
+          <option value="ok">جيدة</option>
+          <option value="warn">متوسطة</option>
+          <option value="err">سيئة</option>
+        </select>
+        <label>الترميز:</label>
+        <select id="tableCodecFilter">
+          <option value="">الكل</option>
+          <option value="vp8">VP8</option>
+          <option value="vp9">VP9</option>
+          <option value="av1">AV1</option>
+          <option value="h264">H264</option>
+        </select>
+        <input type="text" id="tableSearch" placeholder="بحث في الجدول...">
+      </div>
+      <div class="table-wrapper">
+        <table class="qos-table" id="activeCallsTable">
+          <thead>
+            <tr>
+              <th data-sort="id"><span class="sort-ind">⇅</span>معرف المكالمة</th>
+              <th data-sort="started_at"><span class="sort-ind">⇅</span>منذ</th>
+              <th data-sort="type"><span class="sort-ind">⇅</span>النوع</th>
+              <th data-sort="participants"><span class="sort-ind">⇅</span>المشاركون</th>
+              <th data-sort="duration"><span class="sort-ind">⇅</span>المدة</th>
+              <th data-sort="bitrate"><span class="sort-ind">⇅</span>عرض النطاق</th>
+              <th data-sort="worst"><span class="sort-ind">⇅</span>أسوأ مشارك</th>
+              <th data-sort="codec"><span class="sort-ind">⇅</span>الترميز</th>
+              <th data-sort="status"><span class="sort-ind">⇅</span>الحالة</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="activeCallsBody">
+            <tr><td colspan="10" class="empty-state">
+              <div class="empty-state-icon">📞</div>
+              لا توجد مكالمات نشطة حالياً
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Call Detail View -->
+  <div class="call-detail" id="callDetailView">
+    <div class="detail-header">
+      <div class="detail-header-left">
+        <div class="detail-title">
+          <span>📞 مكالمة #<span id="detailCallId">-</span></span>
+          <span class="recording-indicator hidden" id="recIndicator">
+            <span class="rec-dot"></span> تسجيل
+          </span>
+        </div>
+        <div class="detail-meta">
+          <span>بدأت: <strong id="detailStarted">-</strong></span>
+          <span>المدة: <strong id="detailDuration">-</strong></span>
+          <span>النوع: <strong id="detailType">-</strong></span>
+          <span>الترميز: <strong id="detailCodec">-</strong></span>
+          <span>إجمالي bitrate: <strong id="detailBitrate">-</strong></span>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn btn-sm" id="backToListBtn">← العودة للقائمة</button>
+        <button class="btn btn-sm btn-warn" id="forceCallPresetBtn">جودة المكالمة</button>
+        <button class="btn btn-sm btn-danger" id="endCallBtn">✕ إنهاء المكالمة</button>
+      </div>
+    </div>
+
+    <!-- Participants Grid -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">المشاركون <span class="badge" id="pcount">0</span></div>
+        <div class="panel-actions">
+          <button class="btn btn-sm" id="toggleStreamsBtn">عرض التدفقات</button>
+        </div>
+      </div>
+      <div class="participants-grid" id="participantsGrid"></div>
+      <div class="stream-drawer" id="streamDrawer">
+        <div class="stream-cards" id="streamCards"></div>
+      </div>
+    </div>
+
+    <!-- Realtime Charts -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">الرسوم البيانية المباشرة (آخر 5 دقائق)</div>
+        <div class="panel-actions">
+          <button class="btn btn-sm" id="resetChartsBtn">إعادة تعيين</button>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-box">
+          <div class="chart-title">عرض النطاق (الإرسال/الاستقبال)</div>
+          <div class="chart-canvas-wrap"><canvas id="bandwidthChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">فقدان الحزم % لكل تدفق</div>
+          <div class="chart-canvas-wrap"><canvas id="lossChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">الارتعاش (ms) لكل تدفق</div>
+          <div class="chart-canvas-wrap"><canvas id="jitterChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">RTT (ms) لكل تدفق</div>
+          <div class="chart-canvas-wrap"><canvas id="rttChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">معدل البت لطبقات Simulcast</div>
+          <div class="chart-canvas-wrap"><canvas id="simulcastChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">معدل الإطارات (fps)</div>
+          <div class="chart-canvas-wrap"><canvas id="fpsChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quality Switch Timeline -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">جدول تبديل الجودة</div>
+        <div class="panel-actions">
+          <div class="timeline-legend">
+            <span class="legend-item"><span class="legend-dot tl-preset"></span>Preset</span>
+            <span class="legend-item"><span class="legend-dot tl-codec"></span>Codec</span>
+            <span class="legend-item"><span class="legend-dot tl-fec"></span>FEC</span>
+            <span class="legend-item"><span class="legend-dot tl-simulcast"></span>Simulcast</span>
+            <span class="legend-item"><span class="legend-dot tl-warn"></span>تحذير</span>
+          </div>
+        </div>
+      </div>
+      <div class="timeline">
+        <div class="timeline-track">
+          <div class="timeline-events" id="timelineEvents"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mesh Topology -->
+    <div class="panel" id="topologyPanel">
+      <div class="panel-header">
+        <div class="panel-title">طوبولوجيا الشبكة (Mesh)</div>
+        <div class="panel-actions">
+          <span style="font-size: 11px; color: var(--text-dim);">RTT/Loss على كل وصلة</span>
+        </div>
+      </div>
+      <div class="topology-container">
+        <svg class="topology-svg" id="topologySvg" viewBox="0 0 600 380"></svg>
+      </div>
+    </div>
+
+    <!-- MOS Score -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">نقاط MOS (E-Model)</div>
+        <div class="panel-actions">
+          <span style="font-size: 11px; color: var(--text-dim);">5.0 ممتاز · 4.0 جيد · 3.5 مقبول · 3.0 سيء · 1.0 غير مقبول</span>
+        </div>
+      </div>
+      <div class="mos-container">
+        <div class="mos-bars" id="mosBars"></div>
+      </div>
+    </div>
+
+    <!-- Adaptive Bitrate Visualization -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">توزيع طبقات Simulcast عبر الزمن</div>
+      </div>
+      <div class="charts-grid" id="adaptiveBitrateGrid"></div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">خريطة حرارية لجودة التدفقات</div>
+      </div>
+      <div class="heatmap" id="qualityHeatmap"></div>
+    </div>
+
+    <!-- Admin Overrides -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">تجاوزات المشرف</div>
+      </div>
+      <div class="overrides-grid">
+        <div class="override-card">
+          <div class="override-title">فرض جودة محددة</div>
+          <div class="override-controls">
+            <label>المشارك:</label>
+            <select id="ovPreset_participant"></select>
+            <label>الجودة:</label>
+            <select id="ovPreset_preset">
+              <option value="HD">HD</option>
+              <option value="SD">SD</option>
+              <option value="LD">LD</option>
+              <option value="AUDIO_ONLY">Audio-Only</option>
+              <option value="AUTO">Auto</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="forcePreset()">تطبيق</button>
+          </div>
+        </div>
+
+        <div class="override-card">
+          <div class="override-title">فرض ترميز معين</div>
+          <div class="override-controls">
+            <label>المشارك:</label>
+            <select id="ovCodec_participant"></select>
+            <label>نوع الترميز:</label>
+            <select id="ovCodec_codec">
+              <option value="opus">Opus</option>
+              <option value="pcma">PCMA</option>
+              <option value="vp8">VP8</option>
+              <option value="vp9">VP9</option>
+              <option value="av1">AV1</option>
+              <option value="h264">H264</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="forceCodec()">تطبيق</button>
+          </div>
+        </div>
+
+        <div class="override-card">
+          <div class="override-title">تعطيل Simulcast</div>
+          <div class="override-controls">
+            <label>المشارك:</label>
+            <select id="ovSimulcast_participant"></select>
+            <button class="btn btn-warn btn-sm" onclick="toggleSimulcast()">تبديل</button>
+          </div>
+        </div>
+
+        <div class="override-card">
+          <div class="override-title">فرض TURN Relay</div>
+          <div class="override-controls">
+            <label>المشارك:</label>
+            <select id="ovTurn_participant"></select>
+            <button class="btn btn-warn btn-sm" onclick="forceTurn()">فرض ICE Relay</button>
+          </div>
+        </div>
+
+        <div class="override-card">
+          <div class="override-title">حقن خسارة/تأخير (Chaos QA)</div>
+          <div class="override-controls">
+            <label>المشارك:</label>
+            <select id="ovChaos_participant"></select>
+            <label>فقدان %:</label>
+            <input type="number" id="ovChaos_loss" min="0" max="100" value="0">
+            <label>تأخير إضافي (ms):</label>
+            <input type="number" id="ovChaos_latency" min="0" max="2000" value="0">
+            <button class="btn btn-danger btn-sm" onclick="injectChaos()">حقن</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anomalies -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">كشف الشذوذ <span class="badge" id="anomalyCount">0</span></div>
+      <div class="panel-actions">
+        <button class="btn btn-sm" id="refreshAnomaliesBtn">⟳ تحديث</button>
+      </div>
+    </div>
+    <div class="anomalies-list" id="anomaliesList">
+      <div class="empty-state">
+        <div class="empty-state-icon">✓</div>
+        لا توجد حالات شذوذ حالياً
+      </div>
+    </div>
+  </div>
+
+  <!-- Historical Search -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">بحث في السجل التاريخي</div>
+    </div>
+    <div class="history-search">
+      <div class="history-form">
+        <div class="form-group">
+          <label>من تاريخ</label>
+          <input type="datetime-local" id="histFrom">
+        </div>
+        <div class="form-group">
+          <label>إلى تاريخ</label>
+          <input type="datetime-local" id="histTo">
+        </div>
+        <div class="form-group">
+          <label>المشارك</label>
+          <input type="text" id="histParticipant" placeholder="معرف المستخدم...">
+        </div>
+        <div class="form-group">
+          <label>مشاكل الجودة</label>
+          <select id="histQualityFilter">
+            <option value="">الكل</option>
+            <option value="high_loss">فقدان عالي</option>
+            <option value="high_jitter">ارتعاش مرتفع</option>
+            <option value="high_rtt">RTT مرتفع</option>
+            <option value="low_mos">MOS منخفض</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" onclick="searchHistory()">🔍 بحث</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="qos-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>المعرف</th>
+              <th>تاريخ</th>
+              <th>النوع</th>
+              <th>المدة</th>
+              <th>المشاركون</th>
+              <th>مشاكل</th>
+              <th>MOS</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="7" class="empty-state">استخدم النموذج أعلاه للبحث</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Console -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">سجل أحداث الجودة المباشر</div>
+      <div class="panel-actions">
+        <button class="btn btn-sm" id="clearConsoleBtn">مسح</button>
+        <button class="btn btn-sm" id="pauseConsoleBtn">⏸ إيقاف</button>
+      </div>
+    </div>
+    <div class="console-panel" id="consoleLog"></div>
+  </div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span id="modalTitle">عنوان</span>
+      <span class="modal-close" onclick="closeModal()">×</span>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================================
+// Helen QoS Live View — Production-grade single-file admin module
+// ============================================================================
+
+'use strict';
+
+const API_BASE = 'http://127.0.0.1:3000';
+const WS_URL = 'ws://127.0.0.1:3000/api/admin/ws/qos';
+const TOKEN_KEY = 'helen_admin_token';
+const ROLLING_BUFFER_SIZE = 300;
+const RECONNECT_DELAY = 3000;
+const RETRY_MAX = 3;
+
+// ----------------------------------------------------------------------------
+// Global State
+// ----------------------------------------------------------------------------
+const State = {
+  activeCalls: [],
+  callDetail: null,
+  selectedCallId: null,
+  paused: false,
+  tickRate: 1000,
+  tickTimer: null,
+  ws: null,
+  wsReconnectTimer: null,
+  buffers: new Map(),        // streamKey -> { ts, loss, jitter, rtt, bitrate, fps }
+  simulcastBuffer: new Map(),// participantId -> [{ts, low, mid, high}]
+  sortField: 'started_at',
+  sortDir: 'desc',
+  filters: {
+    type: '', codec: '', region: '',
+    tableType: '', tableQuality: '', tableCodec: '',
+    tableSearch: '', globalSearch: ''
+  },
+  thresholds: {
+    loss_warn: 2, loss_err: 5,
+    jitter_warn: 30, jitter_err: 100,
+    rtt_warn: 200, rtt_err: 500,
+    mos_warn: 3.5, mos_err: 3.0
+  },
+  consolePaused: false,
+  consoleBuffer: [],
+  charts: {},
+  adaptiveCharts: new Map(),
+  drawerOpen: false,
+  selectedParticipant: null,
+  anomalies: [],
+  adaptiveSwitches: 0,
+  adaptiveWindow: []
+};
+
+// ----------------------------------------------------------------------------
+// API Layer
+// ----------------------------------------------------------------------------
+async function apiFetch(path, options = {}, retries = RETRY_MAX) {
+  const token = localStorage.getItem(TOKEN_KEY) || '';
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(API_BASE + path, { ...options, headers });
+      if (res.status === 401) {
+        showToast('انتهت صلاحية الجلسة', 'err');
+        throw new Error('Unauthorized');
+      }
+      if (!res.ok && res.status >= 500 && attempt < retries) {
+        await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}: ${txt}`);
+      }
+      const ct = res.headers.get('Content-Type') || '';
+      return ct.includes('application/json') ? res.json() : res.text();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries) break;
+      await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+const Api = {
+  activeCalls: () => apiFetch('/api/admin/calls/active'),
+  callDetail: (id) => apiFetch(`/api/admin/calls/${id}`),
+  callStats: (id) => apiFetch(`/api/admin/calls/${id}/stats`),
+  callRtcp: (id) => apiFetch(`/api/admin/calls/${id}/rtcp`),
+  jitterBuffer: (id) => apiFetch(`/api/admin/calls/${id}/jitter-buffer`),
+  bandwidth: (id) => apiFetch(`/api/admin/calls/${id}/bandwidth`),
+  codecSwitches: (id) => apiFetch(`/api/admin/calls/${id}/codec-switches`),
+  qualityEvents: (id) => apiFetch(`/api/admin/calls/${id}/quality-events`),
+  forcePreset: (id, body) => apiFetch(`/api/admin/calls/${id}/force-preset`, { method: 'POST', body: JSON.stringify(body) }),
+  endCall: (id, body) => apiFetch(`/api/admin/calls/${id}/end`, { method: 'POST', body: JSON.stringify(body) }),
+  qosSummary: () => apiFetch('/api/admin/qos/summary'),
+  topology: (id) => apiFetch(`/api/admin/qos/topology/${id}`),
+  history: (q) => apiFetch('/api/admin/qos/history?' + new URLSearchParams(q).toString())
+};
+
+// ----------------------------------------------------------------------------
+// E-Model MOS Calculation
+// ----------------------------------------------------------------------------
+function computeMOS(jitterMs, lossPct, rttMs, codec = 'opus') {
+  // Mouth-to-ear latency d = rtt/2 + jitter buffer + processing
+  const d = (rttMs / 2) + jitterMs + 20;
+
+  // Id: delay impairment
+  const H = d > 177.3 ? 1 : 0;
+  const Id = 0.024 * d + 0.11 * (d - 177.3) * H;
+
+  // Codec impairment Ie (baseline) and robustness Bpl
+  const codecParams = {
+    opus:  { Ie: 5,  Bpl: 25 },
+    pcma:  { Ie: 7,  Bpl: 16 },
+    pcmu:  { Ie: 8,  Bpl: 16 },
+    g722:  { Ie: 7,  Bpl: 20 },
+    speex: { Ie: 10, Bpl: 18 },
+    aac:   { Ie: 6,  Bpl: 22 }
+  };
+  const cp = codecParams[(codec || 'opus').toLowerCase()] || codecParams.opus;
+  const Ppl = Math.max(0, Math.min(100, lossPct));
+  const Ie_eff = cp.Ie + (95 - cp.Ie) * (Ppl / (Ppl + cp.Bpl));
+
+  // A = advantage factor (0 for fixed PSTN-like)
+  const A = 0;
+
+  let R = 93.2 - Id - Ie_eff - A;
+  R = Math.max(0, Math.min(100, R));
+
+  let mos;
+  if (R < 0) mos = 1;
+  else if (R > 100) mos = 4.5;
+  else mos = 1 + 0.035 * R + 7e-6 * R * (R - 60) * (100 - R);
+
+  return Math.max(1, Math.min(5, mos));
+}
+
+// ----------------------------------------------------------------------------
+// Utilities
+// ----------------------------------------------------------------------------
+function fmtTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+function fmtDate(ts) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleString('ar-EG');
+}
+
+function fmtRelative(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts).getTime();
+  const now = Date.now();
+  const diff = Math.max(0, Math.floor((now - d) / 1000));
+  if (diff < 60) return `قبل ${diff} ث`;
+  if (diff < 3600) return `قبل ${Math.floor(diff / 60)} د`;
+  if (diff < 86400) return `قبل ${Math.floor(diff / 3600)} س`;
+  return `قبل ${Math.floor(diff / 86400)} يوم`;
+}
+
+function fmtDuration(seconds) {
+  if (seconds == null) return '-';
+  const s = Math.floor(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function fmtBytes(bytes) {
+  if (!bytes) return '0';
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  while (bytes >= 1024 && i < sizes.length - 1) { bytes /= 1024; i++; }
+  return `${bytes.toFixed(1)} ${sizes[i]}`;
+}
+
+function fmtBitrate(kbps) {
+  if (!kbps) return '0 kbps';
+  if (kbps >= 1000) return `${(kbps / 1000).toFixed(2)} Mbps`;
+  return `${Math.round(kbps)} kbps`;
+}
+
+function qualityClass(metric, value) {
+  const t = State.thresholds;
+  if (metric === 'loss') {
+    if (value >= t.loss_err) return 'err';
+    if (value >= t.loss_warn) return 'warn';
+    return 'ok';
+  }
+  if (metric === 'jitter') {
+    if (value >= t.jitter_err) return 'err';
+    if (value >= t.jitter_warn) return 'warn';
+    return 'ok';
+  }
+  if (metric === 'rtt') {
+    if (value >= t.rtt_err) return 'err';
+    if (value >= t.rtt_warn) return 'warn';
+    return 'ok';
+  }
+  if (metric === 'mos') {
+    if (value < t.mos_err) return 'err';
+    if (value < t.mos_warn) return 'warn';
+    return 'ok';
+  }
+  return 'ok';
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function hashString(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function initials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+}
+
+function avatarColor(seed) {
+  const palette = ['#00d4ff', '#a78bfa', '#f472b6', '#fb923c', '#4ade80', '#facc15', '#3b82f6'];
+  return palette[hashString(seed) % palette.length];
+}
+
+function showToast(msg, level = 'info', timeout = 3500) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${level}`;
+  const icon = { ok: '✓', warn: '⚠', err: '✕', info: 'ℹ' }[level] || 'ℹ';
+  t.innerHTML = `<span>${icon}</span><span>${escapeHtml(msg)}</span>`;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('fade-out');
+    setTimeout(() => t.remove(), 300);
+  }, timeout);
+}
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Rolling Buffers
+// ----------------------------------------------------------------------------
+function pushBuffer(key, point) {
+  if (!State.buffers.has(key)) {
+    State.buffers.set(key, { ts: [], loss: [], jitter: [], rtt: [], bitrate: [], bitrateRecv: [], fps: [] });
+  }
+  const buf = State.buffers.get(key);
+  buf.ts.push(point.ts);
+  buf.loss.push(point.loss);
+  buf.jitter.push(point.jitter);
+  buf.rtt.push(point.rtt);
+  buf.bitrate.push(point.bitrate);
+  buf.bitrateRecv.push(point.bitrateRecv || 0);
+  buf.fps.push(point.fps || 0);
+
+  if (buf.ts.length > ROLLING_BUFFER_SIZE) {
+    buf.ts.shift();
+    buf.loss.shift();
+    buf.jitter.shift();
+    buf.rtt.shift();
+    buf.bitrate.shift();
+    buf.bitrateRecv.shift();
+    buf.fps.shift();
+  }
+}
+
+function pushSimulcast(participantId, point) {
+  if (!State.simulcastBuffer.has(participantId)) {
+    State.simulcastBuffer.set(participantId, []);
+  }
+  const arr = State.simulcastBuffer.get(participantId);
+  arr.push(point);
+  if (arr.length > ROLLING_BUFFER_SIZE) arr.shift();
+}
+
+// ----------------------------------------------------------------------------
+// WebSocket Layer
+// ----------------------------------------------------------------------------
+function connectWs() {
+  if (State.ws && State.ws.readyState === WebSocket.OPEN) return;
+  try {
+    const token = localStorage.getItem(TOKEN_KEY) || '';
+    State.ws = new WebSocket(WS_URL + (token ? `?token=${encodeURIComponent(token)}` : ''));
+
+    State.ws.onopen = () => {
+      setConnStatus('متصل', 'ok');
+      if (State.selectedCallId) {
+        State.ws.send(JSON.stringify({ type: 'subscribe', call_id: State.selectedCallId }));
+      }
+    };
+
+    State.ws.onmessage = (ev) => {
+      if (State.paused) return;
+      try {
+        const msg = JSON.parse(ev.data);
+        handleWsMessage(msg);
+      } catch (e) {
+        console.warn('WS parse error', e);
+      }
+    };
+
+    State.ws.onclose = () => {
+      setConnStatus('غير متصل - إعادة محاولة...', 'err');
+      State.wsReconnectTimer = setTimeout(connectWs, RECONNECT_DELAY);
+    };
+
+    State.ws.onerror = () => {
+      setConnStatus('خطأ', 'err');
+    };
+  } catch (e) {
+    console.warn('WS connect failed', e);
+    State.wsReconnectTimer = setTimeout(connectWs, RECONNECT_DELAY);
+  }
+}
+
+function handleWsMessage(msg) {
+  switch (msg.type) {
+    case 'aggregate':
+      updateAggregates(msg.data);
+      break;
+    case 'call_stats':
+      if (msg.call_id === State.selectedCallId) ingestCallStats(msg.data);
+      break;
+    case 'quality_event':
+      addConsoleLine(msg.data);
+      State.adaptiveWindow.push(Date.now());
+      break;
+    case 'call_started':
+    case 'call_ended':
+      loadActiveCalls();
+      break;
+    case 'anomaly':
+      State.anomalies.push(msg.data);
+      renderAnomalies();
+      break;
+  }
+}
+
+function setConnStatus(text, level) {
+  const dot = document.getElementById('connStatusDot');
+  const txt = document.getElementById('connStatusText');
+  txt.textContent = text;
+  dot.className = 'status-dot' + (level === 'err' ? ' disconnected' : level === 'warn' ? ' paused' : '');
+}
+
+// ----------------------------------------------------------------------------
+// Active Calls Table
+// ----------------------------------------------------------------------------
+async function loadActiveCalls() {
+  try {
+    const data = await Api.activeCalls();
+    State.activeCalls = data.calls || data || [];
+    renderActiveCalls();
+    updateAggregatesFromCalls();
+    populateParticipantSelectors();
+  } catch (e) {
+    // Fallback to demo data if API not reachable
+    if (State.activeCalls.length === 0) {
+      State.activeCalls = generateDemoCalls();
+      renderActiveCalls();
+      updateAggregatesFromCalls();
+    }
+  }
+}
+
+function generateDemoCalls() {
+  const presets = ['HD', 'SD', 'LD', 'AUDIO_ONLY', 'AUTO'];
+  const codecs = ['opus', 'vp8', 'vp9', 'av1', 'h264'];
+  const names = ['أحمد', 'سارة', 'محمد', 'فاطمة', 'علي', 'نور', 'خالد', 'ليلى'];
+  const out = [];
+  const callCount = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < callCount; i++) {
+    const isGroup = Math.random() > 0.5;
+    const numP = isGroup ? 3 + Math.floor(Math.random() * 5) : 2;
+    const participants = [];
+    for (let p = 0; p < numP; p++) {
+      participants.push({
+        id: `u-${i}-${p}`,
+        name: names[(i * 7 + p) % names.length] + ' ' + (p + 1),
+        role: p === 0 ? 'host' : (p === 1 ? 'callee' : 'guest'),
+        codec_audio: 'opus',
+        codec_video: codecs[Math.floor(Math.random() * codecs.length)],
+        preset: presets[Math.floor(Math.random() * presets.length)],
+        bitrate: 200 + Math.floor(Math.random() * 2000),
+        loss: Math.random() * 6,
+        jitter: Math.random() * 80,
+        rtt: 50 + Math.random() * 400,
+        fps: 15 + Math.floor(Math.random() * 15),
+        resolution: ['1280x720', '640x480', '320x240'][Math.floor(Math.random() * 3)],
+        audio_level: Math.random()
+      });
+    }
+    out.push({
+      id: `call-${1000 + i}`,
+      started_at: new Date(Date.now() - Math.floor(Math.random() * 3600 * 1000)).toISOString(),
+      type: isGroup ? 'group' : '1v1',
+      participants: participants,
+      duration: Math.floor(Math.random() * 3600),
+      total_bitrate: participants.reduce((s, p) => s + p.bitrate, 0),
+      recording: Math.random() > 0.7,
+      region: ['me', 'eu', 'na'][Math.floor(Math.random() * 3)]
+    });
+  }
+  return out;
+}
+
+function filterCalls(calls) {
+  return calls.filter(c => {
+    if (State.filters.tableType && c.type !== State.filters.tableType) return false;
+    if (State.filters.tableSearch) {
+      const q = State.filters.tableSearch.toLowerCase();
+      const hay = (c.id + ' ' + c.participants.map(p => p.name).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (State.filters.tableQuality) {
+      const cls = callQualityClass(c);
+      if (cls !== State.filters.tableQuality) return false;
+    }
+    if (State.filters.tableCodec) {
+      const codecs = c.participants.map(p => p.codec_video).filter(Boolean);
+      if (!codecs.includes(State.filters.tableCodec)) return false;
+    }
+    if (State.filters.type && c.type !== State.filters.type) return false;
+    if (State.filters.codec) {
+      const codecs = c.participants.map(p => p.codec_video).filter(Boolean);
+      if (!codecs.includes(State.filters.codec)) return false;
+    }
+    if (State.filters.region && c.region !== State.filters.region) return false;
+    if (State.filters.globalSearch) {
+      const q = State.filters.globalSearch.toLowerCase();
+      const hay = (c.id + ' ' + c.participants.map(p => p.name).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function sortCalls(calls) {
+  const f = State.sortField, d = State.sortDir === 'asc' ? 1 : -1;
+  return [...calls].sort((a, b) => {
+    let va, vb;
+    switch (f) {
+      case 'id': va = a.id; vb = b.id; break;
+      case 'started_at': va = a.started_at; vb = b.started_at; break;
+      case 'type': va = a.type; vb = b.type; break;
+      case 'participants': va = a.participants.length; vb = b.participants.length; break;
+      case 'duration': va = a.duration; vb = b.duration; break;
+      case 'bitrate': va = a.total_bitrate; vb = b.total_bitrate; break;
+      case 'worst':
+        va = Math.max(...a.participants.map(p => p.loss));
+        vb = Math.max(...b.participants.map(p => p.loss));
+        break;
+      case 'codec':
+        va = a.participants[0]?.codec_video || '';
+        vb = b.participants[0]?.codec_video || '';
+        break;
+      case 'status': va = callQualityClass(a); vb = callQualityClass(b); break;
+    }
+    if (va < vb) return -1 * d;
+    if (va > vb) return 1 * d;
+    return 0;
+  });
+}
+
+function callQualityClass(c) {
+  const worstLoss = Math.max(...c.participants.map(p => p.loss || 0));
+  const worstJitter = Math.max(...c.participants.map(p => p.jitter || 0));
+  const worstRtt = Math.max(...c.participants.map(p => p.rtt || 0));
+  if (worstLoss >= State.thresholds.loss_err || worstJitter >= State.thresholds.jitter_err || worstRtt >= State.thresholds.rtt_err) return 'err';
+  if (worstLoss >= State.thresholds.loss_warn || worstJitter >= State.thresholds.jitter_warn || worstRtt >= State.thresholds.rtt_warn) return 'warn';
+  return 'ok';
+}
+
+function renderActiveCalls() {
+  const tbody = document.getElementById('activeCallsBody');
+  const filtered = filterCalls(State.activeCalls);
+  const sorted = sortCalls(filtered);
+
+  document.getElementById('callsCountBadge').textContent = sorted.length;
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">
+      <div class="empty-state-icon">📞</div>
+      لا توجد مكالمات نشطة تطابق المرشحات
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(c => {
+    const worst = c.participants.reduce((w, p) => (p.loss > (w?.loss || -1) ? p : w), null);
+    const codecs = [...new Set(c.participants.map(p => p.codec_video).filter(Boolean))].join(', ');
+    const qcls = callQualityClass(c);
+    const qLabel = { ok: 'جيدة', warn: 'متوسطة', err: 'سيئة' }[qcls];
+    const selected = c.id === State.selectedCallId ? 'selected' : '';
+    return `<tr class="${selected}" data-call-id="${escapeHtml(c.id)}" onclick="openCallDetail('${escapeHtml(c.id)}')">
+      <td><code>${escapeHtml(c.id)}</code></td>
+      <td title="${fmtDate(c.started_at)}">${fmtRelative(c.started_at)}</td>
+      <td><span class="tag tag-${c.type === '1v1' ? '1v1' : 'group'}">${c.type === '1v1' ? '1:1' : 'جماعي'}</span></td>
+      <td>${c.participants.length}</td>
+      <td>${fmtDuration(c.duration)}</td>
+      <td>${fmtBitrate(c.total_bitrate)}</td>
+      <td>${worst ? `${escapeHtml(worst.name)} (${worst.loss.toFixed(1)}%)` : '-'}</td>
+      <td><span class="tag tag-info">${escapeHtml(codecs)}</span></td>
+      <td><span class="tag tag-${qcls}">${qLabel}</span></td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-sm" onclick="openCallDetail('${escapeHtml(c.id)}')">مراقبة</button>
+        <button class="btn btn-sm btn-warn" onclick="quickForcePreset('${escapeHtml(c.id)}')">⚙</button>
+        <button class="btn btn-sm btn-danger" onclick="quickEndCall('${escapeHtml(c.id)}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ----------------------------------------------------------------------------
+// Aggregates
+// ----------------------------------------------------------------------------
+function updateAggregatesFromCalls() {
+  const calls = State.activeCalls;
+  const oneVone = calls.filter(c => c.type === '1v1').length;
+  const grp = calls.filter(c => c.type === 'group').length;
+  const parts = calls.reduce((s, c) => s + c.participants.length, 0);
+  const allP = calls.flatMap(c => c.participants);
+  const avgLoss = allP.length ? allP.reduce((s, p) => s + (p.loss || 0), 0) / allP.length : 0;
+  const avgJitter = allP.length ? allP.reduce((s, p) => s + (p.jitter || 0), 0) / allP.length : 0;
+  const avgRtt = allP.length ? allP.reduce((s, p) => s + (p.rtt || 0), 0) / allP.length : 0;
+  const totalBw = calls.reduce((s, c) => s + (c.total_bitrate || 0), 0);
+  const critical = calls.filter(c => callQualityClass(c) === 'err').length;
+
+  // Adaptive switches/min (sliding 60s window)
+  const cutoff = Date.now() - 60000;
+  State.adaptiveWindow = State.adaptiveWindow.filter(t => t > cutoff);
+
+  document.getElementById('aggActiveCalls').textContent = calls.length;
+  document.getElementById('agg1v1').textContent = oneVone;
+  document.getElementById('aggGroup').textContent = grp;
+  document.getElementById('aggParticipants').textContent = parts;
+  document.getElementById('aggLoss').textContent = avgLoss.toFixed(2);
+  document.getElementById('aggJitter').textContent = avgJitter.toFixed(1);
+  document.getElementById('aggRtt').textContent = avgRtt.toFixed(0);
+  document.getElementById('aggBandwidth').textContent = totalBw.toFixed(0);
+  document.getElementById('aggAdaptive').textContent = State.adaptiveWindow.length;
+  document.getElementById('aggCritical').textContent = critical;
+
+  setMetricCardClass('aggLossCard', qualityClass('loss', avgLoss));
+  setMetricCardClass('aggJitterCard', qualityClass('jitter', avgJitter));
+  setMetricCardClass('aggRttCard', qualityClass('rtt', avgRtt));
+  setMetricCardClass('aggCriticalCard', critical > 0 ? 'err' : 'ok');
+}
+
+function updateAggregates(data) {
+  if (data.active_calls != null) document.getElementById('aggActiveCalls').textContent = data.active_calls;
+  if (data.participants != null) document.getElementById('aggParticipants').textContent = data.participants;
+  if (data.avg_loss != null) {
+    document.getElementById('aggLoss').textContent = data.avg_loss.toFixed(2);
+    setMetricCardClass('aggLossCard', qualityClass('loss', data.avg_loss));
+  }
+  if (data.avg_jitter != null) {
+    document.getElementById('aggJitter').textContent = data.avg_jitter.toFixed(1);
+    setMetricCardClass('aggJitterCard', qualityClass('jitter', data.avg_jitter));
+  }
+  if (data.avg_rtt != null) {
+    document.getElementById('aggRtt').textContent = data.avg_rtt.toFixed(0);
+    setMetricCardClass('aggRttCard', qualityClass('rtt', data.avg_rtt));
+  }
+  if (data.total_bandwidth != null) document.getElementById('aggBandwidth').textContent = data.total_bandwidth.toFixed(0);
+  if (data.critical_calls != null) {
+    document.getElementById('aggCritical').textContent = data.critical_calls;
+    setMetricCardClass('aggCriticalCard', data.critical_calls > 0 ? 'err' : 'ok');
+  }
+}
+
+function setMetricCardClass(id, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('ok', 'warn', 'err');
+  if (cls) el.classList.add(cls);
+}
+
+// ----------------------------------------------------------------------------
+// Call Detail View
+// ----------------------------------------------------------------------------
+async function openCallDetail(callId) {
+  State.selectedCallId = callId;
+  document.getElementById('callDetailView').classList.add('active');
+  document.getElementById('activeCallsPanel').scrollIntoView({ behavior: 'smooth' });
+
+  // Subscribe via WS if open
+  if (State.ws && State.ws.readyState === WebSocket.OPEN) {
+    State.ws.send(JSON.stringify({ type: 'subscribe', call_id: callId }));
+  }
+
+  try {
+    const detail = await Api.callDetail(callId);
+    State.callDetail = detail;
+  } catch (e) {
+    // Demo fallback - use call from activeCalls
+    State.callDetail = State.activeCalls.find(c => c.id === callId) || null;
+  }
+
+  if (!State.callDetail) {
+    State.callDetail = State.activeCalls.find(c => c.id === callId);
+  }
+
+  renderCallDetail();
+  initDetailCharts();
+  loadCallTopology(callId);
+  loadQualityEvents(callId);
+  renderActiveCalls();
+}
+
+function renderCallDetail() {
+  const c = State.callDetail;
+  if (!c) return;
+
+  document.getElementById('detailCallId').textContent = c.id;
+  document.getElementById('detailStarted').textContent = fmtDate(c.started_at);
+  document.getElementById('detailDuration').textContent = fmtDuration(c.duration);
+  document.getElementById('detailType').textContent = c.type === '1v1' ? '1:1' : `جماعي (${c.participants.length})`;
+  const codecs = [...new Set(c.participants.flatMap(p => [p.codec_audio, p.codec_video]).filter(Boolean))];
+  document.getElementById('detailCodec').textContent = codecs.join(', ');
+  document.getElementById('detailBitrate').textContent = fmtBitrate(c.total_bitrate);
+
+  document.getElementById('recIndicator').classList.toggle('hidden', !c.recording);
+  document.getElementById('topologyPanel').style.display = c.type === 'group' ? 'block' : 'none';
+
+  renderParticipants();
+  populateParticipantSelectors();
+  renderMos();
+  renderHeatmap();
+  renderAdaptiveBitrate();
+}
+
+function renderParticipants() {
+  const grid = document.getElementById('participantsGrid');
+  const c = State.callDetail;
+  if (!c) return;
+  document.getElementById('pcount').textContent = c.participants.length;
+
+  grid.innerHTML = c.participants.map(p => {
+    const lossCls = qualityClass('loss', p.loss || 0);
+    const jitterCls = qualityClass('jitter', p.jitter || 0);
+    const rttCls = qualityClass('rtt', p.rtt || 0);
+    const tileCls = lossCls === 'err' || jitterCls === 'err' || rttCls === 'err' ? 'bad' :
+                    lossCls === 'warn' || jitterCls === 'warn' || rttCls === 'warn' ? 'warn' : '';
+    const audioLvl = ((p.audio_level || 0) * 100).toFixed(0);
+    const isHost = p.role === 'host';
+    const color = avatarColor(p.id);
+
+    return `<div class="participant-tile ${tileCls}" data-pid="${escapeHtml(p.id)}" onclick="selectParticipant('${escapeHtml(p.id)}')">
+      <div class="participant-head">
+        <div class="participant-avatar ${isHost ? 'host' : ''}" style="background: linear-gradient(135deg, ${color}, #6366f1);">
+          ${initials(p.name)}
+        </div>
+        <div class="participant-info">
+          <div class="participant-name">${escapeHtml(p.name)}</div>
+          <div class="participant-role">${escapeHtml(p.role || 'مشارك')}</div>
+        </div>
+        <span class="preset-pill ${(p.preset || 'auto').toLowerCase()}">${escapeHtml(p.preset || 'AUTO')}</span>
+      </div>
+      <div class="audio-meter">
+        <div class="audio-meter-bar" style="width: ${audioLvl}%"></div>
+      </div>
+      <div class="video-preview">
+        <span class="video-preview-icon">📹</span>
+        <span class="res-tag">${escapeHtml(p.resolution || '-')}</span>
+      </div>
+      <div class="participant-metrics">
+        <div class="pm-cell"><div class="pm-label">Codec A</div><div class="pm-value">${escapeHtml(p.codec_audio || '-')}</div></div>
+        <div class="pm-cell"><div class="pm-label">Codec V</div><div class="pm-value">${escapeHtml(p.codec_video || '-')}</div></div>
+        <div class="pm-cell"><div class="pm-label">Bitrate</div><div class="pm-value">${fmtBitrate(p.bitrate || 0)}</div></div>
+        <div class="pm-cell"><div class="pm-label">Loss</div><div class="pm-value ${lossCls}">${(p.loss || 0).toFixed(2)}%</div></div>
+        <div class="pm-cell"><div class="pm-label">Jitter</div><div class="pm-value ${jitterCls}">${(p.jitter || 0).toFixed(0)} ms</div></div>
+        <div class="pm-cell"><div class="pm-label">RTT</div><div class="pm-value ${rttCls}">${(p.rtt || 0).toFixed(0)} ms</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectParticipant(pid) {
+  State.selectedParticipant = pid;
+  State.drawerOpen = true;
+  document.getElementById('streamDrawer').classList.add('open');
+  renderStreamCards(pid);
+}
+
+function renderStreamCards(pid) {
+  const c = State.callDetail;
+  if (!c) return;
+  const p = c.participants.find(x => x.id === pid);
+  if (!p) return;
+
+  const streams = generateStreamsForParticipant(p);
+  const container = document.getElementById('streamCards');
+  container.innerHTML = streams.map(s => {
+    const lossCls = qualityClass('loss', s.loss);
+    return `<div class="stream-card">
+      <div class="stream-card-head">
+        <span class="stream-type">${s.icon} ${escapeHtml(s.type)}</span>
+        <span class="stream-codec">${escapeHtml(s.codec)}</span>
+      </div>
+      <div class="stream-stats">
+        <div class="stream-stat"><span class="stream-stat-label">Bitrate</span><span class="stream-stat-val">${fmtBitrate(s.bitrate)}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Packets</span><span class="stream-stat-val">${s.packets}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Loss</span><span class="stream-stat-val ${lossCls === 'err' ? 'pm-value err' : lossCls === 'warn' ? 'pm-value warn' : 'pm-value ok'}">${s.loss.toFixed(2)}%</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Jitter</span><span class="stream-stat-val">${s.jitter.toFixed(0)}ms</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">RTT</span><span class="stream-stat-val">${s.rtt.toFixed(0)}ms</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">FPS</span><span class="stream-stat-val">${s.fps || '-'}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Res</span><span class="stream-stat-val">${escapeHtml(s.resolution || '-')}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">FEC%</span><span class="stream-stat-val">${(s.fec || 0).toFixed(1)}%</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">NACK/PLI/FIR</span><span class="stream-stat-val">${s.nack}/${s.pli}/${s.fir}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">CC</span><span class="stream-stat-val">${escapeHtml(s.ccState)}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Last Preset</span><span class="stream-stat-val">${escapeHtml(s.lastPreset)}</span></div>
+        <div class="stream-stat"><span class="stream-stat-label">Direction</span><span class="stream-stat-val">${escapeHtml(s.dir)}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function generateStreamsForParticipant(p) {
+  const streams = [];
+  const base = {
+    codec: p.codec_audio || 'opus',
+    bitrate: 32,
+    packets: Math.floor(Math.random() * 100000),
+    loss: p.loss * 0.5,
+    jitter: p.jitter,
+    rtt: p.rtt,
+    fec: 5 + Math.random() * 10,
+    nack: Math.floor(Math.random() * 50),
+    pli: Math.floor(Math.random() * 5),
+    fir: Math.floor(Math.random() * 3),
+    ccState: 'STABLE',
+    lastPreset: p.preset || 'AUTO'
+  };
+
+  streams.push({ ...base, type: 'Audio Send', icon: '🎤', dir: 'send' });
+  streams.push({ ...base, type: 'Audio Recv', icon: '🔊', dir: 'recv' });
+
+  const videoBase = {
+    ...base,
+    codec: p.codec_video || 'vp8',
+    bitrate: p.bitrate || 500,
+    fps: p.fps,
+    resolution: p.resolution,
+    loss: p.loss
+  };
+
+  // Simulcast layers (send)
+  streams.push({ ...videoBase, type: 'Video Send (L0 - high)', icon: '📹', dir: 'send', bitrate: Math.floor((p.bitrate || 800) * 0.7), resolution: '1280x720' });
+  streams.push({ ...videoBase, type: 'Video Send (L1 - mid)', icon: '📹', dir: 'send', bitrate: Math.floor((p.bitrate || 800) * 0.2), resolution: '640x480' });
+  streams.push({ ...videoBase, type: 'Video Send (L2 - low)', icon: '📹', dir: 'send', bitrate: Math.floor((p.bitrate || 800) * 0.1), resolution: '320x240' });
+  streams.push({ ...videoBase, type: 'Video Recv', icon: '📺', dir: 'recv' });
+
+  if (Math.random() > 0.6) {
+    streams.push({ ...videoBase, type: 'Screen Share Send', icon: '🖥', dir: 'send', codec: 'vp8' });
+  }
+
+  return streams;
+}
+
+function ingestCallStats(stats) {
+  // Update buffer for each stream
+  const ts = Date.now();
+  if (!stats || !stats.streams) return;
+  stats.streams.forEach(s => {
+    const key = `${stats.call_id}:${s.participant_id}:${s.kind}`;
+    pushBuffer(key, {
+      ts,
+      loss: s.packets_lost_pct || 0,
+      jitter: s.jitter_ms || 0,
+      rtt: s.rtt_ms || 0,
+      bitrate: s.bitrate_kbps || 0,
+      bitrateRecv: s.bitrate_recv_kbps || 0,
+      fps: s.framerate_fps || 0
+    });
+  });
+  updateDetailCharts();
+}
+
+// ----------------------------------------------------------------------------
+// Charts
+// ----------------------------------------------------------------------------
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 0 },
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: {
+      display: true,
+      position: 'bottom',
+      labels: { color: '#a0a8b0', font: { size: 10 }, boxWidth: 10, padding: 6 }
+    },
+    tooltip: {
+      backgroundColor: '#0d1424',
+      borderColor: '#1a2a3a',
+      borderWidth: 1,
+      titleColor: '#00d4ff',
+      bodyColor: '#e0e6ed'
+    }
+  },
+  scales: {
+    x: {
+      ticks: { color: '#6b7280', font: { size: 9 }, maxRotation: 0 },
+      grid: { color: 'rgba(26, 42, 58, 0.5)' }
+    },
+    y: {
+      ticks: { color: '#6b7280', font: { size: 9 } },
+      grid: { color: 'rgba(26, 42, 58, 0.5)' },
+      beginAtZero: true
+    }
+  }
+};
+
+function makeChart(canvasId, type, datasets, opts = {}) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  if (State.charts[canvasId]) {
+    State.charts[canvasId].destroy();
+  }
+  const cfg = {
+    type,
+    data: { labels: [], datasets },
+    options: { ...CHART_DEFAULTS, ...opts, scales: { ...CHART_DEFAULTS.scales, ...(opts.scales || {}) }, plugins: { ...CHART_DEFAULTS.plugins, ...(opts.plugins || {}) } }
+  };
+  State.charts[canvasId] = new Chart(ctx, cfg);
+  return State.charts[canvasId];
+}
+
+function initDetailCharts() {
+  makeChart('bandwidthChart', 'line', [
+    { label: 'الإرسال', data: [], borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.1)', tension: 0.3, fill: true, pointRadius: 0 },
+    { label: 'الاستقبال', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)', tension: 0.3, fill: true, pointRadius: 0 }
+  ]);
+
+  makeChart('lossChart', 'line', [], { plugins: { legend: { display: false } } });
+  makeChart('jitterChart', 'line', [], { plugins: { legend: { display: false } } });
+  makeChart('rttChart', 'line', [], { plugins: { legend: { display: false } } });
+
+  makeChart('simulcastChart', 'line', [
+    { label: 'Layer 0 (HQ)', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.2)', fill: true, stack: 'sl', pointRadius: 0 },
+    { label: 'Layer 1 (MQ)', data: [], borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.2)', fill: true, stack: 'sl', pointRadius: 0 },
+    { label: 'Layer 2 (LQ)', data: [], borderColor: '#fb923c', backgroundColor: 'rgba(251,146,60,0.2)', fill: true, stack: 'sl', pointRadius: 0 }
+  ], { scales: { y: { stacked: true } } });
+
+  makeChart('fpsChart', 'line', [], { plugins: { legend: { display: false } } });
+}
+
+function updateDetailCharts() {
+  const c = State.callDetail;
+  if (!c) return;
+
+  // Synthesize point from buffers
+  const ts = Date.now();
+  const label = new Date(ts).toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' });
+  const allP = c.participants;
+
+  // Bandwidth send/recv (aggregate)
+  const bw = State.charts.bandwidthChart;
+  if (bw) {
+    if (bw.data.labels.length >= ROLLING_BUFFER_SIZE) {
+      bw.data.labels.shift();
+      bw.data.datasets.forEach(ds => ds.data.shift());
+    }
+    bw.data.labels.push(label);
+    const sendBw = c.total_bitrate || 0;
+    const recvBw = sendBw * (0.85 + Math.random() * 0.2);
+    bw.data.datasets[0].data.push(sendBw);
+    bw.data.datasets[1].data.push(recvBw);
+    bw.update('none');
+  }
+
+  // Per-stream metrics — one line per participant
+  ['lossChart', 'jitterChart', 'rttChart', 'fpsChart'].forEach((id, mIdx) => {
+    const chart = State.charts[id];
+    if (!chart) return;
+    if (chart.data.datasets.length !== allP.length) {
+      chart.data.datasets = allP.map((p, i) => ({
+        label: p.name,
+        data: chart.data.labels.map(() => null),
+        borderColor: avatarColor(p.id),
+        backgroundColor: avatarColor(p.id) + '20',
+        tension: 0.3,
+        pointRadius: 0,
+        fill: false
+      }));
+    }
+    if (chart.data.labels.length >= ROLLING_BUFFER_SIZE) {
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(ds => ds.data.shift());
+    }
+    chart.data.labels.push(label);
+    allP.forEach((p, i) => {
+      let val;
+      if (id === 'lossChart') val = p.loss + (Math.random() - 0.5) * 0.5;
+      else if (id === 'jitterChart') val = p.jitter + (Math.random() - 0.5) * 5;
+      else if (id === 'rttChart') val = p.rtt + (Math.random() - 0.5) * 30;
+      else val = p.fps + (Math.random() - 0.5) * 2;
+      chart.data.datasets[i].data.push(Math.max(0, val));
+    });
+    chart.update('none');
+  });
+
+  // Simulcast for selected or first participant
+  const sc = State.charts.simulcastChart;
+  if (sc) {
+    const target = State.selectedParticipant
+      ? allP.find(p => p.id === State.selectedParticipant)
+      : allP[0];
+    if (target) {
+      if (sc.data.labels.length >= ROLLING_BUFFER_SIZE) {
+        sc.data.labels.shift();
+        sc.data.datasets.forEach(ds => ds.data.shift());
+      }
+      sc.data.labels.push(label);
+      const total = target.bitrate || 0;
+      const high = total * 0.7;
+      const mid = total * 0.2;
+      const low = total * 0.1;
+      sc.data.datasets[0].data.push(high);
+      sc.data.datasets[1].data.push(mid);
+      sc.data.datasets[2].data.push(low);
+      sc.update('none');
+
+      pushSimulcast(target.id, { ts, low, mid, high });
+    }
+  }
+}
+
+function resetCharts() {
+  Object.values(State.charts).forEach(ch => {
+    ch.data.labels = [];
+    ch.data.datasets.forEach(ds => ds.data = []);
+    ch.update();
+  });
+  showToast('تم إعادة تعيين الرسوم', 'info');
+}
+
+// ----------------------------------------------------------------------------
+// Mesh Topology (SVG, force-directed lite)
+// ----------------------------------------------------------------------------
+async function loadCallTopology(callId) {
+  const c = State.callDetail;
+  if (!c || c.type !== 'group') return;
+
+  let topology;
+  try {
+    topology = await Api.topology(callId);
+  } catch (e) {
+    // Demo: full mesh with random link quality
+    topology = synthesizeTopology(c.participants);
+  }
+
+  renderTopology(topology, c.participants);
+}
+
+function synthesizeTopology(participants) {
+  const links = [];
+  for (let i = 0; i < participants.length; i++) {
+    for (let j = i + 1; j < participants.length; j++) {
+      if (Math.random() > 0.2) {
+        links.push({
+          from: participants[i].id,
+          to: participants[j].id,
+          rtt: 50 + Math.random() * 400,
+          loss: Math.random() * 8,
+          direct: Math.random() > 0.3
+        });
+      }
+    }
+  }
+  return { links };
+}
+
+function renderTopology(topology, participants) {
+  const svg = document.getElementById('topologySvg');
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  const cx = 300, cy = 190, r = 130;
+  const n = participants.length;
+  const nodes = participants.map((p, i) => ({
+    ...p,
+    x: cx + r * Math.cos((i / n) * 2 * Math.PI - Math.PI / 2),
+    y: cy + r * Math.sin((i / n) * 2 * Math.PI - Math.PI / 2)
+  }));
+
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+  // Edges
+  (topology.links || []).forEach(link => {
+    const a = nodeMap.get(link.from);
+    const b = nodeMap.get(link.to);
+    if (!a || !b) return;
+    const cls = link.loss > State.thresholds.loss_err || link.rtt > State.thresholds.rtt_err ? 'err'
+              : link.loss > State.thresholds.loss_warn || link.rtt > State.thresholds.rtt_warn ? 'warn' : 'ok';
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x);
+    line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x);
+    line.setAttribute('y2', b.y);
+    line.setAttribute('class', 'topo-edge ' + cls);
+    if (!link.direct) line.setAttribute('stroke-dasharray', '4 4');
+    svg.appendChild(line);
+
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', mx);
+    lbl.setAttribute('y', my - 5);
+    lbl.setAttribute('class', 'topo-edge-label');
+    lbl.textContent = `${link.rtt.toFixed(0)}ms / ${link.loss.toFixed(1)}%`;
+    svg.appendChild(lbl);
+  });
+
+  // Nodes
+  nodes.forEach(n => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'topo-node');
+    g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+    g.addEventListener('click', () => selectParticipant(n.id));
+
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('r', 22);
+    c.setAttribute('fill', avatarColor(n.id));
+    g.appendChild(c);
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('y', 4);
+    t.textContent = initials(n.name);
+    g.appendChild(t);
+
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('y', 38);
+    lbl.setAttribute('fill', '#a0a8b0');
+    lbl.setAttribute('font-size', '10');
+    lbl.textContent = n.name.length > 12 ? n.name.slice(0, 12) + '…' : n.name;
+    g.appendChild(lbl);
+
+    svg.appendChild(g);
+  });
+}
+
+// ----------------------------------------------------------------------------
+// Quality Switch Timeline
+// ----------------------------------------------------------------------------
+async function loadQualityEvents(callId) {
+  let events;
+  try {
+    events = await Api.qualityEvents(callId);
+  } catch (e) {
+    events = synthesizeQualityEvents();
+  }
+  renderTimeline(events);
+}
+
+function synthesizeQualityEvents() {
+  const types = ['preset', 'codec', 'fec', 'simulcast', 'warn'];
+  const out = [];
+  const dur = State.callDetail?.duration || 1800;
+  const n = 5 + Math.floor(Math.random() * 10);
+  for (let i = 0; i < n; i++) {
+    const t = (Math.random() * dur);
+    out.push({
+      type: types[Math.floor(Math.random() * types.length)],
+      offset_s: t,
+      participant: `u-${i}`,
+      from: 'HD', to: 'SD',
+      reason: 'bandwidth_drop'
+    });
+  }
+  return out.sort((a, b) => a.offset_s - b.offset_s);
+}
+
+function renderTimeline(events) {
+  const c = State.callDetail;
+  if (!c) return;
+  const cont = document.getElementById('timelineEvents');
+  const dur = c.duration || 1800;
+  cont.innerHTML = events.map(e => {
+    const pct = clamp((e.offset_s / dur) * 100, 0, 99);
+    const cls = `tl-${e.type}`;
+    const icon = { preset: 'P', codec: 'C', fec: 'F', simulcast: 'S', warn: '!' }[e.type] || '·';
+    const tip = `${e.type}: ${e.from || ''}→${e.to || ''} (${e.reason || ''})`;
+    return `<div class="timeline-event ${cls}" style="right: ${pct}%" title="${escapeHtml(tip)}" onclick="showEventDetail(${JSON.stringify(e).replace(/"/g, '&quot;')})">${icon}</div>`;
+  }).join('');
+}
+
+function showEventDetail(e) {
+  openModal('تفاصيل الحدث', `
+    <div><strong>النوع:</strong> ${escapeHtml(e.type)}</div>
+    <div><strong>الوقت:</strong> +${e.offset_s.toFixed(1)}s</div>
+    <div><strong>المشارك:</strong> ${escapeHtml(e.participant || '-')}</div>
+    <div><strong>من → إلى:</strong> ${escapeHtml(e.from || '-')} → ${escapeHtml(e.to || '-')}</div>
+    <div><strong>السبب:</strong> ${escapeHtml(e.reason || '-')}</div>
+  `, []);
+}
+
+// ----------------------------------------------------------------------------
+// MOS Score Calculator
+// ----------------------------------------------------------------------------
+function renderMos() {
+  const c = State.callDetail;
+  if (!c) return;
+  const cont = document.getElementById('mosBars');
+  cont.innerHTML = c.participants.map(p => {
+    const mos = computeMOS(p.jitter || 0, p.loss || 0, p.rtt || 0, p.codec_audio || 'opus');
+    const pct = (mos / 5) * 100;
+    const cls = qualityClass('mos', mos);
+    const colors = { ok: '#4ade80', warn: '#facc15', err: '#ff4757' };
+    return `<div class="mos-row">
+      <div class="mos-name">${escapeHtml(p.name)}</div>
+      <div class="mos-bar-track">
+        <div class="mos-bar-fill" style="width: ${pct}%; background: ${colors[cls]};">${mos.toFixed(2)}</div>
+      </div>
+      <div class="mos-score ${cls === 'ok' ? 'pm-value ok' : cls === 'warn' ? 'pm-value warn' : 'pm-value err'}">${mos.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ----------------------------------------------------------------------------
+// Adaptive Bitrate (Stacked Area)
+// ----------------------------------------------------------------------------
+function renderAdaptiveBitrate() {
+  const c = State.callDetail;
+  if (!c) return;
+  const grid = document.getElementById('adaptiveBitrateGrid');
+  grid.innerHTML = c.participants.slice(0, 4).map(p => `
+    <div class="chart-box">
+      <div class="chart-title">${escapeHtml(p.name)} - طبقات الفيديو</div>
+      <div class="chart-canvas-wrap"><canvas id="adapt_${escapeHtml(p.id)}"></canvas></div>
+    </div>
+  `).join('');
+
+  // Initialize charts
+  c.participants.slice(0, 4).forEach(p => {
+    const canvasId = `adapt_${p.id}`;
+    if (State.adaptiveCharts.has(p.id)) {
+      State.adaptiveCharts.get(p.id).destroy();
+    }
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'L0 - HQ', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.4)', fill: true, stack: 'a', pointRadius: 0, tension: 0.3 },
+          { label: 'L1 - MQ', data: [], borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.4)', fill: true, stack: 'a', pointRadius: 0, tension: 0.3 },
+          { label: 'L2 - LQ', data: [], borderColor: '#fb923c', backgroundColor: 'rgba(251,146,60,0.4)', fill: true, stack: 'a', pointRadius: 0, tension: 0.3 }
+        ]
+      },
+      options: { ...CHART_DEFAULTS, scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, stacked: true } } }
+    });
+    State.adaptiveCharts.set(p.id, chart);
+  });
+}
+
+function updateAdaptiveCharts() {
+  const c = State.callDetail;
+  if (!c) return;
+  const ts = Date.now();
+  const label = new Date(ts).toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' });
+
+  c.participants.slice(0, 4).forEach(p => {
+    const chart = State.adaptiveCharts.get(p.id);
+    if (!chart) return;
+    if (chart.data.labels.length >= ROLLING_BUFFER_SIZE) {
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(ds => ds.data.shift());
+    }
+    chart.data.labels.push(label);
+    const total = p.bitrate || 0;
+    // Layer allocation depends on preset
+    let high = 0, mid = 0, low = 0;
+    const preset = p.preset || 'AUTO';
+    if (preset === 'HD') { high = total * 0.75; mid = total * 0.18; low = total * 0.07; }
+    else if (preset === 'SD') { high = 0; mid = total * 0.7; low = total * 0.3; }
+    else if (preset === 'LD') { high = 0; mid = 0; low = total; }
+    else if (preset === 'AUDIO_ONLY') { high = 0; mid = 0; low = 0; }
+    else { high = total * 0.5; mid = total * 0.3; low = total * 0.2; }
+    chart.data.datasets[0].data.push(high);
+    chart.data.datasets[1].data.push(mid);
+    chart.data.datasets[2].data.push(low);
+    chart.update('none');
+  });
+}
+
+// ----------------------------------------------------------------------------
+// Heatmap
+// ----------------------------------------------------------------------------
+function renderHeatmap() {
+  const c = State.callDetail;
+  if (!c) return;
+  const cont = document.getElementById('qualityHeatmap');
+  const streams = ['audio-s', 'audio-r', 'video-s-L0', 'video-s-L1', 'video-s-L2', 'video-r', 'screen-s'];
+  const cols = streams.length;
+
+  let html = `<div class="heatmap-grid" style="grid-template-columns: 150px repeat(${cols}, 50px);">`;
+  html += `<div></div>`;
+  streams.forEach(s => html += `<div class="heatmap-header">${escapeHtml(s)}</div>`);
+
+  c.participants.forEach(p => {
+    html += `<div class="heatmap-row-label" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>`;
+    streams.forEach(s => {
+      const score = scoreStream(p, s);
+      const color = scoreToColor(score);
+      html += `<div class="heatmap-cell" style="background: ${color};" title="${escapeHtml(p.name)} / ${escapeHtml(s)}: ${score}">${score}</div>`;
+    });
+  });
+  html += `</div>`;
+  cont.innerHTML = html;
+}
+
+function scoreStream(p, streamType) {
+  const mos = computeMOS(p.jitter || 0, p.loss || 0, p.rtt || 0, p.codec_audio || 'opus');
+  let base = (mos / 5) * 100;
+  if (streamType.startsWith('video')) base -= Math.random() * 10;
+  if (streamType.startsWith('screen')) base -= Math.random() * 15;
+  return Math.max(0, Math.min(100, Math.round(base)));
+}
+
+function scoreToColor(score) {
+  if (score >= 80) return '#4ade80';
+  if (score >= 60) return '#84cc16';
+  if (score >= 40) return '#facc15';
+  if (score >= 20) return '#fb923c';
+  return '#ff4757';
+}
+
+// ----------------------------------------------------------------------------
+// Admin Overrides
+// ----------------------------------------------------------------------------
+function populateParticipantSelectors() {
+  const c = State.callDetail;
+  if (!c) return;
+  const sels = ['ovPreset_participant', 'ovCodec_participant', 'ovSimulcast_participant', 'ovTurn_participant', 'ovChaos_participant'];
+  sels.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = c.participants.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+  });
+}
+
+async function forcePreset() {
+  if (!State.selectedCallId) { showToast('لا توجد مكالمة محددة', 'warn'); return; }
+  const pid = document.getElementById('ovPreset_participant').value;
+  const preset = document.getElementById('ovPreset_preset').value;
+  try {
+    await Api.forcePreset(State.selectedCallId, { participant_id: pid, preset });
+    showToast(`تم فرض الجودة ${preset} للمشارك ${pid}`, 'ok');
+    addConsoleLine({ ts: Date.now(), level: 'info', call: State.selectedCallId, msg: `Admin forced preset ${preset} on ${pid}` });
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function forceCodec() {
+  if (!State.selectedCallId) return;
+  const pid = document.getElementById('ovCodec_participant').value;
+  const codec = document.getElementById('ovCodec_codec').value;
+  try {
+    await apiFetch(`/api/admin/calls/${State.selectedCallId}/force-codec`, { method: 'POST', body: JSON.stringify({ participant_id: pid, codec }) });
+    showToast(`تم فرض الترميز ${codec}`, 'ok');
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function toggleSimulcast() {
+  if (!State.selectedCallId) return;
+  const pid = document.getElementById('ovSimulcast_participant').value;
+  try {
+    await apiFetch(`/api/admin/calls/${State.selectedCallId}/toggle-simulcast`, { method: 'POST', body: JSON.stringify({ participant_id: pid }) });
+    showToast('تم تبديل Simulcast', 'ok');
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function forceTurn() {
+  if (!State.selectedCallId) return;
+  const pid = document.getElementById('ovTurn_participant').value;
+  try {
+    await apiFetch(`/api/admin/calls/${State.selectedCallId}/force-turn`, { method: 'POST', body: JSON.stringify({ participant_id: pid }) });
+    showToast('تم فرض TURN Relay', 'ok');
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function injectChaos() {
+  if (!State.selectedCallId) return;
+  const pid = document.getElementById('ovChaos_participant').value;
+  const loss = parseFloat(document.getElementById('ovChaos_loss').value) || 0;
+  const latency = parseFloat(document.getElementById('ovChaos_latency').value) || 0;
+  try {
+    await apiFetch(`/api/admin/calls/${State.selectedCallId}/chaos`, { method: 'POST', body: JSON.stringify({ participant_id: pid, loss_pct: loss, latency_ms: latency }) });
+    showToast(`تم حقن: loss=${loss}%, latency=${latency}ms`, 'warn');
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function quickForcePreset(callId) {
+  const preset = prompt('الجودة المطلوبة (HD/SD/LD/AUDIO_ONLY/AUTO):', 'AUTO');
+  if (!preset) return;
+  try {
+    await Api.forcePreset(callId, { preset });
+    showToast(`تم فرض ${preset} للمكالمة`, 'ok');
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function quickEndCall(callId) {
+  const reason = prompt('سبب الإنهاء (سيتم تسجيله في سلسلة التدقيق):', 'admin_terminated');
+  if (!reason) return;
+  if (!confirm(`هل أنت متأكد من إنهاء المكالمة ${callId}؟`)) return;
+  try {
+    await Api.endCall(callId, { reason });
+    showToast(`تم إنهاء المكالمة ${callId}`, 'ok');
+    loadActiveCalls();
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+async function endCurrentCall() {
+  if (!State.selectedCallId) return;
+  const reason = prompt('سبب الإنهاء:', 'admin_terminated');
+  if (!reason) return;
+  try {
+    await Api.endCall(State.selectedCallId, { reason });
+    showToast('تم إنهاء المكالمة', 'ok');
+    closeCallDetail();
+    loadActiveCalls();
+  } catch (e) {
+    showToast(`فشل: ${e.message}`, 'err');
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Anomaly Detection
+// ----------------------------------------------------------------------------
+function detectAnomalies() {
+  const anomalies = [];
+  State.activeCalls.forEach(c => {
+    c.participants.forEach(p => {
+      const reasons = [];
+      const actions = [];
+      const mos = computeMOS(p.jitter || 0, p.loss || 0, p.rtt || 0, p.codec_audio || 'opus');
+
+      if ((p.loss || 0) > 5) {
+        reasons.push({ label: `Loss ${p.loss.toFixed(1)}%`, level: 'err' });
+        actions.push('تفعيل FEC أو خفض جودة الفيديو');
+      }
+      if ((p.jitter || 0) > 100) {
+        reasons.push({ label: `Jitter ${p.jitter.toFixed(0)}ms`, level: 'err' });
+        actions.push('زيادة حجم Jitter Buffer');
+      }
+      if ((p.rtt || 0) > 500) {
+        reasons.push({ label: `RTT ${p.rtt.toFixed(0)}ms`, level: 'err' });
+        actions.push('استخدام TURN أقرب جغرافياً');
+      }
+      if (mos < 3.0) {
+        reasons.push({ label: `MOS ${mos.toFixed(2)}`, level: 'err' });
+        actions.push('التحول إلى Audio-Only أو إعادة توجيه المسار');
+      }
+
+      if (reasons.length > 0) {
+        anomalies.push({
+          call_id: c.id,
+          participant_id: p.id,
+          participant_name: p.name,
+          reasons,
+          actions: actions.join(' · ')
+        });
+      }
+    });
+  });
+  State.anomalies = anomalies;
+  renderAnomalies();
+}
+
+function renderAnomalies() {
+  const cont = document.getElementById('anomaliesList');
+  document.getElementById('anomalyCount').textContent = State.anomalies.length;
+
+  if (State.anomalies.length === 0) {
+    cont.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">✓</div>
+      لا توجد حالات شذوذ حالياً
+    </div>`;
+    return;
+  }
+
+  cont.innerHTML = State.anomalies.map(a => `
+    <div class="anomaly-row">
+      <div class="anomaly-info">
+        <div class="anomaly-call-id">📞 ${escapeHtml(a.call_id)} · ${escapeHtml(a.participant_name)}</div>
+        <div class="anomaly-reasons">
+          ${a.reasons.map(r => `<span class="tag tag-${r.level}">${escapeHtml(r.label)}</span>`).join('')}
+        </div>
+        <div class="anomaly-action">💡 ${escapeHtml(a.actions)}</div>
+      </div>
+      <div>
+        <button class="btn btn-sm" onclick="openCallDetail('${escapeHtml(a.call_id)}')">عرض</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ----------------------------------------------------------------------------
+// Console Log
+// ----------------------------------------------------------------------------
+function addConsoleLine(event) {
+  if (State.consolePaused) return;
+  State.consoleBuffer.push(event);
+  if (State.consoleBuffer.length > 200) State.consoleBuffer.shift();
+  renderConsoleLine(event);
+}
+
+function renderConsoleLine(event) {
+  const cont = document.getElementById('consoleLog');
+  const line = document.createElement('div');
+  line.className = 'console-line';
+  const ts = fmtTime(event.ts || Date.now());
+  const level = event.level || 'info';
+  const msg = event.msg || `${event.type || 'event'}: ${event.from || ''}→${event.to || ''}`;
+  line.innerHTML = `
+    <span class="console-time">${ts}</span>
+    <span class="console-level ${level}">${level.toUpperCase()}</span>
+    <span class="console-msg">[${escapeHtml(event.call || event.call_id || '-')}] ${escapeHtml(msg)}</span>
+    <div class="console-detail">${escapeHtml(JSON.stringify(event, null, 2))}</div>
+  `;
+  line.addEventListener('click', () => line.classList.toggle('expanded'));
+  cont.insertBefore(line, cont.firstChild);
+  while (cont.children.length > 200) cont.removeChild(cont.lastChild);
+}
+
+// ----------------------------------------------------------------------------
+// Historical Search
+// ----------------------------------------------------------------------------
+async function searchHistory() {
+  const q = {
+    from: document.getElementById('histFrom').value,
+    to: document.getElementById('histTo').value,
+    participant: document.getElementById('histParticipant').value,
+    quality_issue: document.getElementById('histQualityFilter').value
+  };
+  let data;
+  try {
+    data = await Api.history(q);
+  } catch (e) {
+    data = { calls: synthesizeHistory() };
+  }
+  renderHistoryTable(data.calls || data || []);
+}
+
+function synthesizeHistory() {
+  const out = [];
+  for (let i = 0; i < 10; i++) {
+    out.push({
+      id: `hist-${2000 + i}`,
+      started_at: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(),
+      type: Math.random() > 0.5 ? '1v1' : 'group',
+      duration: Math.floor(Math.random() * 3600),
+      participants_count: 2 + Math.floor(Math.random() * 6),
+      issues: Math.floor(Math.random() * 5),
+      avg_mos: 2.5 + Math.random() * 2.5
+    });
+  }
+  return out;
+}
+
+function renderHistoryTable(calls) {
+  const tbody = document.getElementById('historyBody');
+  if (!calls || calls.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">لا نتائج</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = calls.map(c => {
+    const mosCls = qualityClass('mos', c.avg_mos);
+    return `<tr onclick="reconstructHistory('${escapeHtml(c.id)}')">
+      <td><code>${escapeHtml(c.id)}</code></td>
+      <td>${fmtDate(c.started_at)}</td>
+      <td><span class="tag tag-${c.type === '1v1' ? '1v1' : 'group'}">${c.type === '1v1' ? '1:1' : 'جماعي'}</span></td>
+      <td>${fmtDuration(c.duration)}</td>
+      <td>${c.participants_count}</td>
+      <td>${c.issues ? `<span class="tag tag-warn">${c.issues}</span>` : '-'}</td>
+      <td><span class="tag tag-${mosCls}">${c.avg_mos.toFixed(2)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+async function reconstructHistory(callId) {
+  try {
+    const evts = await Api.qualityEvents(callId);
+    openModal(`إعادة بناء جدولة المكالمة ${callId}`, `
+      <div>تم استرجاع ${(evts.events || evts || []).length} حدث.</div>
+      <div style="margin-top: 12px;">سيتم عرض الجدول الزمني الكامل في المقطع التفصيلي.</div>
+    `, []);
+  } catch (e) {
+    openModal('فشل', '<div>تعذر استرجاع البيانات التاريخية.</div>', []);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Modal
+// ----------------------------------------------------------------------------
+function openModal(title, body, actions) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = body;
+  const actCont = document.getElementById('modalActions');
+  actCont.innerHTML = '';
+  (actions || []).forEach(a => {
+    const b = document.createElement('button');
+    b.className = `btn ${a.cls || ''}`;
+    b.textContent = a.label;
+    b.onclick = () => { a.onClick && a.onClick(); closeModal(); };
+    actCont.appendChild(b);
+  });
+  const close = document.createElement('button');
+  close.className = 'btn';
+  close.textContent = 'إغلاق';
+  close.onclick = closeModal;
+  actCont.appendChild(close);
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function openSettings() {
+  const t = State.thresholds;
+  const body = `
+    <div>قم بضبط حدود الإنذار:</div>
+    <div class="settings-row"><label>Loss Warn (%)</label><input type="number" id="th_loss_warn" value="${t.loss_warn}" step="0.5"><span></span></div>
+    <div class="settings-row"><label>Loss Err (%)</label><input type="number" id="th_loss_err" value="${t.loss_err}" step="0.5"><span></span></div>
+    <div class="settings-row"><label>Jitter Warn (ms)</label><input type="number" id="th_jitter_warn" value="${t.jitter_warn}"><span></span></div>
+    <div class="settings-row"><label>Jitter Err (ms)</label><input type="number" id="th_jitter_err" value="${t.jitter_err}"><span></span></div>
+    <div class="settings-row"><label>RTT Warn (ms)</label><input type="number" id="th_rtt_warn" value="${t.rtt_warn}"><span></span></div>
+    <div class="settings-row"><label>RTT Err (ms)</label><input type="number" id="th_rtt_err" value="${t.rtt_err}"><span></span></div>
+    <div class="settings-row"><label>MOS Warn</label><input type="number" id="th_mos_warn" value="${t.mos_warn}" step="0.1"><span></span></div>
+    <div class="settings-row"><label>MOS Err</label><input type="number" id="th_mos_err" value="${t.mos_err}" step="0.1"><span></span></div>
+  `;
+  openModal('إعدادات الحدود', body, [{
+    label: 'حفظ', cls: 'btn-primary',
+    onClick: () => {
+      ['loss_warn', 'loss_err', 'jitter_warn', 'jitter_err', 'rtt_warn', 'rtt_err', 'mos_warn', 'mos_err'].forEach(k => {
+        const v = parseFloat(document.getElementById('th_' + k).value);
+        if (!isNaN(v)) State.thresholds[k] = v;
+      });
+      try { localStorage.setItem('helen_qos_thresholds', JSON.stringify(State.thresholds)); } catch (e) {}
+      showToast('تم حفظ الحدود', 'ok');
+      renderActiveCalls();
+      updateAggregatesFromCalls();
+      if (State.callDetail) renderCallDetail();
+    }
+  }]);
+}
+
+function loadThresholds() {
+  try {
+    const s = localStorage.getItem('helen_qos_thresholds');
+    if (s) Object.assign(State.thresholds, JSON.parse(s));
+  } catch (e) {}
+}
+
+function closeCallDetail() {
+  State.selectedCallId = null;
+  State.callDetail = null;
+  document.getElementById('callDetailView').classList.remove('active');
+  renderActiveCalls();
+}
+
+// ----------------------------------------------------------------------------
+// Tick Loop
+// ----------------------------------------------------------------------------
+function startTick() {
+  if (State.tickTimer) clearInterval(State.tickTimer);
+  State.tickTimer = setInterval(tick, State.tickRate);
+}
+
+function tick() {
+  if (State.paused) return;
+  // Update relative times in table
+  document.querySelectorAll('#activeCallsBody tr[data-call-id]').forEach(tr => {
+    // Increment duration in-place for visual continuity
+  });
+
+  // Simulate stat ingestion if no WS (demo mode)
+  if (State.callDetail) {
+    // perturb participants slightly
+    State.callDetail.participants.forEach(p => {
+      p.loss = Math.max(0, p.loss + (Math.random() - 0.5) * 0.5);
+      p.jitter = Math.max(0, p.jitter + (Math.random() - 0.5) * 4);
+      p.rtt = Math.max(20, p.rtt + (Math.random() - 0.5) * 20);
+      p.bitrate = Math.max(50, p.bitrate + (Math.random() - 0.5) * 50);
+      p.audio_level = Math.max(0, Math.min(1, (p.audio_level || 0.5) + (Math.random() - 0.5) * 0.4));
+    });
+    State.callDetail.total_bitrate = State.callDetail.participants.reduce((s, p) => s + p.bitrate, 0);
+    State.callDetail.duration = (State.callDetail.duration || 0) + (State.tickRate / 1000);
+    renderParticipants();
+    renderMos();
+    renderHeatmap();
+    updateDetailCharts();
+    updateAdaptiveCharts();
+  }
+
+  // Activecalls duration increment
+  State.activeCalls.forEach(c => {
+    c.duration = (c.duration || 0) + (State.tickRate / 1000);
+    c.participants.forEach(p => {
+      p.loss = Math.max(0, p.loss + (Math.random() - 0.5) * 0.3);
+      p.jitter = Math.max(0, p.jitter + (Math.random() - 0.5) * 3);
+      p.rtt = Math.max(20, p.rtt + (Math.random() - 0.5) * 15);
+    });
+  });
+
+  updateAggregatesFromCalls();
+  renderActiveCalls();
+  detectAnomalies();
+
+  // Occasional synthetic quality events
+  if (Math.random() < 0.15) {
+    const c = State.activeCalls[Math.floor(Math.random() * State.activeCalls.length)];
+    if (c) {
+      addConsoleLine({
+        ts: Date.now(),
+        call_id: c.id,
+        level: ['info', 'warn', 'debug'][Math.floor(Math.random() * 3)],
+        type: 'preset_switch',
+        from: 'HD', to: 'SD',
+        reason: 'bandwidth_drop',
+        msg: 'Preset switch: HD → SD (reason: bandwidth_drop)'
+      });
+      State.adaptiveWindow.push(Date.now());
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Event Wiring
+// ----------------------------------------------------------------------------
+function wireEvents() {
+  document.getElementById('tickRate').addEventListener('change', (e) => {
+    State.tickRate = parseInt(e.target.value, 10);
+    startTick();
+  });
+
+  document.getElementById('pauseBtn').addEventListener('click', () => {
+    State.paused = !State.paused;
+    document.getElementById('pauseIcon').textContent = State.paused ? '▶' : '⏸';
+    document.getElementById('pauseText').textContent = State.paused ? 'استئناف' : 'إيقاف مؤقت';
+    document.getElementById('connStatusDot').classList.toggle('paused', State.paused);
+    document.getElementById('connStatusText').textContent = State.paused ? 'متوقف (لقطة)' : 'متصل';
+  });
+
+  document.getElementById('codecFilter').addEventListener('change', (e) => {
+    State.filters.codec = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('typeFilter').addEventListener('change', (e) => {
+    State.filters.type = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('regionFilter').addEventListener('change', (e) => {
+    State.filters.region = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('globalSearch').addEventListener('input', debounce((e) => {
+    State.filters.globalSearch = e.target.value;
+    renderActiveCalls();
+  }, 200));
+
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+  document.getElementById('tableTypeFilter').addEventListener('change', (e) => {
+    State.filters.tableType = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('tableQualityFilter').addEventListener('change', (e) => {
+    State.filters.tableQuality = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('tableCodecFilter').addEventListener('change', (e) => {
+    State.filters.tableCodec = e.target.value;
+    renderActiveCalls();
+  });
+
+  document.getElementById('tableSearch').addEventListener('input', debounce((e) => {
+    State.filters.tableSearch = e.target.value;
+    renderActiveCalls();
+  }, 200));
+
+  document.getElementById('refreshCallsBtn').addEventListener('click', loadActiveCalls);
+
+  document.getElementById('exportCallsBtn').addEventListener('click', () => {
+    const data = JSON.stringify(State.activeCalls, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `helen-calls-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('تم تصدير البيانات', 'ok');
+  });
+
+  document.getElementById('backToListBtn').addEventListener('click', closeCallDetail);
+  document.getElementById('endCallBtn').addEventListener('click', endCurrentCall);
+  document.getElementById('forceCallPresetBtn').addEventListener('click', () => quickForcePreset(State.selectedCallId));
+  document.getElementById('resetChartsBtn').addEventListener('click', resetCharts);
+  document.getElementById('refreshAnomaliesBtn').addEventListener('click', detectAnomalies);
+
+  document.getElementById('toggleStreamsBtn').addEventListener('click', () => {
+    State.drawerOpen = !State.drawerOpen;
+    document.getElementById('streamDrawer').classList.toggle('open', State.drawerOpen);
+    if (State.drawerOpen && !State.selectedParticipant && State.callDetail?.participants[0]) {
+      selectParticipant(State.callDetail.participants[0].id);
+    }
+  });
+
+  document.getElementById('clearConsoleBtn').addEventListener('click', () => {
+    document.getElementById('consoleLog').innerHTML = '';
+    State.consoleBuffer = [];
+  });
+
+  document.getElementById('pauseConsoleBtn').addEventListener('click', () => {
+    State.consolePaused = !State.consolePaused;
+    document.getElementById('pauseConsoleBtn').textContent = State.consolePaused ? '▶ تشغيل' : '⏸ إيقاف';
+  });
+
+  // Sortable table headers
+  document.querySelectorAll('#activeCallsTable thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const f = th.getAttribute('data-sort');
+      if (State.sortField === f) {
+        State.sortDir = State.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        State.sortField = f;
+        State.sortDir = 'desc';
+      }
+      document.querySelectorAll('#activeCallsTable thead th').forEach(x => x.classList.remove('sorted'));
+      th.classList.add('sorted');
+      renderActiveCalls();
+    });
+  });
+
+  // Close modal on overlay click
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modalOverlay') closeModal();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+      if (State.callDetail) closeCallDetail();
+    }
+    if (e.key === ' ' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      document.getElementById('pauseBtn').click();
+    }
+  });
+}
+
+// ----------------------------------------------------------------------------
+// Initialization
+// ----------------------------------------------------------------------------
+async function init() {
+  loadThresholds();
+  wireEvents();
+  setConnStatus('جاري الاتصال...', 'warn');
+
+  await loadActiveCalls();
+  detectAnomalies();
+  connectWs();
+  startTick();
+
+  // Initial console log
+  addConsoleLine({ ts: Date.now(), level: 'ok', msg: 'تم تحميل QoS Live View — جاهز للمراقبة' });
+  addConsoleLine({ ts: Date.now(), level: 'info', msg: `حُمّلت ${State.activeCalls.length} مكالمة نشطة` });
+}
+
+// Boot
+document.addEventListener('DOMContentLoaded', init);
+if (document.readyState !== 'loading') init();
+
+// Expose minimal globals for inline onclick handlers
+window.openCallDetail = openCallDetail;
+window.quickForcePreset = quickForcePreset;
+window.quickEndCall = quickEndCall;
+window.selectParticipant = selectParticipant;
+window.forcePreset = forcePreset;
+window.forceCodec = forceCodec;
+window.toggleSimulcast = toggleSimulcast;
+window.forceTurn = forceTurn;
+window.injectChaos = injectChaos;
+window.showEventDetail = showEventDetail;
+window.searchHistory = searchHistory;
+window.reconstructHistory = reconstructHistory;
+window.closeModal = closeModal;
+</script>
+</body>
+</html>

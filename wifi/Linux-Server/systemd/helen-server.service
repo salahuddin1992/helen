@@ -1,0 +1,56 @@
+[Unit]
+Description=Helen Server — LAN communication backend
+Documentation=https://github.com/your-org/helen
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=helen
+Group=helen
+
+# Load operator-editable config
+EnvironmentFile=-/etc/helen/server.env
+
+# Launch via the /usr/bin shim so env is sourced.
+ExecStart=/opt/helen/server/Helen-Server
+
+# Give the process the writable areas it needs; everything else read-only.
+WorkingDirectory=/var/lib/helen
+StateDirectory=helen
+LogsDirectory=helen
+RuntimeDirectory=helen
+ReadWritePaths=/var/lib/helen /var/log/helen /run/helen
+
+# Restart forever, with backoff.
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+# Resource caps — tune for your hardware.
+LimitNOFILE=65536
+TasksMax=8192
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false      # PyInstaller frozen binaries need JIT-ish
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+
+[Install]
+WantedBy=multi-user.target

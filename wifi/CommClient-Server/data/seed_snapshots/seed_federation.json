@@ -1,0 +1,74 @@
+[
+  {
+    "peer": {
+      "hostname": "helen-eu-1.lan",
+      "ip": "10.20.30.10",
+      "region": "eu-on-prem-1",
+      "role": "master",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "peer": {
+      "hostname": "helen-eu-2.lan",
+      "ip": "10.20.30.11",
+      "region": "eu-on-prem-1",
+      "role": "follower",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "peer": {
+      "hostname": "helen-me-1.lan",
+      "ip": "10.30.40.10",
+      "region": "me-on-prem-1",
+      "role": "follower",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "peer": {
+      "hostname": "helen-us-1.lan",
+      "ip": "10.40.50.10",
+      "region": "us-on-prem-1",
+      "role": "observer",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "shaper_rule": {
+      "peer": "helen-eu-1.lan",
+      "in_kbps": 100000,
+      "out_kbps": 100000,
+      "burst_kbps": 200000,
+      "priority": 5
+    }
+  },
+  {
+    "shaper_rule": {
+      "peer": "helen-eu-2.lan",
+      "in_kbps": 100000,
+      "out_kbps": 100000,
+      "burst_kbps": 200000,
+      "priority": 5
+    }
+  },
+  {
+    "shaper_rule": {
+      "peer": "helen-me-1.lan",
+      "in_kbps": 100000,
+      "out_kbps": 100000,
+      "burst_kbps": 200000,
+      "priority": 5
+    }
+  },
+  {
+    "shaper_rule": {
+      "peer": "helen-us-1.lan",
+      "in_kbps": 100000,
+      "out_kbps": 100000,
+      "burst_kbps": 200000,
+      "priority": 5
+    }
+  }
+]

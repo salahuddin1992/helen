@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen &mdash; Zero Trust</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",system-ui,sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+nav { display:flex; gap:6px; padding:14px 20px 0 20px; border-bottom:1px solid var(--line); }
+nav button { background:transparent; border:none; color:var(--muted);
+             padding:8px 12px; cursor:pointer; font-size:13px;
+             border-bottom:2px solid transparent; }
+nav button.active { color:var(--fg); border-bottom-color:var(--accent); }
+.container { padding:20px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+        padding:16px; margin-bottom:16px; }
+.card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+           color:var(--muted); margin:0 0 12px 0; }
+.row { display:grid; padding:8px 10px; border-bottom:1px solid var(--line);
+       align-items:center; font-size:12px; }
+.row.head { color:var(--muted); font-weight:600; font-size:11px;
+            text-transform:uppercase; letter-spacing:.5px; }
+.row:last-child { border-bottom:none; }
+.badge { display:inline-block; padding:3px 8px; border-radius:6px;
+         font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.badge.allow { background:rgba(74,222,128,.15); color:var(--good); }
+.badge.deny { background:rgba(248,113,113,.18); color:var(--bad); }
+.badge.pending { background:rgba(250,204,21,.18); color:var(--warn); }
+.badge.active { background:rgba(74,222,128,.15); color:var(--good); }
+.badge.expired { background:rgba(139,150,163,.18); color:var(--muted); }
+.btn { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+       padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; margin-right:4px; }
+.btn:hover { background:var(--line); }
+.btn.good { color:var(--good); border-color:rgba(74,222,128,.4); }
+.btn.bad { color:var(--bad); border-color:rgba(248,113,113,.4); }
+input, select, textarea { background:var(--panel2); border:1px solid var(--line);
+                          color:var(--fg); padding:7px 10px; border-radius:6px;
+                          font-size:12px; font-family:inherit; }
+textarea { width:100%; min-height:90px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px;}
+form.inline { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.tab { display:none; }
+.tab.active { display:block; }
+.risk-bar { height:6px; background:var(--panel2); border-radius:3px; overflow:hidden; }
+.risk-bar > div { height:100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zero-Trust &mdash; Access Control</h1>
+  <button class="btn" id="refresh">Refresh</button>
+</header>
+
+<nav>
+  <button data-tab="identities" class="active">Identities</button>
+  <button data-tab="policies">Policies</button>
+  <button data-tab="access">Access Log</button>
+  <button data-tab="device">Device Posture</button>
+  <button data-tab="jit">JIT</button>
+  <button data-tab="risk">Risk</button>
+</nav>
+
+<div class="container">
+  <div id="tab-identities" class="tab active">
+    <div class="card">
+      <h2>Workload Identities</h2>
+      <div class="row head" style="grid-template-columns:3fr 1fr 1fr 1fr 1fr;">
+        <div>SPIFFE ID</div><div>Type</div><div>Issued</div><div>Expires</div><div></div>
+      </div>
+      <div id="identities_list"></div>
+      <form class="inline" id="identity_form">
+        <input name="name" placeholder="workload-name" required>
+        <select name="workload_type">
+          <option value="service">service</option>
+          <option value="user">user</option>
+          <option value="device">device</option>
+          <option value="agent">agent</option>
+        </select>
+        <input name="ttl_hours" type="number" placeholder="ttl_hours" value="1" min="1" max="24">
+        <button class="btn good" type="submit">Issue</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="tab-policies" class="tab">
+    <div class="card">
+      <h2>Access Policies</h2>
+      <div class="row head" style="grid-template-columns:2fr 2fr 1fr 1fr 1fr 1fr;">
+        <div>Name</div><div>Subject / Resource</div><div>Action</div><div>Allow</div><div>Priority</div><div></div>
+      </div>
+      <div id="policies_list"></div>
+      <form id="policy_form" style="margin-top:10px;">
+        <input name="name" placeholder="policy_name" required style="width:200px;">
+        <input name="priority" type="number" placeholder="priority" value="100" style="width:90px;">
+        <select name="allow"><option value="true">allow</option><option value="false">deny</option></select>
+        <input name="action" placeholder="get / post / *" required style="width:100px;">
+        <textarea name="subject_selector" placeholder='{"role":["admin"]}'></textarea>
+        <textarea name="resource_selector" placeholder='{"pattern":"/api/admin/*"}'></textarea>
+        <textarea name="conditions" placeholder='{"risk_score_lt":50, "mfa": true}'></textarea>
+        <textarea name="obligations" placeholder='{"on_allow":["log_audit"]}'></textarea>
+        <button class="btn good" type="submit">Create</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Policy Tester</h2>
+      <form id="policy_test_form" class="inline">
+        <input name="identity" placeholder="spiffe://helen/user/alice" required style="width:280px;">
+        <input name="role" placeholder="role">
+        <input name="resource" placeholder="/api/..." required>
+        <input name="action" placeholder="get" value="get">
+        <input name="risk_score" type="number" placeholder="risk" value="0" style="width:80px;">
+        <label><input name="mfa_passed" type="checkbox"> mfa</label>
+        <label><input name="device_attested" type="checkbox"> attested</label>
+        <button class="btn" type="submit">Test</button>
+      </form>
+      <pre id="policy_test_result" style="margin-top:10px; color:var(--muted); font-size:11px;"></pre>
+    </div>
+  </div>
+
+  <div id="tab-access" class="tab">
+    <div class="card">
+      <h2>Access Decisions (live)</h2>
+      <div class="row head" style="grid-template-columns:2fr 3fr 1fr 1fr 1fr 1fr;">
+        <div>Subject</div><div>Resource</div><div>Action</div><div>Decision</div><div>Risk</div><div>Time</div>
+      </div>
+      <div id="access_list"></div>
+    </div>
+  </div>
+
+  <div id="tab-device" class="tab">
+    <div class="card">
+      <h2>Device Attestations</h2>
+      <div class="row head" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr;">
+        <div>Device</div><div>OS</div><div>Enc</div><div>Lock</div><div>AV</div><div>Risk</div><div>Valid</div>
+      </div>
+      <div id="device_list"></div>
+    </div>
+  </div>
+
+  <div id="tab-jit" class="tab">
+    <div class="card">
+      <h2>JIT Grants</h2>
+      <div class="row head" style="grid-template-columns:1fr 2fr 1fr 1fr 1fr 1fr;">
+        <div>User</div><div>Resource</div><div>Scope</div><div>Status</div><div>Expires</div><div></div>
+      </div>
+      <div id="jit_list"></div>
+    </div>
+  </div>
+
+  <div id="tab-risk" class="tab">
+    <div class="card">
+      <h2>Risk Events (score &ge; 30)</h2>
+      <div class="row head" style="grid-template-columns:2fr 3fr 1fr 1fr 1fr;">
+        <div>Subject</div><div>Resource</div><div>Decision</div><div>Risk</div><div>Time</div>
+      </div>
+      <div id="risk_list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API   = '/api/admin/zt';
+
+function H() { return { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' }; }
+async function jget(p) { const r = await fetch(p, { headers: H() }); if (!r.ok) throw new Error(p); return r.json(); }
+async function jpost(p, body) { const r = await fetch(p, { method:'POST', headers: H(), body: JSON.stringify(body)}); if (!r.ok) throw new Error(p); return r.json(); }
+async function jdel(p) { const r = await fetch(p, { method:'DELETE', headers: H() }); if (!r.ok) throw new Error(p); return r.json(); }
+
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+}));
+
+function row(cols, html) {
+  const d = document.createElement('div');
+  d.className = 'row';
+  d.style.gridTemplateColumns = cols;
+  d.innerHTML = html;
+  return d;
+}
+
+async function loadIdentities() {
+  const rows = await jget(API+'/identities');
+  const el = document.getElementById('identities_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('3fr 1fr 1fr 1fr 1fr', `
+      <div>${r.spiffe_id} ${r.revoked?'<span class="badge deny">REVOKED</span>':''}</div>
+      <div>${r.workload_type}</div>
+      <div>${new Date(r.issued_at).toLocaleTimeString()}</div>
+      <div>${new Date(r.expires_at).toLocaleString()}</div>
+      <div><button class="btn bad" data-id="${r.id}">Revoke</button></div>`);
+    el.appendChild(div);
+  }
+  el.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', async () => {
+    await jdel(API+'/identities/'+b.dataset.id); loadIdentities();
+  }));
+}
+
+async function loadPolicies() {
+  const rows = await jget(API+'/policies');
+  const el = document.getElementById('policies_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('2fr 2fr 1fr 1fr 1fr 1fr', `
+      <div>${r.name}</div>
+      <div style="font-family:monospace;font-size:10px;">
+        ${JSON.stringify(r.subject_selector)}<br>${JSON.stringify(r.resource_selector)}
+      </div>
+      <div>${r.action}</div>
+      <div><span class="badge ${r.allow?'allow':'deny'}">${r.allow?'ALLOW':'DENY'}</span></div>
+      <div>${r.priority}</div>
+      <div><button class="btn bad" data-id="${r.id}">Del</button></div>`);
+    el.appendChild(div);
+  }
+  el.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', async () => {
+    await jdel(API+'/policies/'+b.dataset.id); loadPolicies();
+  }));
+}
+
+async function loadAccess() {
+  const rows = await jget(API+'/access-log?limit=200');
+  const el = document.getElementById('access_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('2fr 3fr 1fr 1fr 1fr 1fr', `
+      <div>${r.subject}</div>
+      <div style="font-family:monospace;font-size:11px;">${r.resource}</div>
+      <div>${r.action}</div>
+      <div><span class="badge ${r.decision}">${r.decision}</span></div>
+      <div>${r.risk_score}</div>
+      <div>${new Date(r.decided_at).toLocaleTimeString()}</div>`);
+    el.appendChild(div);
+  }
+}
+
+async function loadDevice() {
+  const rows = await jget(API+'/device-attestations');
+  const el = document.getElementById('device_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('2fr 1fr 1fr 1fr 1fr 1fr 1fr', `
+      <div>${r.device_id}<br><span style="color:var(--muted);font-size:11px;">${r.user_id||''}</span></div>
+      <div>${r.os} ${r.os_version}</div>
+      <div>${r.disk_encrypted?'Y':'N'}</div>
+      <div>${r.screen_lock?'Y':'N'}</div>
+      <div>${r.antivirus_active?'Y':'N'}</div>
+      <div>${r.risk_score}</div>
+      <div>${new Date(r.valid_until).toLocaleString()}</div>`);
+    el.appendChild(div);
+  }
+}
+
+async function loadJIT() {
+  const rows = await jget(API+'/jit-grants');
+  const el = document.getElementById('jit_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('1fr 2fr 1fr 1fr 1fr 1fr', `
+      <div>${r.user_id}</div>
+      <div>${r.resource}</div>
+      <div>${(r.scopes||[]).join(',')}</div>
+      <div><span class="badge ${r.status}">${r.status}</span></div>
+      <div>${new Date(r.expires_at).toLocaleString()}</div>
+      <div>
+        ${r.status==='pending'?`<button class="btn good" data-act="approve" data-id="${r.id}">Approve</button>`:''}
+        ${r.status==='active'?`<button class="btn bad" data-act="revoke" data-id="${r.id}">Revoke</button>`:''}
+      </div>`);
+    el.appendChild(div);
+  }
+  el.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', async () => {
+    await jpost(API+'/jit-grants/'+b.dataset.id+'/'+b.dataset.act, {});
+    loadJIT();
+  }));
+}
+
+async function loadRisk() {
+  const rows = await jget(API+'/risk-events');
+  const el = document.getElementById('risk_list');
+  el.innerHTML = '';
+  for (const r of rows) {
+    const div = row('2fr 3fr 1fr 1fr 1fr', `
+      <div>${r.subject}</div>
+      <div style="font-family:monospace;font-size:11px;">${r.resource}</div>
+      <div><span class="badge ${r.decision}">${r.decision}</span></div>
+      <div>${r.risk_score}<div class="risk-bar"><div style="width:${r.risk_score}%;background:${r.risk_score>=70?'#f87171':r.risk_score>=30?'#facc15':'#4ade80'};"></div></div></div>
+      <div>${new Date(r.decided_at).toLocaleTimeString()}</div>`);
+    el.appendChild(div);
+  }
+}
+
+async function refresh() {
+  try { await Promise.all([loadIdentities(), loadPolicies(), loadAccess(), loadDevice(), loadJIT(), loadRisk()]); }
+  catch(e) { console.error(e); }
+}
+
+document.getElementById('identity_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  fd.ttl_hours = parseInt(fd.ttl_hours || '1', 10);
+  const res = await jpost(API+'/identities', fd);
+  alert('Issued SVID:\n' + res.spiffe_id + '\n\nJWT (copy now, only shown once):\n' + res.jwt);
+  e.target.reset();
+  loadIdentities();
+});
+
+document.getElementById('policy_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const body = {
+    name: fd.name,
+    priority: parseInt(fd.priority || '100', 10),
+    allow:  fd.allow === 'true',
+    action: fd.action,
+    subject_selector:  JSON.parse(fd.subject_selector || '{}'),
+    resource_selector: JSON.parse(fd.resource_selector || '{}'),
+    conditions:        JSON.parse(fd.conditions || '{}'),
+    obligations:       JSON.parse(fd.obligations || '{}'),
+  };
+  await jpost(API+'/policies', body);
+  e.target.reset();
+  loadPolicies();
+});
+
+document.getElementById('policy_test_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const body = {
+    identity:        fd.identity,
+    role:            fd.role || '',
+    resource:        fd.resource,
+    action:          fd.action,
+    risk_score:      parseInt(fd.risk_score || '0', 10),
+    mfa_passed:      !!fd.mfa_passed,
+    device_attested: !!fd.device_attested,
+  };
+  const r = await jpost(API+'/policies/test', body);
+  document.getElementById('policy_test_result').textContent = JSON.stringify(r, null, 2);
+});
+
+document.getElementById('refresh').addEventListener('click', refresh);
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

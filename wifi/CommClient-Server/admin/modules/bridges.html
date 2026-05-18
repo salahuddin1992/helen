@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<!--
+  Phase 5 / Module Y — Bridges admin module.
+  Self-contained. Loaded by the admin SPA shell via `loadModule('bridges')`.
+  Requires the global `apiFetch(path, opts)` helper.
+-->
+<style>
+  :root {
+    --br-fg:#e4e7eb; --br-bg:#0e141b; --br-bg2:#171f27;
+    --br-border:#222e3a; --br-accent:#5aa9ff;
+    --br-danger:#ff5f6d; --br-warn:#ffb347; --br-ok:#46d39a;
+  }
+  .br-wrap { color:var(--br-fg); font-family:system-ui,sans-serif; padding:18px;
+             display:grid; grid-template-columns:380px 1fr; gap:18px; min-height:80vh; }
+  .br-side { background:var(--br-bg2); border:1px solid var(--br-border);
+             border-radius:12px; padding:14px; overflow:auto; max-height:80vh; }
+  .br-main { background:var(--br-bg2); border:1px solid var(--br-border);
+             border-radius:12px; padding:18px; overflow:auto; }
+  .br-row { padding:10px 12px; border-radius:8px; cursor:pointer;
+            border:1px solid transparent; margin-bottom:6px; display:flex;
+            justify-content:space-between; align-items:center; gap:8px; }
+  .br-row:hover { background:#1f2935; }
+  .br-row.active { background:#1f2b3a; border-color:var(--br-accent); }
+  .br-row .info { display:flex; flex-direction:column; }
+  .br-row .nm { font-weight:600; }
+  .br-row .sub { font-size:12px; opacity:.7; }
+  .br-pill { display:inline-block; padding:2px 8px; border-radius:99px;
+             font-size:11px; background:#2a3340; }
+  .br-pill.running { background:#22432e; color:var(--br-ok); }
+  .br-pill.stopped { background:#3a3a3a; color:#ccc; }
+  .br-pill.error   { background:#4a2326; color:var(--br-danger); }
+  .br-pill.discord { background:#3b2b55; color:#cdb6ff; }
+  .br-pill.telegram { background:#243a55; color:#9ec8ff; }
+  .br-pill.slack { background:#3d2f1f; color:#ffd58a; }
+  .br-btn { background:var(--br-accent); color:#0a1018; border:none;
+            padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+  .br-btn.secondary { background:#2a3340; color:var(--br-fg); }
+  .br-btn.danger { background:var(--br-danger); color:#fff; }
+  .br-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .br-input, .br-select, .br-textarea {
+    width:100%; background:#0a1018; color:var(--br-fg);
+    border:1px solid var(--br-border); border-radius:8px; padding:8px 10px;
+    box-sizing:border-box; margin-top:4px;
+  }
+  .br-form-row { margin-bottom:12px; }
+  .br-form-row label { font-size:12px; opacity:.8; }
+  .br-tabs { display:flex; gap:8px; border-bottom:1px solid var(--br-border);
+             margin-bottom:14px; }
+  .br-tab { padding:8px 14px; cursor:pointer; opacity:.7; }
+  .br-tab.active { opacity:1; border-bottom:2px solid var(--br-accent); }
+  table.br-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  table.br-tbl th, table.br-tbl td {
+    text-align:left; padding:6px 8px; border-bottom:1px solid var(--br-border);
+  }
+  .br-empty { padding:30px; text-align:center; opacity:.6; }
+  .br-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .br-kv { display:grid; grid-template-columns:140px 1fr; gap:6px; font-size:13px; }
+  .br-kv .k { opacity:.6; }
+  code.br-mono { background:#0a1018; padding:2px 6px; border-radius:4px; font-size:12px; }
+</style>
+
+<div class="br-wrap" id="br-root">
+  <div class="br-side">
+    <div class="br-toolbar">
+      <button class="br-btn" id="br-new">+ New Bridge</button>
+      <button class="br-btn secondary" id="br-refresh">Refresh</button>
+    </div>
+    <div id="br-list"></div>
+  </div>
+  <div class="br-main" id="br-detail">
+    <div class="br-empty">Select a bridge to view details.</div>
+  </div>
+</div>
+
+<div id="br-create-modal" style="display:none; position:fixed; inset:0;
+     background:rgba(0,0,0,.55); z-index:9000; align-items:center; justify-content:center;">
+  <div style="background:var(--br-bg2); padding:24px; border-radius:12px;
+              width:560px; max-width:90vw; border:1px solid var(--br-border);">
+    <h3 style="margin:0 0 14px 0;">Create Bridge</h3>
+    <div class="br-form-row">
+      <label>Kind</label>
+      <select class="br-select" id="br-c-kind">
+        <option value="discord">Discord</option>
+        <option value="telegram">Telegram</option>
+        <option value="slack">Slack</option>
+      </select>
+    </div>
+    <div class="br-form-row">
+      <label>Workspace ID</label>
+      <input class="br-input" id="br-c-ws"/>
+    </div>
+    <div class="br-form-row">
+      <label>Display Name</label>
+      <input class="br-input" id="br-c-name" placeholder="general ⇄ #general"/>
+    </div>
+    <div class="br-form-row">
+      <label>Helen Channel ID</label>
+      <input class="br-input" id="br-c-helen"/>
+    </div>
+    <div class="br-form-row">
+      <label>Remote Channel ID</label>
+      <input class="br-input" id="br-c-remote"/>
+    </div>
+    <div class="br-form-row">
+      <label>Settings (JSON)</label>
+      <textarea class="br-textarea" id="br-c-settings" rows="6"
+                placeholder='{"bot_token":"...","username_prefix":"Helen"}'></textarea>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="br-btn secondary" id="br-c-cancel">Cancel</button>
+      <button class="br-btn" id="br-c-save">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const ROOT = '/api/admin/bridges';
+  let bridges = []; let selected = null; let tab = 'config';
+
+  async function api(path, opts){
+    return (await apiFetch(ROOT + path, opts || {})).json();
+  }
+
+  function pill(s){
+    if(!s) return '<span class="br-pill stopped">unknown</span>';
+    const k = s.toLowerCase();
+    return `<span class="br-pill ${k}">${s}</span>`;
+  }
+
+  async function loadAll(){
+    bridges = await api('', {});
+    renderList();
+  }
+  function renderList(){
+    const el = document.getElementById('br-list');
+    if(!bridges.length){ el.innerHTML = '<div class="br-empty">no bridges</div>'; return; }
+    el.innerHTML = bridges.map(b => `
+      <div class="br-row ${selected===b.id?'active':''}" data-id="${b.id}">
+        <div class="info">
+          <div class="nm">${b.name}</div>
+          <div class="sub">
+            <span class="br-pill ${b.kind}">${b.kind}</span>
+            ${pill(b.last_status||'stopped')}
+            ${b.enabled?'':'<span class="br-pill stopped">disabled</span>'}
+          </div>
+        </div>
+      </div>`).join('');
+    el.querySelectorAll('.br-row').forEach(r => {
+      r.onclick = () => { selected = r.dataset.id; tab='config'; renderList(); renderDetail(); };
+    });
+  }
+
+  async function renderDetail(){
+    const b = bridges.find(x => x.id === selected);
+    const main = document.getElementById('br-detail');
+    if(!b){ main.innerHTML = '<div class="br-empty">Select a bridge.</div>'; return; }
+    const health = await api(`/${b.id}/health`, {});
+
+    main.innerHTML = `
+      <h2 style="margin-top:0;">${b.name}</h2>
+      <div class="br-toolbar">
+        ${pill(b.kind)} ${pill(b.last_status||'stopped')}
+        ${b.enabled?'<span class="br-pill running">enabled</span>':'<span class="br-pill stopped">disabled</span>'}
+        <span style="flex:1"></span>
+        <button class="br-btn" id="br-d-start">Start</button>
+        <button class="br-btn secondary" id="br-d-stop">Stop</button>
+        <button class="br-btn secondary" id="br-d-test">Test</button>
+        <button class="br-btn danger" id="br-d-del">Delete</button>
+      </div>
+      <div class="br-tabs">
+        <div class="br-tab ${tab==='config'?'active':''}" data-t="config">Config</div>
+        <div class="br-tab ${tab==='log'?'active':''}" data-t="log">Message Log</div>
+        <div class="br-tab ${tab==='health'?'active':''}" data-t="health">Health</div>
+      </div>
+      <div id="br-tab-content"></div>
+    `;
+    main.querySelectorAll('.br-tab').forEach(t => {
+      t.onclick = () => { tab = t.dataset.t; renderDetail(); };
+    });
+    document.getElementById('br-d-start').onclick = async () => {
+      await api(`/${b.id}/start`, {method:'POST'}); await loadAll(); renderDetail();
+    };
+    document.getElementById('br-d-stop').onclick = async () => {
+      await api(`/${b.id}/stop`, {method:'POST'}); await loadAll(); renderDetail();
+    };
+    document.getElementById('br-d-test').onclick = async () => {
+      const r = await api(`/${b.id}/test`, {method:'POST'});
+      alert('Test: ' + (r.ok?'OK':'FAIL') + ' — ' + r.detail);
+    };
+    document.getElementById('br-d-del').onclick = async () => {
+      if(!confirm('Delete bridge?')) return;
+      await apiFetch(ROOT + '/' + b.id, {method:'DELETE'});
+      selected = null; await loadAll();
+    };
+
+    const c = document.getElementById('br-tab-content');
+    if(tab==='config'){
+      c.innerHTML = `
+        <div class="br-form-row"><label>Name</label>
+          <input class="br-input" id="br-e-name" value="${b.name}"/></div>
+        <div class="br-form-row"><label>Helen Channel ID</label>
+          <input class="br-input" id="br-e-helen" value="${b.channel_helen_id}"/></div>
+        <div class="br-form-row"><label>Remote Channel ID</label>
+          <input class="br-input" id="br-e-remote" value="${b.channel_remote_id}"/></div>
+        <div class="br-form-row"><label>Settings (JSON)</label>
+          <textarea class="br-textarea" id="br-e-settings" rows="8">${JSON.stringify(b.settings,null,2)}</textarea></div>
+        <button class="br-btn" id="br-e-save">Save</button>
+      `;
+      document.getElementById('br-e-save').onclick = async () => {
+        let settings = {};
+        try { settings = JSON.parse(document.getElementById('br-e-settings').value || '{}'); }
+        catch(e){ alert('invalid JSON: '+e); return; }
+        await apiFetch(ROOT + '/' + b.id, {
+          method:'PUT', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            name: document.getElementById('br-e-name').value,
+            channel_helen_id: document.getElementById('br-e-helen').value,
+            channel_remote_id: document.getElementById('br-e-remote').value,
+            settings,
+          })
+        });
+        await loadAll(); renderDetail();
+      };
+    } else if(tab==='log'){
+      const msgs = await api(`/${b.id}/messages?limit=100`, {});
+      c.innerHTML = `<table class="br-tbl"><thead><tr>
+          <th>Time</th><th>Direction</th><th>Status</th><th>Helen</th><th>Remote</th><th>Error</th>
+        </tr></thead><tbody>
+        ${msgs.map(m => `<tr>
+          <td>${new Date(m.created_at).toLocaleString()}</td>
+          <td>${m.direction}</td><td>${m.status}</td>
+          <td><code class="br-mono">${m.helen_message_id||''}</code></td>
+          <td><code class="br-mono">${m.remote_message_id||''}</code></td>
+          <td style="color:var(--br-danger)">${m.error||''}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+    } else if(tab==='health'){
+      c.innerHTML = `<div class="br-kv">
+        <div class="k">OK</div><div>${health.ok?'yes':'no'}</div>
+        <div class="k">Detail</div><div>${health.detail||''}</div>
+        <div class="k">Extra</div><div><pre>${JSON.stringify(health.extra||{},null,2)}</pre></div>
+        <div class="k">Last status</div><div>${b.last_status||'-'}</div>
+        <div class="k">Last error</div><div style="color:var(--br-danger)">${b.last_error||''}</div>
+      </div>`;
+    }
+  }
+
+  document.getElementById('br-refresh').onclick = loadAll;
+  document.getElementById('br-new').onclick = () => {
+    document.getElementById('br-create-modal').style.display = 'flex';
+  };
+  document.getElementById('br-c-cancel').onclick = () => {
+    document.getElementById('br-create-modal').style.display = 'none';
+  };
+  document.getElementById('br-c-save').onclick = async () => {
+    let settings = {};
+    try { settings = JSON.parse(document.getElementById('br-c-settings').value || '{}'); }
+    catch(e){ alert('invalid JSON: '+e); return; }
+    await apiFetch(ROOT, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        kind: document.getElementById('br-c-kind').value,
+        workspace_id: document.getElementById('br-c-ws').value,
+        name: document.getElementById('br-c-name').value,
+        channel_helen_id: document.getElementById('br-c-helen').value,
+        channel_remote_id: document.getElementById('br-c-remote').value,
+        enabled: true,
+        settings,
+      })
+    });
+    document.getElementById('br-create-modal').style.display = 'none';
+    await loadAll();
+  };
+
+  loadAll();
+})();
+</script>
+
+</script>
+</body>
+</html>

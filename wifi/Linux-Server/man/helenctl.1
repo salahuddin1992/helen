@@ -1,0 +1,120 @@
+.TH HELENCTL 1 "2026-04-23" "Helen 1.0" "Helen Operator Commands"
+.SH NAME
+helenctl \- unified operator CLI for Helen-Server
+.SH SYNOPSIS
+.B helenctl
+.I command
+[\fIargs\fR]
+.SH DESCRIPTION
+\fBhelenctl\fR bundles service control, health checks, diagnostics,
+backup/restore, cluster management, role toggling, and emergency
+commands behind one namespace. It talks to the local Helen-Server via
+loopback HTTP and systemd.
+.SH COMMANDS
+.TP
+.B status
+Show systemd service state plus the control-plane phase, CPU, RSS, socket and
+room counts.
+.TP
+.B logs [\-f] [\-n N]
+Tail journald output for the service. \fB\-f\fR follows.
+.TP
+.B health
+Quick probe of /api/health. Exit 0 on 200, non-zero otherwise — suitable for
+monitoring hooks.
+.TP
+.B check
+Run pre-flight checks + validate config files.
+.TP
+.B diag [path]
+Collect a tar.gz of system info, journald logs, config, state, and network
+configuration (sensitive values redacted).
+.TP
+.B backup [path] [\-\-include-secret] [\-\-include-config]
+Snapshot DB + state files atomically. SQLite backed up via the .backup
+pragma so the copy is consistent.
+.TP
+.B restore <bundle>
+Restore from a backup. The current DATADIR is moved aside to a savepoint
+first, so a bad bundle can be undone.
+.TP
+.B upgrade <bin-dir>
+Blue/green swap — renames current binary, installs new one, runs a smoke test.
+Rolls back automatically if health fails.
+.TP
+.B cert rotate
+Regenerate the self-signed TLS cert with helen.local + current LAN IP as SANs.
+.TP
+.B cluster list|join|leave
+Manage the node registry. Call \fBjoin\fR on a second Helen-Server to
+register this one against it.
+.TP
+.B role <name> <on|off>
+Toggle a server role (\fIsfu\fR, \fIrelay\fR, \fIrecording\fR, etc.).
+.TP
+.B policy <mode>
+Force policy_mode (auto | chat_only | audio_only | video_ok | no_sfu_p2p_only |
+no_relay).
+.TP
+.B emergency freeze|exit
+Enter or leave emergency phase. \fBfreeze\fR requires a secret-admin token.
+.TP
+.B roles
+Print the full role + policy + threshold table.
+.SH ENVIRONMENT
+.TP
+.B HELEN_BASE
+Helen-Server URL (default: \fBhttp://127.0.0.1:3000\fR).
+.TP
+.B HELEN_ADMIN_TOKEN
+Bearer JWT for admin-role endpoints.
+.TP
+.B HELEN_SECRET_TOKEN
+Session token from /api/secret-admin/auth for privileged actions.
+.SH FILES
+.TP
+.B /etc/helen/server.env
+Environment sourced by systemd unit.
+.TP
+.B /var/lib/helen/
+Data directory (DB, roles, access codes, audit).
+.TP
+.B /var/log/helen/
+Log directory.
+.SH EXAMPLES
+.nf
+# Quick triage on a misbehaving server
+sudo helenctl status
+sudo helenctl logs -n 200
+sudo helenctl check
+sudo helenctl diag /tmp/
+
+# Rotate the self-signed cert after changing host IP
+sudo helenctl cert rotate && sudo systemctl restart helen-server
+
+# Temporarily force all rooms into audio-only mode
+HELEN_ADMIN_TOKEN=... helenctl policy audio_only
+
+# Back up before an upgrade, then swap binaries
+sudo helenctl backup --include-config
+sudo helenctl upgrade /tmp/new-release/Helen-Server/
+.fi
+.SH EXIT STATUS
+.TP 4
+.B 0
+success
+.TP
+.B 1
+generic failure
+.TP
+.B 2
+invalid usage
+.TP
+.B 3
+operation declined (e.g., upgrade rolled back)
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR sysctl (8)
+.SH AUTHOR
+Helen operations team.

@@ -1,0 +1,32 @@
+# Prometheus scrape config for Helen.
+#
+# Helen-Server exposes /metrics on the same port as the API (3000).
+# Scrape it from inside the helen-internal Docker network.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    deployment: helen-lan
+
+scrape_configs:
+  - job_name: helen-server
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - helen-server:3000
+        labels:
+          service: helen-server
+
+  - job_name: helen-rendezvous
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - helen-rendezvous:9090
+        labels:
+          service: helen-rendezvous
+
+  # Self-scrape so we can alert on Prometheus health
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090

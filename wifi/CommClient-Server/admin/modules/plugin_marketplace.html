@@ -1,0 +1,2508 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Plugin Marketplace - Helen / CommClient Admin</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  /* =====================================================================
+     Helen / CommClient :: Plugin Marketplace + Manager
+     Production-grade standalone module.
+     LAN-only. No external CDN. RTL Arabic. Inline CSS + JS.
+     ===================================================================== */
+
+  :root{
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --panel-2:#0d1626;
+    --border:#1a2a3a;
+    --border-strong:#243a55;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --text-mute:#6b7686;
+    --accent:#00d4ff;
+    --accent-2:#0098c4;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --link:#3b82f6;
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+    --radius:10px;
+    --radius-sm:6px;
+    --mono:ui-monospace, "JetBrains Mono", Consolas, monospace;
+    --sans: "Segoe UI", "Tahoma", "Noto Naskh Arabic", sans-serif;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:13.5px;
+    line-height:1.55;
+    overflow-x:hidden;
+  }
+  a{color:var(--link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--panel-2)}
+  ::-webkit-scrollbar-thumb{background:#23344a;border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:#2e4660}
+
+  /* ----- Top global bar ----- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:12px;
+    padding:10px 16px;
+    background:linear-gradient(180deg,#0f1a30 0%,#0c1426 100%);
+    border-bottom:1px solid var(--border);
+    box-shadow:0 1px 0 rgba(0,212,255,.06);
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700}
+  .brand .dot{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 12px var(--accent);
+  }
+  .brand .name{letter-spacing:.3px}
+  .brand .sub{color:var(--text-dim);font-weight:500;font-size:12px}
+  .top-tools{margin-inline-start:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{
+    display:inline-flex;background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius-sm);overflow:hidden;
+  }
+  .seg button{
+    background:transparent;color:var(--text-dim);border:0;
+    padding:7px 12px;cursor:pointer;font-size:12.5px;
+  }
+  .seg button.active{background:rgba(0,212,255,.12);color:var(--accent)}
+  .top-search{
+    display:flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:6px 10px;min-width:280px;
+  }
+  .top-search input{
+    background:transparent;border:0;outline:0;color:var(--text);
+    width:100%;font-size:13px;
+  }
+  .top-search .kbd{
+    color:var(--text-mute);border:1px solid var(--border);
+    border-radius:4px;padding:1px 6px;font-size:11px;font-family:var(--mono);
+  }
+  .icon-btn{
+    position:relative;background:var(--panel);border:1px solid var(--border);
+    color:var(--text);padding:7px 10px;border-radius:var(--radius-sm);
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+  }
+  .icon-btn:hover{border-color:var(--border-strong);color:var(--accent)}
+  .icon-btn .badge{
+    position:absolute;top:-6px;left:-6px;background:var(--err);color:#fff;
+    border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;
+  }
+
+  /* ----- Layout shell ----- */
+  .shell{
+    display:grid;
+    grid-template-columns: 260px 1fr 300px;
+    gap:14px;padding:14px;
+    min-height: calc(100vh - 56px);
+  }
+  @media (max-width: 1400px){
+    .shell{grid-template-columns: 240px 1fr 280px}
+  }
+  @media (max-width: 1100px){
+    .shell{grid-template-columns: 220px 1fr}
+    .rail-right{display:none}
+  }
+  @media (max-width: 820px){
+    .shell{grid-template-columns: 1fr;padding:10px}
+    .rail-left{order:2}
+  }
+
+  .panel{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);padding:14px;
+  }
+  .panel h3{
+    margin:0 0 10px;font-size:13px;letter-spacing:.4px;
+    color:var(--text-dim);text-transform:uppercase;font-weight:600;
+  }
+  .panel h3 .count{
+    color:var(--text-mute);font-weight:500;margin-inline-start:6px;
+  }
+
+  /* ----- Left rail (filters) ----- */
+  .rail-left .group{margin-bottom:18px}
+  .rail-left .search-box{
+    display:flex;align-items:center;gap:6px;
+    background:var(--panel-2);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:6px 8px;margin-bottom:8px;
+  }
+  .rail-left .search-box input{
+    flex:1;background:transparent;border:0;outline:0;color:var(--text);
+  }
+  .cat-list{display:flex;flex-direction:column;gap:2px}
+  .cat-list .item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 10px;border-radius:6px;cursor:pointer;color:var(--text-dim);
+    font-size:13px;
+  }
+  .cat-list .item:hover{background:rgba(255,255,255,.03);color:var(--text)}
+  .cat-list .item.active{
+    background:rgba(0,212,255,.10);color:var(--accent);
+    border:1px solid rgba(0,212,255,.25);
+  }
+  .cat-list .item .c{
+    color:var(--text-mute);font-size:11.5px;font-family:var(--mono);
+  }
+
+  .tag-cloud{display:flex;flex-wrap:wrap;gap:6px}
+  .tag-cloud .tag{
+    padding:3px 9px;border-radius:20px;font-size:11.5px;cursor:pointer;
+    background:#152034;border:1px solid var(--border);color:var(--text-dim);
+  }
+  .tag-cloud .tag:hover{border-color:var(--accent);color:var(--accent)}
+  .tag-cloud .tag.active{background:rgba(0,212,255,.15);color:var(--accent);border-color:var(--accent)}
+
+  .check-row{
+    display:flex;align-items:center;gap:8px;padding:5px 4px;
+    color:var(--text-dim);font-size:13px;cursor:pointer;
+  }
+  .check-row input{accent-color:var(--accent)}
+  .check-row:hover{color:var(--text)}
+
+  .select-pill{
+    width:100%;background:var(--panel-2);color:var(--text);
+    border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:7px 10px;font-size:13px;outline:none;
+  }
+  .select-pill:focus{border-color:var(--accent)}
+
+  /* ----- Center catalog ----- */
+  .center{display:flex;flex-direction:column;gap:14px}
+  .center-toolbar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);padding:10px 12px;
+  }
+  .center-toolbar .lbl{color:var(--text-dim);font-size:12px}
+  .center-toolbar .spacer{flex:1}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:#142036;border:1px solid var(--border);
+    color:var(--text);padding:4px 10px;border-radius:18px;font-size:12px;
+  }
+  .chip .x{cursor:pointer;color:var(--text-mute)}
+  .chip .x:hover{color:var(--err)}
+
+  .catalog-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap:12px;
+  }
+  .catalog-grid.list-mode{
+    grid-template-columns: 1fr;
+  }
+
+  .card{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);padding:12px;cursor:pointer;
+    transition:.15s;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .card:hover{border-color:var(--accent);transform:translateY(-1px);
+    box-shadow:0 6px 18px rgba(0,212,255,.08)}
+  .card .head{display:flex;align-items:center;gap:10px}
+  .card .icon{
+    width:42px;height:42px;border-radius:10px;flex:0 0 42px;
+    background:linear-gradient(135deg,#1c2c46,#0d1525);
+    display:grid;place-items:center;color:var(--accent);font-weight:800;
+    font-size:18px;border:1px solid var(--border);
+  }
+  .card .ttl{font-weight:700;font-size:14px;line-height:1.2}
+  .card .ttl small{
+    display:block;color:var(--text-mute);font-weight:500;font-size:11.5px;
+    margin-top:2px;
+  }
+  .card .desc{
+    color:var(--text-dim);font-size:12.5px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    min-height:36px;
+  }
+  .card .meta{
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:11.5px;color:var(--text-mute);
+  }
+  .stars{color:var(--warn);letter-spacing:1px;font-size:12px}
+  .card .ribbon{
+    position:absolute;top:8px;left:-2px;
+    background:var(--accent);color:#031019;padding:2px 8px;
+    font-size:10.5px;font-weight:700;border-radius:0 4px 4px 0;
+  }
+  .badge-pill{
+    display:inline-block;padding:1px 7px;border-radius:10px;
+    font-size:10.5px;font-weight:700;letter-spacing:.3px;
+  }
+  .b-official{background:rgba(0,212,255,.15);color:var(--accent)}
+  .b-verified{background:rgba(74,222,128,.15);color:var(--ok)}
+  .b-community{background:rgba(160,168,176,.15);color:var(--text-dim)}
+  .b-installed{background:rgba(74,222,128,.18);color:var(--ok)}
+  .b-update{background:rgba(250,204,21,.18);color:var(--warn)}
+  .b-error{background:rgba(255,71,87,.18);color:var(--err)}
+
+  .btn{
+    background:var(--accent);color:#031019;border:0;border-radius:6px;
+    padding:6px 12px;font-weight:700;cursor:pointer;font-size:12.5px;
+  }
+  .btn:hover{background:#22e0ff}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.warn{background:var(--warn);color:#1a1300}
+  .btn.danger{background:var(--err);color:#fff}
+  .btn.sm{padding:4px 9px;font-size:11.5px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+  /* ----- Right rail ----- */
+  .rail-right .group{margin-bottom:16px}
+  .mini-card{
+    display:flex;gap:10px;padding:8px;border-radius:8px;cursor:pointer;
+  }
+  .mini-card:hover{background:rgba(255,255,255,.03)}
+  .mini-card .icon{
+    width:30px;height:30px;border-radius:8px;flex:0 0 30px;
+    background:#162640;display:grid;place-items:center;color:var(--accent);
+    font-size:14px;font-weight:800;
+  }
+  .mini-card .t{font-weight:600;font-size:13px}
+  .mini-card .s{color:var(--text-mute);font-size:11.5px}
+
+  /* ----- Detail drawer (full screen overlay) ----- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(3,8,18,.78);z-index:200;
+    display:none;align-items:stretch;justify-content:flex-end;
+    backdrop-filter: blur(2px);
+  }
+  .overlay.show{display:flex}
+  .drawer{
+    width:min(960px,100%);background:var(--panel-2);
+    border-inline-start:1px solid var(--border);
+    display:flex;flex-direction:column;animation:slideIn .2s ease;
+  }
+  @keyframes slideIn{from{transform:translateX(-30px);opacity:0}to{transform:none;opacity:1}}
+  .drawer .dhead{
+    display:flex;gap:14px;align-items:flex-start;padding:16px;
+    border-bottom:1px solid var(--border);background:var(--panel);
+  }
+  .drawer .dhead .icon{
+    width:64px;height:64px;border-radius:14px;
+    background:linear-gradient(135deg,#1c2c46,#0d1525);
+    display:grid;place-items:center;color:var(--accent);
+    font-size:26px;font-weight:800;border:1px solid var(--border);flex:0 0 64px;
+  }
+  .drawer .dhead h2{margin:0;font-size:20px}
+  .drawer .dhead .info{flex:1;min-width:0}
+  .drawer .dhead .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--text-dim);font-size:12.5px;margin-top:6px}
+  .drawer .dhead .act{display:flex;gap:8px;flex-shrink:0}
+  .drawer .close-x{
+    background:transparent;color:var(--text);border:0;font-size:22px;
+    cursor:pointer;padding:0 8px;line-height:1;
+  }
+
+  .tabs{
+    display:flex;gap:4px;padding:0 16px;border-bottom:1px solid var(--border);
+    overflow-x:auto;background:var(--panel);
+  }
+  .tabs button{
+    background:transparent;color:var(--text-dim);border:0;
+    padding:11px 14px;font-size:13px;cursor:pointer;
+    border-bottom:2px solid transparent;white-space:nowrap;
+  }
+  .tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-body{padding:16px;overflow:auto;flex:1}
+  .tab-pane{display:none}
+  .tab-pane.active{display:block}
+
+  /* Markdown render */
+  .md{font-size:13.5px;line-height:1.7;color:var(--text)}
+  .md h1{font-size:22px;margin:.5em 0}
+  .md h2{font-size:18px;margin:.6em 0 .3em;color:var(--accent)}
+  .md h3{font-size:15px;margin:.5em 0 .2em}
+  .md p{margin:.4em 0}
+  .md code{
+    background:#0a1424;border:1px solid var(--border);padding:1px 6px;
+    border-radius:4px;font-family:var(--mono);font-size:12.5px;
+  }
+  .md pre{
+    background:#0a1424;border:1px solid var(--border);padding:10px;
+    border-radius:6px;font-family:var(--mono);font-size:12px;overflow:auto;
+  }
+  .md ul, .md ol{margin:.3em 0;padding-inline-start:22px}
+  .md blockquote{
+    border-inline-start:3px solid var(--accent);background:rgba(0,212,255,.05);
+    padding:8px 12px;margin:.4em 0;color:var(--text-dim);
+  }
+  .md a{color:var(--link)}
+  .md hr{border:0;border-top:1px solid var(--border);margin:12px 0}
+
+  /* Screenshots carousel */
+  .carousel{display:flex;gap:10px;overflow-x:auto;padding:6px 0}
+  .carousel .shot{
+    width:280px;height:170px;flex:0 0 280px;border-radius:8px;
+    border:1px solid var(--border);background:#0a1424;
+    display:grid;place-items:center;color:var(--text-mute);font-size:11px;
+  }
+  .carousel img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+
+  /* Permissions list */
+  .perm{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border)}
+  .perm:last-child{border-bottom:0}
+  .perm .sev{
+    width:64px;flex:0 0 64px;text-align:center;border-radius:6px;
+    padding:2px 0;font-size:11px;font-weight:700;
+  }
+  .sev.low{background:rgba(160,168,176,.15);color:var(--text-dim)}
+  .sev.medium{background:rgba(59,130,246,.18);color:var(--link)}
+  .sev.high{background:rgba(250,204,21,.18);color:var(--warn)}
+  .sev.critical{background:rgba(255,71,87,.18);color:var(--err)}
+  .perm .name{font-family:var(--mono);font-size:12.5px;color:var(--text)}
+  .perm .desc{color:var(--text-dim);font-size:12px;margin-top:2px}
+
+  /* JSON viewer */
+  .json-view{
+    background:#070e1c;border:1px solid var(--border);border-radius:8px;
+    padding:12px;font-family:var(--mono);font-size:12.5px;color:var(--text);
+    white-space:pre-wrap;word-break:break-all;
+  }
+  .j-key{color:#7dd3fc}
+  .j-str{color:#a5f3a5}
+  .j-num{color:#fbbf24}
+  .j-bool{color:#f472b6}
+  .j-null{color:#64748b}
+  .j-punct{color:var(--text-mute)}
+
+  /* Reviews */
+  .review{
+    border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;margin-bottom:10px;background:var(--panel);
+  }
+  .review .top{display:flex;justify-content:space-between;align-items:center}
+  .review .who{font-weight:600;color:var(--text)}
+  .review .when{color:var(--text-mute);font-size:11.5px}
+  .review .body{color:var(--text-dim);margin-top:6px;font-size:13px}
+  .review .helpful{margin-top:8px;font-size:12px;color:var(--text-mute);display:flex;gap:10px}
+  .review .helpful button{
+    background:transparent;color:var(--text-dim);border:1px solid var(--border);
+    border-radius:14px;padding:2px 8px;cursor:pointer;font-size:11.5px;
+  }
+  .star-input{display:inline-flex;gap:4px;cursor:pointer}
+  .star-input span{color:var(--text-mute);font-size:18px}
+  .star-input span.on{color:var(--warn)}
+
+  /* Changelog */
+  .cl-entry{border-inline-start:2px solid var(--border);padding:6px 12px;margin:6px 0}
+  .cl-entry.latest{border-color:var(--accent)}
+  .cl-ver{font-weight:700;color:var(--accent)}
+  .cl-date{color:var(--text-mute);font-size:11.5px;margin-inline-start:8px}
+  .cl-notes{color:var(--text-dim);font-size:12.5px;margin-top:4px}
+
+  /* Logs */
+  .log-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .log-view{
+    background:#06101e;border:1px solid var(--border);border-radius:6px;
+    padding:8px;font-family:var(--mono);font-size:12px;height:380px;overflow:auto;
+  }
+  .log-line{padding:1px 0}
+  .log-line.lvl-INFO{color:var(--text-dim)}
+  .log-line.lvl-WARN{color:var(--warn)}
+  .log-line.lvl-ERROR{color:var(--err)}
+  .log-line.lvl-DEBUG{color:#7dd3fc}
+
+  /* Dependencies */
+  .dep-table{width:100%;border-collapse:collapse;font-size:13px}
+  .dep-table th,.dep-table td{
+    text-align:start;padding:8px;border-bottom:1px solid var(--border);
+  }
+  .dep-table th{color:var(--text-dim);font-weight:600;background:var(--panel)}
+
+  /* Modal */
+  .modal{
+    position:fixed;inset:0;z-index:300;background:rgba(3,8,18,.78);
+    display:none;align-items:center;justify-content:center;padding:18px;
+  }
+  .modal.show{display:flex}
+  .modal .box{
+    width:min(620px,100%);background:var(--panel);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);
+    display:flex;flex-direction:column;max-height:90vh;
+  }
+  .modal .mhead{padding:14px 16px;border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center}
+  .modal .mhead h3{margin:0;font-size:15px}
+  .modal .mbody{padding:16px;overflow:auto}
+  .modal .mfoot{padding:12px 16px;border-top:1px solid var(--border);
+    display:flex;gap:8px;justify-content:flex-end}
+
+  /* Progress bar */
+  .progress{
+    background:#0a1424;border:1px solid var(--border);border-radius:6px;
+    height:14px;overflow:hidden;position:relative;
+  }
+  .progress .bar{
+    background:linear-gradient(90deg,var(--accent),#22e0ff);
+    height:100%;width:0%;transition:width .25s ease;
+  }
+  .progress .lbl{
+    position:absolute;inset:0;display:grid;place-items:center;
+    font-size:11px;color:#fff;font-weight:700;
+  }
+  .step-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+  .step{
+    display:flex;gap:10px;align-items:center;
+    font-size:13px;color:var(--text-dim);
+  }
+  .step .ind{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);display:grid;place-items:center;font-size:10px}
+  .step.done .ind{background:var(--ok);border-color:var(--ok);color:#062}
+  .step.active .ind{border-color:var(--accent);color:var(--accent)}
+  .step.err .ind{background:var(--err);border-color:var(--err);color:#fff}
+  .step.done{color:var(--text)}
+  .step.active{color:var(--accent)}
+
+  /* Installed table */
+  .inst-table{width:100%;border-collapse:collapse;font-size:13px}
+  .inst-table th,.inst-table td{
+    text-align:start;padding:8px 10px;border-bottom:1px solid var(--border);
+  }
+  .inst-table thead th{
+    color:var(--text-dim);background:var(--panel);font-weight:600;
+    position:sticky;top:0;z-index:2;
+  }
+  .inst-table tr:hover{background:rgba(255,255,255,.02)}
+  .inst-row .nm{font-weight:600}
+  .inst-row .nm small{display:block;color:var(--text-mute);font-weight:400;font-size:11px}
+
+  /* Sub-tabs */
+  .sub-tabs{
+    display:flex;gap:4px;background:var(--panel);
+    border:1px solid var(--border);border-radius:var(--radius);
+    padding:4px;margin-bottom:12px;
+  }
+  .sub-tabs button{
+    background:transparent;color:var(--text-dim);border:0;
+    padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12.5px;
+  }
+  .sub-tabs button.active{background:rgba(0,212,255,.12);color:var(--accent)}
+
+  /* Upload zone */
+  .drop-zone{
+    border:2px dashed var(--border-strong);border-radius:var(--radius);
+    padding:36px;text-align:center;color:var(--text-dim);
+    transition:.15s;background:var(--panel-2);
+  }
+  .drop-zone.drag{border-color:var(--accent);background:rgba(0,212,255,.05);color:var(--accent)}
+  .drop-zone .big{font-size:36px;margin-bottom:6px;color:var(--accent)}
+
+  .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .form-row label{font-size:12.5px;color:var(--text-dim)}
+  .input{
+    background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+    border-radius:6px;padding:8px 10px;font-size:13px;outline:none;width:100%;
+  }
+  .input:focus{border-color:var(--accent)}
+
+  .switch{position:relative;display:inline-block;width:38px;height:20px}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{
+    position:absolute;cursor:pointer;inset:0;background:#23344a;
+    border-radius:20px;transition:.2s;
+  }
+  .slider:before{
+    content:"";position:absolute;height:14px;width:14px;
+    inset-block-start:3px;inset-inline-start:3px;
+    background:#fff;border-radius:50%;transition:.2s;
+  }
+  input:checked + .slider{background:var(--accent)}
+  input:checked + .slider:before{transform:translateX(18px)}
+  html[dir="rtl"] input:checked + .slider:before{transform:translateX(-18px)}
+
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:8px 16px;font-size:13px}
+  .kv .k{color:var(--text-dim)}
+
+  /* Toasts */
+  .toasts{
+    position:fixed;bottom:18px;left:18px;z-index:500;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .toast{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:10px 14px;color:var(--text);
+    box-shadow:var(--shadow);min-width:260px;max-width:380px;
+    animation:fadeIn .2s ease;
+  }
+  .toast.ok{border-color:var(--ok)}
+  .toast.err{border-color:var(--err)}
+  .toast.warn{border-color:var(--warn)}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* Empty state */
+  .empty{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 20px;color:var(--text-mute);text-align:center;
+  }
+  .empty .ico{font-size:42px;color:var(--text-dim);margin-bottom:8px}
+
+  /* Misc */
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .gap-12{gap:12px}
+  .muted{color:var(--text-mute)}
+  .dim{color:var(--text-dim)}
+  .nowrap{white-space:nowrap}
+  .grow{flex:1}
+  .hidden{display:none !important}
+  .pill{display:inline-block;padding:1px 8px;border-radius:12px;font-size:11px;background:#142036;color:var(--text-dim);border:1px solid var(--border)}
+  .dot-status{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    margin-inline-end:6px;background:var(--text-mute);
+  }
+  .ds-enabled{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .ds-disabled{background:var(--text-mute)}
+  .ds-error{background:var(--err);box-shadow:0 0 6px var(--err)}
+  .ds-updating{background:var(--warn);box-shadow:0 0 6px var(--warn);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+
+  hr.sep{border:0;border-top:1px solid var(--border);margin:10px 0}
+
+  .keys-list{
+    background:var(--panel-2);border:1px solid var(--border);
+    border-radius:6px;padding:8px;font-family:var(--mono);font-size:11.5px;
+    max-height:200px;overflow:auto;
+  }
+  .key-row{display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--border)}
+  .key-row:last-child{border-bottom:0}
+
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<div class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <span class="name">Helen Plugins</span>
+    <span class="sub">/ Marketplace &amp; Manager</span>
+  </div>
+
+  <div class="top-tools">
+    <div class="seg" id="mainToggle">
+      <button data-mode="catalog" class="active">السوق</button>
+      <button data-mode="installed">المثبّتة</button>
+      <button data-mode="developer">المطوّر</button>
+      <button data-mode="settings">الإعدادات</button>
+    </div>
+
+    <div class="top-search">
+      <span class="muted">بحث</span>
+      <input id="globalSearch" type="text" placeholder="ابحث في الإضافات…" />
+      <span class="kbd">Ctrl K</span>
+    </div>
+
+    <div class="seg" id="viewToggle">
+      <button data-view="grid" class="active" title="شبكة">▦</button>
+      <button data-view="list" title="قائمة">≡</button>
+    </div>
+
+    <button class="icon-btn" id="updatesBtn" title="تحديثات متاحة">
+      <span>تحديثات</span>
+      <span class="badge" id="updatesBadge">0</span>
+    </button>
+
+    <button class="icon-btn" id="refreshBtn" title="تحديث الكتالوج">↻</button>
+  </div>
+</div>
+
+<!-- ===================== MAIN SHELL ===================== -->
+<div class="shell" id="shell">
+
+  <!-- ============ LEFT RAIL — FILTERS ============ -->
+  <aside class="panel rail-left" id="railLeft">
+    <div class="group">
+      <h3>بحث وتصفية</h3>
+      <div class="search-box">
+        <span class="muted">⌕</span>
+        <input id="leftSearch" type="text" placeholder="اسم / تاج / مؤلف" />
+      </div>
+      <select class="select-pill" id="sortSelect">
+        <option value="relevance">الترتيب: الأكثر صلة</option>
+        <option value="popular">الأكثر شعبية</option>
+        <option value="rating">الأعلى تقييماً</option>
+        <option value="newest">الأحدث إضافة</option>
+        <option value="updated">آخر تحديث</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <h3>التصنيفات <span class="count" id="catCount"></span></h3>
+      <div class="cat-list" id="catList"></div>
+    </div>
+
+    <div class="group">
+      <h3>المصدر</h3>
+      <label class="check-row"><input type="checkbox" data-source="official" checked> رسمي</label>
+      <label class="check-row"><input type="checkbox" data-source="verified" checked> موثّق</label>
+      <label class="check-row"><input type="checkbox" data-source="community" checked> مجتمع</label>
+    </div>
+
+    <div class="group">
+      <h3>النوع</h3>
+      <label class="check-row"><input type="checkbox" data-type="server-py" checked> Python خادم</label>
+      <label class="check-row"><input type="checkbox" data-type="server-js" checked> JS خادم</label>
+      <label class="check-row"><input type="checkbox" data-type="handler" checked> معالج رسائل</label>
+      <label class="check-row"><input type="checkbox" data-type="webhook" checked> Webhook</label>
+      <label class="check-row"><input type="checkbox" data-type="bridge" checked> جسر</label>
+      <label class="check-row"><input type="checkbox" data-type="panel" checked> لوحة UI</label>
+    </div>
+
+    <div class="group">
+      <h3>الوسوم الشائعة</h3>
+      <div class="tag-cloud" id="tagCloud"></div>
+    </div>
+  </aside>
+
+  <!-- ============ CENTER ============ -->
+  <main class="center">
+
+    <!-- ===== Catalog view ===== -->
+    <section id="catalogView">
+      <div class="center-toolbar">
+        <span class="lbl">المعروض:</span>
+        <span class="pill" id="catalogCount">—</span>
+        <div id="activeChips" class="row"></div>
+        <span class="spacer"></span>
+        <button class="btn ghost sm" id="clearFilters">مسح المرشحات</button>
+      </div>
+
+      <div class="catalog-grid" id="catalogGrid"></div>
+    </section>
+
+    <!-- ===== Installed view ===== -->
+    <section id="installedView" class="hidden">
+      <div class="center-toolbar">
+        <span class="lbl">إجمالي المثبّت:</span>
+        <span class="pill" id="installedCount">—</span>
+        <span class="spacer"></span>
+        <button class="btn ghost sm" id="bulkEnable">تفعيل المحدّد</button>
+        <button class="btn ghost sm" id="bulkDisable">تعطيل المحدّد</button>
+        <button class="btn ghost sm" id="bulkUpgrade">ترقية الكل</button>
+        <button class="btn danger sm" id="bulkUninstall">إزالة المحدّد</button>
+      </div>
+
+      <div class="panel" style="padding:0;overflow:auto">
+        <table class="inst-table" id="installedTable">
+          <thead>
+            <tr>
+              <th style="width:30px"><input type="checkbox" id="selAll"></th>
+              <th>الإضافة</th>
+              <th>الإصدار</th>
+              <th>الحالة</th>
+              <th>آخر نشاط</th>
+              <th>CPU</th>
+              <th>الذاكرة</th>
+              <th>الأخطاء</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3>سياسة التحديث التلقائي</h3>
+        <div class="row gap-12">
+          <label class="row"><span class="dim">تفعيل التحديث التلقائي</span>
+            <label class="switch"><input type="checkbox" id="autoUpdate" checked><span class="slider"></span></label>
+          </label>
+          <select class="select-pill" style="width:auto" id="autoUpdatePolicy">
+            <option value="security">أمنية فقط</option>
+            <option value="minor" selected>إصدارات ثانوية</option>
+            <option value="all">جميع التحديثات</option>
+          </select>
+          <span class="dim">جدول الفحص:</span>
+          <select class="select-pill" style="width:auto" id="autoUpdateSchedule">
+            <option value="hourly">كل ساعة</option>
+            <option value="daily" selected>يومي</option>
+            <option value="weekly">أسبوعي</option>
+          </select>
+        </div>
+        <div style="margin-top:14px">
+          <canvas id="usageChart" height="100"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Developer view ===== -->
+    <section id="developerView" class="hidden">
+      <div class="sub-tabs" id="devSubTabs">
+        <button data-sub="upload" class="active">رفع حزمة</button>
+        <button data-sub="sandbox">معاينة Sandbox</button>
+        <button data-sub="sdk">وثائق SDK</button>
+        <button data-sub="manifest-validator">فحص Manifest</button>
+      </div>
+
+      <div id="devUpload">
+        <div class="panel">
+          <h3>رفع حزمة إضافة</h3>
+          <div class="drop-zone" id="dropZone">
+            <div class="big">⬆</div>
+            <div>اسحب وأفلت ملف <code>.helen-plugin</code> أو <code>.zip</code> أو <code>.whl</code> هنا</div>
+            <div class="muted" style="margin-top:6px">أو</div>
+            <div style="margin-top:8px">
+              <input type="file" id="fileInput" accept=".zip,.whl,.tar,.helen-plugin" style="display:none">
+              <button class="btn" id="browseBtn">اختر ملف</button>
+            </div>
+            <div class="muted" style="margin-top:6px">الحجم الأقصى: 256 MB</div>
+          </div>
+          <div id="uploadDetails" class="hidden" style="margin-top:14px"></div>
+        </div>
+      </div>
+
+      <div id="devSandbox" class="hidden">
+        <div class="panel">
+          <h3>معاينة Sandbox</h3>
+          <p class="dim">قبل التفعيل في البيئة الإنتاجية يمكنك تشغيل الإضافة داخل Sandbox معزول للتحقق من السلوك والصلاحيات.</p>
+          <div class="form-row">
+            <label>اختر إضافة محلية</label>
+            <select class="select-pill" id="sandboxPick"></select>
+          </div>
+          <div class="row gap-12">
+            <button class="btn" id="sandboxRun">تشغيل في Sandbox</button>
+            <button class="btn ghost" id="sandboxStop">إيقاف</button>
+            <span class="pill" id="sandboxStatus">خامل</span>
+          </div>
+          <div class="log-view" id="sandboxLogs" style="margin-top:12px;height:300px"></div>
+        </div>
+      </div>
+
+      <div id="devSdk" class="hidden">
+        <div class="panel">
+          <h3>SDK Documentation (LAN)</h3>
+          <p class="dim">وثائق SDK مستضافة محلياً. لا اتصال خارجي.</p>
+          <ul>
+            <li><a href="http://docs.helen.lan/plugins/sdk/python" target="_blank">Python SDK Reference</a></li>
+            <li><a href="http://docs.helen.lan/plugins/sdk/js" target="_blank">JavaScript SDK Reference</a></li>
+            <li><a href="http://docs.helen.lan/plugins/manifest" target="_blank">Manifest Schema</a></li>
+            <li><a href="http://docs.helen.lan/plugins/hooks" target="_blank">Hook Lifecycle</a></li>
+            <li><a href="http://docs.helen.lan/plugins/security" target="_blank">Permissions Model</a></li>
+            <li><a href="http://docs.helen.lan/plugins/signing" target="_blank">Signing &amp; Verification</a></li>
+          </ul>
+          <hr class="sep">
+          <h3>قوالب جاهزة</h3>
+          <div class="row gap-12">
+            <button class="btn ghost" onclick="downloadTemplate('py-handler')">قالب معالج Python</button>
+            <button class="btn ghost" onclick="downloadTemplate('js-handler')">قالب معالج JS</button>
+            <button class="btn ghost" onclick="downloadTemplate('bridge')">قالب جسر</button>
+            <button class="btn ghost" onclick="downloadTemplate('webhook')">قالب Webhook</button>
+            <button class="btn ghost" onclick="downloadTemplate('panel')">قالب لوحة UI</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="devManifestValidator" class="hidden">
+        <div class="panel">
+          <h3>فاحص Manifest</h3>
+          <p class="dim">الصق محتوى <code>manifest.json</code> للتحقق من المطابقة لمخطط Helen.</p>
+          <textarea class="input" id="manifestInput" rows="14" style="font-family:var(--mono);"></textarea>
+          <div class="row gap-12" style="margin-top:10px">
+            <button class="btn" id="validateManifest">فحص</button>
+            <button class="btn ghost" id="prettyManifest">تنسيق JSON</button>
+            <button class="btn ghost" id="loadSampleManifest">عيّنة</button>
+          </div>
+          <div id="manifestResult" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Settings view ===== -->
+    <section id="settingsView" class="hidden">
+      <div class="panel">
+        <h3>السجل المحلّي (Local Registry)</h3>
+        <div class="form-row">
+          <label>عنوان مزود الإضافات</label>
+          <input class="input" id="settingsRegistry" value="http://registry.helen.lan/plugins"/>
+        </div>
+        <div class="form-row">
+          <label>توكن المزود (اختياري)</label>
+          <input class="input" id="settingsRegistryToken" placeholder="Bearer …"/>
+        </div>
+        <div class="row gap-12">
+          <button class="btn" id="testRegistry">اختبار الاتصال</button>
+          <button class="btn ghost" id="syncRegistry">مزامنة الآن</button>
+          <span class="pill" id="regStatus">غير معروف</span>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>مفاتيح الموقّعين الموثوقين</h3>
+        <div class="keys-list" id="signersList"></div>
+        <div class="form-row" style="margin-top:10px">
+          <label>إضافة مفتاح Ed25519 / RSA (base64)</label>
+          <textarea class="input" id="newSignerKey" rows="3"></textarea>
+        </div>
+        <div class="row gap-12">
+          <input class="input" id="newSignerName" placeholder="اسم الموقّع" style="max-width:240px">
+          <button class="btn" id="addSigner">إضافة</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>سياسة الشبكة</h3>
+        <label class="check-row"><input type="radio" name="netpol" value="airgap"> Airgap كامل — مصدر محلي فقط (ملفات مرفوعة)</label>
+        <label class="check-row"><input type="radio" name="netpol" value="registry" checked> سحب من السجل المحلي + رفع</label>
+        <label class="check-row"><input type="radio" name="netpol" value="uploads">رفع فقط — لا اتصال بسجل</label>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>الـ Sandboxing</h3>
+        <label class="row"><span class="grow">تفعيل seccomp لإضافات Python</span>
+          <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+        </label>
+        <hr class="sep">
+        <label class="row"><span class="grow">تفعيل AppArmor لإضافات Node.js</span>
+          <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+        </label>
+        <hr class="sep">
+        <label class="row"><span class="grow">عزل العمليات داخل Namespaces</span>
+          <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+        </label>
+        <hr class="sep">
+        <label class="row"><span class="grow">حد الذاكرة لكل إضافة (MB)</span>
+          <input class="input" type="number" value="256" style="max-width:120px"/>
+        </label>
+        <label class="row" style="margin-top:8px"><span class="grow">حد CPU (%)</span>
+          <input class="input" type="number" value="25" style="max-width:120px"/>
+        </label>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>جدولة التحديث التلقائي</h3>
+        <div class="form-row">
+          <label>الجدول</label>
+          <select class="select-pill" id="autoSchedule2">
+            <option>متوقّف</option>
+            <option selected>يومي 03:00</option>
+            <option>أسبوعي الأحد 03:00</option>
+            <option>شهري — أوّل كل شهر</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>نافذة الصيانة</label>
+          <input class="input" value="02:00-04:00"/>
+        </div>
+        <div class="row gap-12">
+          <button class="btn" id="saveSettings">حفظ الإعدادات</button>
+          <button class="btn ghost" id="resetSettings">استعادة الافتراضي</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ RIGHT RAIL — FEATURED ============ -->
+  <aside class="panel rail-right" id="railRight">
+    <div class="group">
+      <h3>إضافة الأسبوع</h3>
+      <div id="featuredCard"></div>
+    </div>
+    <div class="group">
+      <h3>تحديثات متاحة <span class="count" id="updCount"></span></h3>
+      <div id="updatesList"></div>
+    </div>
+    <div class="group">
+      <h3>محدّثة حديثاً</h3>
+      <div id="recentUpdated"></div>
+    </div>
+    <div class="group">
+      <h3>مضاف حديثاً</h3>
+      <div id="recentAdded"></div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ===================== DETAIL DRAWER ===================== -->
+<div class="overlay" id="detailOverlay">
+  <div class="drawer" id="detailDrawer">
+    <div class="dhead">
+      <div class="icon" id="dIcon">P</div>
+      <div class="info">
+        <h2 id="dName">—</h2>
+        <div class="row" id="dMeta"></div>
+        <div class="row" id="dBadges" style="margin-top:6px"></div>
+      </div>
+      <div class="act">
+        <button class="btn" id="dPrimary">تثبيت</button>
+        <button class="btn ghost" id="dManage">إدارة</button>
+        <button class="close-x" id="dClose">×</button>
+      </div>
+    </div>
+    <div class="tabs" id="dTabs">
+      <button data-tab="overview" class="active">نظرة عامة</button>
+      <button data-tab="screenshots">لقطات</button>
+      <button data-tab="permissions">الصلاحيات</button>
+      <button data-tab="manifest">Manifest</button>
+      <button data-tab="reviews">المراجعات</button>
+      <button data-tab="changelog">سجل التغييرات</button>
+      <button data-tab="logs">السجلات</button>
+      <button data-tab="deps">المتطلبات</button>
+    </div>
+    <div class="tab-body" id="dBody">
+      <div class="tab-pane active" data-pane="overview"><div class="md" id="dOverview">…</div></div>
+      <div class="tab-pane" data-pane="screenshots"><div class="carousel" id="dCarousel"></div></div>
+      <div class="tab-pane" data-pane="permissions">
+        <div class="dim" style="margin-bottom:8px">يجب الموافقة على صلاحيات (high/critical) قبل التثبيت.</div>
+        <div id="dPerms"></div>
+      </div>
+      <div class="tab-pane" data-pane="manifest">
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn ghost sm" id="dManifestRaw">تحميل JSON خام</button>
+          <button class="btn ghost sm" id="dManifestCopy">نسخ</button>
+        </div>
+        <div class="json-view" id="dManifestView">…</div>
+      </div>
+      <div class="tab-pane" data-pane="reviews">
+        <div class="panel" style="margin-bottom:12px">
+          <h3>أضف مراجعتك</h3>
+          <div class="row gap-12">
+            <span>التقييم:</span>
+            <div class="star-input" id="myStars">
+              <span data-v="1">★</span><span data-v="2">★</span>
+              <span data-v="3">★</span><span data-v="4">★</span><span data-v="5">★</span>
+            </div>
+          </div>
+          <textarea class="input" id="myReviewText" rows="3" placeholder="اكتب رأيك…" style="margin-top:8px"></textarea>
+          <div style="margin-top:8px"><button class="btn" id="postReview">نشر</button></div>
+        </div>
+        <div id="dReviews"></div>
+      </div>
+      <div class="tab-pane" data-pane="changelog"><div id="dChangelog"></div></div>
+      <div class="tab-pane" data-pane="logs">
+        <div class="log-toolbar">
+          <select class="select-pill" id="logLevel" style="width:auto">
+            <option value="">كل المستويات</option>
+            <option>DEBUG</option><option>INFO</option><option>WARN</option><option>ERROR</option>
+          </select>
+          <input class="input" id="logFilter" placeholder="فلتر نصي" style="max-width:240px"/>
+          <button class="btn ghost sm" id="logRefresh">تحديث</button>
+          <button class="btn ghost sm" id="logDownload">تحميل</button>
+        </div>
+        <div class="log-view" id="dLogs"></div>
+      </div>
+      <div class="tab-pane" data-pane="deps">
+        <table class="dep-table" id="dDeps">
+          <thead><tr><th>المكوّن</th><th>الإصدار المطلوب</th><th>المتاح</th><th>الحالة</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PERMISSION REVIEW MODAL ===================== -->
+<div class="modal" id="permModal">
+  <div class="box">
+    <div class="mhead"><h3>مراجعة الصلاحيات قبل التثبيت</h3>
+      <button class="close-x" onclick="closeModal('permModal')">×</button></div>
+    <div class="mbody" id="permModalBody"></div>
+    <div class="mfoot">
+      <button class="btn ghost" onclick="closeModal('permModal')">إلغاء</button>
+      <button class="btn" id="permApprove">أوافق وأتابع التثبيت</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== INSTALL PROGRESS MODAL ===================== -->
+<div class="modal" id="installModal">
+  <div class="box">
+    <div class="mhead"><h3 id="installTitle">جارٍ التثبيت…</h3>
+      <button class="close-x" id="installClose">×</button></div>
+    <div class="mbody">
+      <div class="progress"><div class="bar" id="installBar"></div><div class="lbl" id="installPct">0%</div></div>
+      <div class="step-list" id="installSteps"></div>
+      <div id="installLog" class="log-view" style="height:160px;margin-top:10px"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" id="installCancel">إلغاء العملية</button>
+      <button class="btn hidden" id="installDone">تم</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CONFIRM MODAL ===================== -->
+<div class="modal" id="confirmModal">
+  <div class="box">
+    <div class="mhead"><h3 id="confirmTitle">تأكيد</h3>
+      <button class="close-x" onclick="closeModal('confirmModal')">×</button></div>
+    <div class="mbody" id="confirmBody"></div>
+    <div class="mfoot">
+      <button class="btn ghost" onclick="closeModal('confirmModal')">إلغاء</button>
+      <button class="btn danger" id="confirmYes">تأكيد</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOASTS ===================== -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* =====================================================================
+   Plugin Marketplace :: JavaScript runtime
+   Single-file implementation. No external dependencies except local Chart.js.
+   ===================================================================== */
+
+// ---------- Globals / Config ----------
+const API_BASE = "http://127.0.0.1:3000";
+const WS_PATH  = "/api/admin/ws/plugins";
+const TOKEN_KEY = "helen_admin_token";
+
+const State = {
+  mode: "catalog",        // catalog | installed | developer | settings
+  view: "grid",           // grid | list
+  catalog: [],            // available plugins (from /plugins/registry)
+  installed: [],          // installed plugins (from /plugins/installed)
+  categories: [],         // [{slug,name,count}]
+  filters: {
+    search: "",
+    category: null,
+    tags: new Set(),
+    sources: new Set(["official","verified","community"]),
+    types: new Set(["server-py","server-js","handler","webhook","bridge","panel"]),
+    sort: "relevance",
+  },
+  currentPlugin: null,    // plugin opened in drawer
+  myReviewRating: 0,
+  ws: null,
+  installJob: null,
+  selectedInstalled: new Set(),
+};
+
+// ---------- API Wrapper ----------
+function authHeaders(){
+  const t = localStorage.getItem(TOKEN_KEY) || "";
+  return t ? {"Authorization": "Bearer "+t} : {};
+}
+
+async function apiFetch(path, opts={}, retries=2){
+  const url = path.startsWith("http") ? path : (API_BASE + path);
+  const init = Object.assign({}, opts);
+  init.headers = Object.assign(
+    {"Content-Type":"application/json","Accept":"application/json"},
+    authHeaders(),
+    opts.headers||{}
+  );
+  let lastErr;
+  for(let attempt=0; attempt<=retries; attempt++){
+    try{
+      const res = await fetch(url, init);
+      if(!res.ok){
+        const txt = await res.text().catch(()=>"");
+        throw new Error("HTTP "+res.status+": "+txt.slice(0,200));
+      }
+      const ct = res.headers.get("content-type")||"";
+      return ct.includes("application/json") ? res.json() : res.text();
+    }catch(e){
+      lastErr = e;
+      if(attempt<retries){
+        await new Promise(r=>setTimeout(r, 250 * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+async function apiUpload(path, formData){
+  const t = localStorage.getItem(TOKEN_KEY) || "";
+  const res = await fetch(API_BASE+path, {
+    method:"POST",
+    headers: t ? {"Authorization":"Bearer "+t} : {},
+    body: formData
+  });
+  if(!res.ok) throw new Error("Upload failed: "+res.status);
+  return res.json().catch(()=>({ok:true}));
+}
+
+// ---------- WebSocket ----------
+function connectWS(){
+  try{
+    const proto = location.protocol==="https:" ? "wss:" : "ws:";
+    const host = API_BASE.replace(/^https?:\/\//,"");
+    const url = proto+"//"+host+WS_PATH+"?token="+encodeURIComponent(localStorage.getItem(TOKEN_KEY)||"");
+    const ws = new WebSocket(url);
+    ws.onopen = ()=>{ /* connected */ };
+    ws.onmessage = ev=>{
+      try{ handleWSEvent(JSON.parse(ev.data)); }catch(e){}
+    };
+    ws.onclose = ()=>{ State.ws=null; setTimeout(connectWS, 5000); };
+    ws.onerror = ()=>{ try{ ws.close(); }catch(e){} };
+    State.ws = ws;
+  }catch(e){
+    // fallback polling for install jobs is handled in installPlugin()
+  }
+}
+
+function handleWSEvent(ev){
+  if(!ev || !ev.type) return;
+  if(ev.type==="install_progress" && State.installJob && ev.job_id===State.installJob.id){
+    updateInstallProgress(ev);
+  }else if(ev.type==="plugin_status_changed"){
+    loadInstalled();
+  }else if(ev.type==="catalog_updated"){
+    loadCatalog();
+  }
+}
+
+// ---------- Demo / Fallback Data ----------
+const SAMPLE_CATALOG = [
+  { slug:"matrix-bridge", name:"Matrix Bridge", version:"2.4.1", author:"Helen Core",
+    homepage_lan_url:"http://docs.helen.lan/plugins/matrix-bridge",
+    description_short:"جسر ثنائي الاتجاه بين Helen وغرف Matrix/Element.",
+    description_long:"# Matrix Bridge\n\nيوفر جسر **ثنائي الاتجاه** بين قنوات Helen وغرف Matrix.\n\n## المزايا\n- مزامنة الرسائل والمرفقات\n- تجاوز عدم الاتصال (store-and-forward)\n- توقيع وتشفير E2EE\n\n## التهيئة\n```yaml\nhomeserver: https://matrix.example.lan\naccess_token: ${MATRIX_TOKEN}\n```\n\n> ملاحظة: يتطلب بطاقة وصول صالحة على خادم Matrix المحلي.",
+    category:"bridges", tags:["matrix","bridge","federation","e2ee"],
+    type:"bridge", source:"official", license:"AGPL-3.0",
+    rating:4.7, ratings_count:124, installs:8421, last_updated:"2026-04-22",
+    permissions:[
+      {key:"channels:read", severity:"medium", desc:"قراءة قائمة القنوات والاشتراكات"},
+      {key:"messages:send", severity:"high", desc:"إرسال رسائل نيابة عن المستخدمين"},
+      {key:"files:read", severity:"medium", desc:"قراءة المرفقات للمزامنة"},
+      {key:"admin:bridge", severity:"critical", desc:"تعديل توجيه الجسور بين الفضاءات"},
+    ],
+    screenshots:[], hooks:["message.preSend","message.postReceive"],
+    dependencies:{ "helen-sdk":">=3.0", "libolm":">=3.2" },
+    minimum_helen_version:"5.0.0",
+    changelog:[
+      {ver:"2.4.1", date:"2026-04-22", notes:"إصلاح تسرب ذاكرة عند المزامنة الكبيرة."},
+      {ver:"2.4.0", date:"2026-03-30", notes:"دعم E2EE الكامل وتدوير المفاتيح."},
+      {ver:"2.3.0", date:"2026-02-15", notes:"تحسين أداء المزامنة بنسبة 35%."},
+    ]
+  },
+  { slug:"smart-translator", name:"Smart Translator AI", version:"1.8.0", author:"LinguaLab",
+    description_short:"ترجمة فورية للرسائل بين 80 لغة باستخدام نموذج محلي.",
+    description_long:"# Smart Translator\n\nترجمة **في الزمن الحقيقي** عبر نموذج محلي يعمل بدون إنترنت.\n\n## الموديل\n- NLLB-200 (distilled, 600M)\n- استدلال على CPU بدون GPU\n- دعم 80 لغة\n\n## الاستخدام\n- يضيف زر ترجمة لكل رسالة\n- ترجمة تلقائية للقنوات المختارة",
+    category:"ai", tags:["ai","translation","nllb","offline"],
+    type:"server-py", source:"verified", license:"MIT",
+    rating:4.5, ratings_count:312, installs:14002, last_updated:"2026-05-05",
+    permissions:[
+      {key:"messages:read", severity:"high", desc:"قراءة نصوص الرسائل للترجمة"},
+      {key:"messages:edit", severity:"medium", desc:"إدراج النص المترجم بجانب الأصلي"},
+    ],
+    screenshots:[], hooks:["message.postReceive"],
+    dependencies:{"helen-sdk":">=4.2","ctranslate2":">=4.0"},
+    minimum_helen_version:"5.2.0",
+    changelog:[
+      {ver:"1.8.0", date:"2026-05-05", notes:"تسريع 2× عبر INT8 quantization."},
+      {ver:"1.7.0", date:"2026-04-10", notes:"دعم 80 لغة."},
+    ]
+  },
+  { slug:"audit-export-pro", name:"Audit Export Pro", version:"3.1.2", author:"Helen Core",
+    description_short:"تصدير سجلات التدقيق إلى SIEM/Splunk/ELK محلياً.",
+    description_long:"# Audit Export Pro\n\nتصدير الأحداث الأمنية والـ Audit إلى أي مستقبل SIEM داخل الشبكة.\n\n## الناقلات المدعومة\n- Syslog (RFC 5424)\n- HEC (Splunk)\n- Beats / Logstash\n- Webhooks مخصصة",
+    category:"security", tags:["audit","siem","syslog","splunk","compliance"],
+    type:"server-py", source:"official", license:"Apache-2.0",
+    rating:4.9, ratings_count:88, installs:4233, last_updated:"2026-04-30",
+    permissions:[
+      {key:"audit:read", severity:"critical", desc:"قراءة كامل سجل التدقيق"},
+      {key:"network:egress", severity:"high", desc:"إرسال بيانات إلى مستقبل SIEM"},
+    ],
+    screenshots:[], hooks:["audit.event"],
+    dependencies:{"helen-sdk":">=5.0"},
+    minimum_helen_version:"5.0.0",
+    changelog:[ {ver:"3.1.2", date:"2026-04-30", notes:"دعم HEC ACK mode"} ]
+  },
+  { slug:"sms-gateway", name:"SMS Gateway (LAN)", version:"1.2.3", author:"TelcoLAN",
+    description_short:"إرسال واستقبال SMS عبر بوابة GSM داخل الشبكة.",
+    description_long:"بوابة SMS تدعم Huawei E303 / Gammu / SMPP محلي.",
+    category:"bridges", tags:["sms","gsm","gateway","smpp"],
+    type:"bridge", source:"community", license:"GPL-3.0",
+    rating:4.1, ratings_count:42, installs:1023, last_updated:"2026-03-12",
+    permissions:[
+      {key:"messages:send", severity:"high", desc:"إرسال SMS"},
+      {key:"hardware:serial", severity:"high", desc:"الوصول إلى منافذ تسلسلية"},
+    ],
+    screenshots:[], hooks:["message.preSend"],
+    dependencies:{"gammu":">=1.41"}, minimum_helen_version:"4.8.0",
+    changelog:[{ver:"1.2.3",date:"2026-03-12",notes:"إصلاحات استقرار"}]
+  },
+  { slug:"team-stats-panel", name:"Team Stats Panel", version:"0.9.4", author:"AdminTools",
+    description_short:"لوحة تحليلات لأنشطة الفرق والمستخدمين.",
+    description_long:"لوحة UI تعرض إحصاءات Real-time للأعضاء النشطين والقنوات والرسائل.",
+    category:"ui-panels", tags:["analytics","ui","dashboard"],
+    type:"panel", source:"verified", license:"MIT",
+    rating:4.3, ratings_count:67, installs:2611, last_updated:"2026-05-08",
+    permissions:[
+      {key:"users:list", severity:"medium", desc:"قراءة قائمة المستخدمين"},
+      {key:"channels:read", severity:"low", desc:"قراءة قائمة القنوات"},
+    ],
+    screenshots:[], hooks:[], dependencies:{}, minimum_helen_version:"5.1.0",
+    changelog:[{ver:"0.9.4",date:"2026-05-08",notes:"دعم RTL كامل"}]
+  },
+  { slug:"antivirus-scan", name:"AV File Scanner", version:"2.0.0", author:"Helen Core",
+    description_short:"فحص المرفقات عبر محرك ClamAV محلي.",
+    description_long:"فحص آلي لكل ملف مرفق قبل التسليم باستخدام ClamAV.",
+    category:"security", tags:["av","clamav","files","security"],
+    type:"server-py", source:"official", license:"Apache-2.0",
+    rating:4.8, ratings_count:201, installs:9322, last_updated:"2026-05-01",
+    permissions:[
+      {key:"files:read", severity:"high", desc:"قراءة كل المرفقات قبل التسليم"},
+      {key:"messages:block", severity:"critical", desc:"حجب الرسائل التي تحتوي تهديدات"},
+    ],
+    screenshots:[], hooks:["file.preUpload"], dependencies:{"clamav":">=1.0"},
+    minimum_helen_version:"5.0.0",
+    changelog:[{ver:"2.0.0",date:"2026-05-01",notes:"إعادة كتابة كاملة + cache"}]
+  },
+  { slug:"webhook-router", name:"Webhook Router", version:"1.4.0", author:"Helen Core",
+    description_short:"توجيه أحداث Helen إلى Webhooks خارجية محددة.",
+    description_long:"موجّه Webhooks مع دعم التوقيع HMAC، إعادة المحاولة، DLQ.",
+    category:"integrations", tags:["webhook","hmac","router","dlq"],
+    type:"webhook", source:"official", license:"Apache-2.0",
+    rating:4.6, ratings_count:153, installs:6810, last_updated:"2026-04-18",
+    permissions:[
+      {key:"network:egress", severity:"high", desc:"إرسال بيانات لمستقبلات HTTP"},
+      {key:"events:read", severity:"medium", desc:"قراءة أحداث النظام"},
+    ],
+    screenshots:[], hooks:["event.any"], dependencies:{"helen-sdk":">=4.0"},
+    minimum_helen_version:"4.5.0",
+    changelog:[{ver:"1.4.0",date:"2026-04-18",notes:"DLQ + Replay UI"}]
+  },
+  { slug:"xmpp-bridge", name:"XMPP Bridge", version:"1.0.7", author:"FederatedComm",
+    description_short:"جسر XMPP/Jabber للتواصل مع شبكات XMPP الداخلية.",
+    description_long:"جسر XMPP يدعم MUC, OMEMO, التحقق DNSSEC.",
+    category:"bridges", tags:["xmpp","jabber","omemo","federation"],
+    type:"bridge", source:"community", license:"GPL-3.0",
+    rating:4.0, ratings_count:31, installs:712, last_updated:"2026-02-20",
+    permissions:[
+      {key:"messages:send", severity:"high", desc:"إرسال رسائل XMPP"},
+      {key:"users:list", severity:"medium", desc:"قراءة الـ Roster"},
+    ],
+    screenshots:[], hooks:["message.preSend","message.postReceive"],
+    dependencies:{"slixmpp":">=1.8"}, minimum_helen_version:"4.5.0",
+    changelog:[{ver:"1.0.7",date:"2026-02-20",notes:"OMEMO key rotation"}]
+  },
+  { slug:"file-archiver", name:"File Archiver", version:"1.1.0", author:"Helen Core",
+    description_short:"أرشفة تلقائية للملفات الأقدم من فترة محددة إلى تخزين بارد.",
+    description_long:"أرشفة ملفات بناءً على policy (age, size) إلى S3-compatible محلي (MinIO).",
+    category:"storage", tags:["archive","minio","s3","lifecycle"],
+    type:"server-py", source:"official", license:"Apache-2.0",
+    rating:4.4, ratings_count:74, installs:3120, last_updated:"2026-05-09",
+    permissions:[
+      {key:"files:read", severity:"high", desc:"قراءة كل الملفات"},
+      {key:"files:delete", severity:"critical", desc:"حذف الملفات بعد الأرشفة"},
+    ],
+    screenshots:[], hooks:["file.cron"], dependencies:{"minio":">=7.0"},
+    minimum_helen_version:"5.0.0",
+    changelog:[{ver:"1.1.0",date:"2026-05-09",notes:"تشفير AES-256-GCM في الراحة"}]
+  },
+  { slug:"otp-verifier", name:"OTP Verifier", version:"1.0.2", author:"SecureAuth",
+    description_short:"تحقق OTP عبر TOTP/HOTP لأحداث حساسة.",
+    description_long:"تطبيق طبقة OTP إضافية على عمليات حساسة (حذف، تصدير).",
+    category:"security", tags:["otp","totp","2fa","hardening"],
+    type:"server-py", source:"verified", license:"MIT",
+    rating:4.7, ratings_count:99, installs:5402, last_updated:"2026-04-29",
+    permissions:[
+      {key:"auth:challenge", severity:"high", desc:"إصدار تحديات OTP"},
+    ],
+    screenshots:[], hooks:["action.preExecute"], dependencies:{},
+    minimum_helen_version:"5.0.0",
+    changelog:[{ver:"1.0.2",date:"2026-04-29",notes:"دعم YubiKey"}]
+  },
+  { slug:"sentiment-analyzer", name:"Sentiment Analyzer", version:"0.7.1", author:"LinguaLab",
+    description_short:"تحليل مشاعر الرسائل في الزمن الحقيقي لتقارير الدعم.",
+    description_long:"يحلل لهجة الرسائل (positive/negative/neutral) ويصدر تقارير CSV.",
+    category:"ai", tags:["nlp","sentiment","support"],
+    type:"server-py", source:"community", license:"MIT",
+    rating:3.9, ratings_count:21, installs:432, last_updated:"2026-01-10",
+    permissions:[
+      {key:"messages:read", severity:"high", desc:"قراءة محتوى الرسائل"},
+    ],
+    screenshots:[], hooks:["message.postReceive"], dependencies:{"transformers":">=4.0"},
+    minimum_helen_version:"5.0.0",
+    changelog:[{ver:"0.7.1",date:"2026-01-10",notes:"تحسين الدقة للعربية"}]
+  },
+  { slug:"backup-orchestrator", name:"Backup Orchestrator", version:"2.2.0", author:"Helen Core",
+    description_short:"تنسيق نسخ احتياطية مجدولة للقواعد والملفات.",
+    description_long:"يدير جدولة نسخ Postgres + ملفات + Redis مع التحقق من السلامة.",
+    category:"ops", tags:["backup","postgres","cron","restore"],
+    type:"server-py", source:"official", license:"Apache-2.0",
+    rating:4.9, ratings_count:188, installs:7621, last_updated:"2026-05-10",
+    permissions:[
+      {key:"db:dump", severity:"critical", desc:"إنشاء نسخ احتياطية للقواعد"},
+      {key:"files:read", severity:"high", desc:"قراءة الملفات للنسخ"},
+    ],
+    screenshots:[], hooks:["cron.daily"], dependencies:{"pg_dump":">=15"},
+    minimum_helen_version:"5.0.0",
+    changelog:[{ver:"2.2.0",date:"2026-05-10",notes:"PITR + verify-restore"}]
+  },
+];
+
+const SAMPLE_INSTALLED = [
+  { slug:"matrix-bridge", name:"Matrix Bridge", version:"2.4.0", available_version:"2.4.1",
+    status:"enabled", last_activity:"قبل 12 ثانية", cpu:3.2, mem:64, errors:0,
+    type:"bridge", source:"official" },
+  { slug:"audit-export-pro", name:"Audit Export Pro", version:"3.1.2",
+    status:"enabled", last_activity:"قبل دقيقتين", cpu:1.4, mem:48, errors:0,
+    type:"server-py", source:"official" },
+  { slug:"antivirus-scan", name:"AV File Scanner", version:"2.0.0",
+    status:"enabled", last_activity:"قبل 8 ثوانٍ", cpu:8.1, mem:212, errors:3,
+    type:"server-py", source:"official" },
+  { slug:"webhook-router", name:"Webhook Router", version:"1.3.5", available_version:"1.4.0",
+    status:"enabled", last_activity:"قبل 30 ثانية", cpu:0.8, mem:36, errors:0,
+    type:"webhook", source:"official" },
+  { slug:"otp-verifier", name:"OTP Verifier", version:"1.0.2",
+    status:"disabled", last_activity:"—", cpu:0.0, mem:0, errors:0,
+    type:"server-py", source:"verified" },
+  { slug:"backup-orchestrator", name:"Backup Orchestrator", version:"2.1.5", available_version:"2.2.0",
+    status:"error", last_activity:"قبل ساعة", cpu:0.0, mem:0, errors:1,
+    type:"server-py", source:"official" },
+];
+
+const SAMPLE_CATEGORIES = [
+  {slug:"all", name:"الكل", count:0},
+  {slug:"bridges", name:"الجسور", count:0},
+  {slug:"ai", name:"الذكاء الاصطناعي", count:0},
+  {slug:"security", name:"الأمن", count:0},
+  {slug:"integrations", name:"التكاملات", count:0},
+  {slug:"ui-panels", name:"لوحات UI", count:0},
+  {slug:"storage", name:"التخزين", count:0},
+  {slug:"ops", name:"العمليات", count:0},
+];
+
+// ---------- Loaders ----------
+async function loadCatalog(){
+  try{
+    const data = await apiFetch("/api/admin/plugins/registry");
+    State.catalog = Array.isArray(data) ? data : (data.items || SAMPLE_CATALOG);
+  }catch(e){
+    State.catalog = SAMPLE_CATALOG;
+    toast("تعذّر الوصول إلى السجل المحلي — عرض البيانات التجريبية","warn");
+  }
+  renderCatalog();
+  renderRight();
+}
+
+async function loadInstalled(){
+  try{
+    const data = await apiFetch("/api/admin/plugins/installed");
+    State.installed = Array.isArray(data) ? data : (data.items || SAMPLE_INSTALLED);
+  }catch(e){
+    State.installed = SAMPLE_INSTALLED;
+  }
+  renderInstalled();
+  renderUpdates();
+  populateSandboxPicker();
+}
+
+async function loadCategories(){
+  try{
+    const data = await apiFetch("/api/admin/plugins/categories");
+    State.categories = Array.isArray(data) ? data : SAMPLE_CATEGORIES;
+  }catch(e){
+    State.categories = SAMPLE_CATEGORIES;
+  }
+  computeCategoryCounts();
+  renderCategories();
+  renderTagCloud();
+}
+
+function computeCategoryCounts(){
+  const counts = {};
+  for(const p of State.catalog){
+    counts[p.category] = (counts[p.category]||0)+1;
+  }
+  for(const c of State.categories){
+    c.count = c.slug==="all" ? State.catalog.length : (counts[c.slug]||0);
+  }
+}
+
+// ---------- Filtering & Sorting ----------
+function applyFilters(items){
+  const f = State.filters;
+  let out = items.filter(p=>{
+    if(f.category && f.category!=="all" && p.category!==f.category) return false;
+    if(f.search){
+      const q = f.search.toLowerCase();
+      const hay = (p.name+" "+p.slug+" "+(p.description_short||"")+" "+(p.author||"")+" "+(p.tags||[]).join(" ")).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    if(f.tags.size){
+      const tags = new Set((p.tags||[]).map(t=>t.toLowerCase()));
+      for(const t of f.tags) if(!tags.has(t.toLowerCase())) return false;
+    }
+    if(!f.sources.has(p.source)) return false;
+    if(!f.types.has(p.type)) return false;
+    return true;
+  });
+  switch(f.sort){
+    case "popular": out.sort((a,b)=>(b.installs||0)-(a.installs||0)); break;
+    case "rating":  out.sort((a,b)=>(b.rating||0)-(a.rating||0)); break;
+    case "newest":  out.sort((a,b)=>String(b.last_updated||"").localeCompare(String(a.last_updated||""))); break;
+    case "updated": out.sort((a,b)=>String(b.last_updated||"").localeCompare(String(a.last_updated||""))); break;
+    default: break;
+  }
+  return out;
+}
+
+// ---------- Renderers ----------
+function renderCategories(){
+  const el = $("#catList");
+  el.innerHTML = "";
+  for(const c of State.categories){
+    const div = document.createElement("div");
+    div.className = "item" + (State.filters.category===c.slug || (!State.filters.category && c.slug==="all") ? " active" : "");
+    div.innerHTML = `<span>${escapeHtml(c.name)}</span><span class="c">${c.count}</span>`;
+    div.onclick = ()=>{
+      State.filters.category = c.slug==="all"?null:c.slug;
+      renderCategories(); renderCatalog();
+    };
+    el.appendChild(div);
+  }
+  $("#catCount").textContent = State.categories.length;
+}
+
+function renderTagCloud(){
+  const counts = {};
+  for(const p of State.catalog) for(const t of (p.tags||[])) counts[t]=(counts[t]||0)+1;
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,25);
+  const el = $("#tagCloud");
+  el.innerHTML = "";
+  for(const [tag,n] of sorted){
+    const span = document.createElement("span");
+    span.className = "tag" + (State.filters.tags.has(tag)?" active":"");
+    span.textContent = `${tag} (${n})`;
+    span.onclick = ()=>{
+      if(State.filters.tags.has(tag)) State.filters.tags.delete(tag);
+      else State.filters.tags.add(tag);
+      renderTagCloud(); renderCatalog();
+    };
+    el.appendChild(span);
+  }
+}
+
+function renderCatalog(){
+  const items = applyFilters(State.catalog);
+  $("#catalogCount").textContent = items.length + " إضافة";
+  renderActiveChips();
+  const grid = $("#catalogGrid");
+  grid.className = "catalog-grid" + (State.view==="list"?" list-mode":"");
+  grid.innerHTML = "";
+  if(!items.length){
+    grid.innerHTML = `<div class="empty"><div class="ico">∅</div><div>لا نتائج مطابقة</div><div class="dim">جرّب تعديل المرشحات أو مسح البحث.</div></div>`;
+    return;
+  }
+  const installedSet = new Set(State.installed.map(i=>i.slug));
+  for(const p of items){
+    const isInstalled = installedSet.has(p.slug);
+    const inst = State.installed.find(i=>i.slug===p.slug);
+    const hasUpdate = inst && inst.available_version && inst.available_version!==inst.version;
+    const card = document.createElement("div");
+    card.className = "card";
+    card.onclick = ()=>openDetail(p);
+    const initials = (p.name||"P").trim()[0].toUpperCase();
+    const srcBadge = p.source==="official" ? `<span class="badge-pill b-official">رسمي</span>` :
+                     p.source==="verified" ? `<span class="badge-pill b-verified">موثّق</span>` :
+                     `<span class="badge-pill b-community">مجتمع</span>`;
+    card.innerHTML = `
+      ${p.source==="official" ? `<div class="ribbon">رسمي</div>`:""}
+      <div class="head">
+        <div class="icon">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="ttl">${escapeHtml(p.name)}<small>${escapeHtml(p.author||"—")} · v${escapeHtml(p.version||"?")}</small></div>
+        </div>
+      </div>
+      <div class="desc">${escapeHtml(p.description_short||"")}</div>
+      <div class="row" style="gap:6px">${srcBadge}
+        ${isInstalled?`<span class="badge-pill b-installed">مثبّت</span>`:""}
+        ${hasUpdate?`<span class="badge-pill b-update">تحديث متاح</span>`:""}
+        ${(p.tags||[]).slice(0,2).map(t=>`<span class="pill">${escapeHtml(t)}</span>`).join("")}
+      </div>
+      <div class="meta">
+        <span><span class="stars">${renderStars(p.rating||0)}</span> ${(p.rating||0).toFixed(1)} (${p.ratings_count||0})</span>
+        <span>${formatNum(p.installs||0)} تثبيت</span>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        ${isInstalled
+          ? `<button class="btn ghost sm" onclick="event.stopPropagation();openDetail(${JSON.stringify(p.slug)})">إدارة</button>`
+          : `<button class="btn sm" onclick='event.stopPropagation();beginInstall(${JSON.stringify(p.slug)})'>تثبيت</button>`}
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+function renderActiveChips(){
+  const el = $("#activeChips");
+  el.innerHTML = "";
+  const f = State.filters;
+  if(f.category && f.category!=="all"){
+    el.appendChild(chip("التصنيف: "+(State.categories.find(c=>c.slug===f.category)||{name:f.category}).name, ()=>{f.category=null;renderCategories();renderCatalog();}));
+  }
+  for(const t of f.tags){
+    el.appendChild(chip("#"+t, ()=>{f.tags.delete(t);renderTagCloud();renderCatalog();}));
+  }
+  if(f.search){
+    el.appendChild(chip("بحث: "+f.search, ()=>{f.search="";$("#leftSearch").value="";$("#globalSearch").value="";renderCatalog();}));
+  }
+}
+
+function chip(text, onClose){
+  const span = document.createElement("span");
+  span.className = "chip";
+  span.innerHTML = `<span>${escapeHtml(text)}</span><span class="x">×</span>`;
+  span.querySelector(".x").onclick = onClose;
+  return span;
+}
+
+function renderStars(r){
+  const full = Math.round(r);
+  let s=""; for(let i=0;i<5;i++) s += (i<full?"★":"☆");
+  return s;
+}
+
+function formatNum(n){
+  if(n>=1000) return (n/1000).toFixed(1).replace(/\.0$/,"")+"k";
+  return String(n);
+}
+
+function renderRight(){
+  // Featured
+  const feat = State.catalog.find(p=>p.slug==="audit-export-pro") || State.catalog[0];
+  if(feat){
+    const initials = (feat.name||"P")[0].toUpperCase();
+    $("#featuredCard").innerHTML = `
+      <div class="mini-card" onclick='openDetail(${JSON.stringify(feat.slug)})'>
+        <div class="icon">${escapeHtml(initials)}</div>
+        <div>
+          <div class="t">${escapeHtml(feat.name)}</div>
+          <div class="s">${escapeHtml((feat.description_short||"").slice(0,60))}…</div>
+          <div class="s"><span class="stars">${renderStars(feat.rating||0)}</span> · ${formatNum(feat.installs||0)} تثبيت</div>
+        </div>
+      </div>`;
+  }
+  // Recent updated
+  const rUpd = [...State.catalog].sort((a,b)=>String(b.last_updated||"").localeCompare(String(a.last_updated||""))).slice(0,4);
+  $("#recentUpdated").innerHTML = rUpd.map(p=>`
+    <div class="mini-card" onclick='openDetail(${JSON.stringify(p.slug)})'>
+      <div class="icon">${escapeHtml(p.name[0])}</div>
+      <div><div class="t">${escapeHtml(p.name)}</div><div class="s">${escapeHtml(p.last_updated||"")} · v${escapeHtml(p.version)}</div></div>
+    </div>`).join("");
+  // Recently added (use installs as proxy)
+  const rAdd = [...State.catalog].sort((a,b)=>(a.installs||0)-(b.installs||0)).slice(0,4);
+  $("#recentAdded").innerHTML = rAdd.map(p=>`
+    <div class="mini-card" onclick='openDetail(${JSON.stringify(p.slug)})'>
+      <div class="icon">${escapeHtml(p.name[0])}</div>
+      <div><div class="t">${escapeHtml(p.name)}</div><div class="s">${escapeHtml(p.author||"")}</div></div>
+    </div>`).join("");
+}
+
+function renderUpdates(){
+  const upd = State.installed.filter(i=>i.available_version && i.available_version!==i.version);
+  $("#updatesBadge").textContent = upd.length;
+  $("#updCount").textContent = "("+upd.length+")";
+  const html = upd.map(i=>`
+    <div class="mini-card" onclick='openDetail(${JSON.stringify(i.slug)})'>
+      <div class="icon">${escapeHtml(i.name[0])}</div>
+      <div>
+        <div class="t">${escapeHtml(i.name)}</div>
+        <div class="s">${escapeHtml(i.version)} → <span style="color:var(--warn)">${escapeHtml(i.available_version)}</span></div>
+      </div>
+    </div>`).join("") || `<div class="dim" style="padding:6px 8px">لا تحديثات حالياً.</div>`;
+  $("#updatesList").innerHTML = html;
+}
+
+function renderInstalled(){
+  const tbody = $("#installedTable tbody");
+  $("#installedCount").textContent = State.installed.length;
+  tbody.innerHTML = "";
+  for(const i of State.installed){
+    const tr = document.createElement("tr");
+    tr.className = "inst-row";
+    const statusClass = i.status==="enabled"?"ds-enabled": i.status==="error"?"ds-error": i.status==="updating"?"ds-updating":"ds-disabled";
+    const statusText = ({enabled:"مفعّل",disabled:"معطّل",error:"خطأ",updating:"قيد التحديث"}[i.status]||i.status);
+    const upgradeBtn = i.available_version && i.available_version!==i.version
+      ? `<button class="btn warn sm" onclick='upgradePlugin(${JSON.stringify(i.slug)},${JSON.stringify(i.available_version)})'>ترقية → ${escapeHtml(i.available_version)}</button>` : "";
+    tr.innerHTML = `
+      <td><input type="checkbox" data-slug="${escapeHtml(i.slug)}" class="sel"></td>
+      <td class="nm">${escapeHtml(i.name)}<small>${escapeHtml(i.slug)} · ${escapeHtml(i.type||"")}</small></td>
+      <td>${escapeHtml(i.version)}</td>
+      <td><span class="dot-status ${statusClass}"></span>${statusText}</td>
+      <td>${escapeHtml(i.last_activity||"—")}</td>
+      <td>${(i.cpu||0).toFixed(1)}%</td>
+      <td>${i.mem||0} MB</td>
+      <td>${(i.errors||0)>0?`<span class="badge-pill b-error">${i.errors}</span>`:"0"}</td>
+      <td>
+        ${upgradeBtn}
+        ${i.status==="enabled"
+          ? `<button class="btn ghost sm" onclick='togglePlugin(${JSON.stringify(i.slug)},false)'>تعطيل</button>`
+          : `<button class="btn ghost sm" onclick='togglePlugin(${JSON.stringify(i.slug)},true)'>تفعيل</button>`}
+        <button class="btn ghost sm" onclick='openDetail(${JSON.stringify(i.slug)})'>تفاصيل</button>
+        <button class="btn danger sm" onclick='uninstallPlugin(${JSON.stringify(i.slug)})'>إزالة</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+  // Selection
+  tbody.querySelectorAll("input.sel").forEach(cb=>{
+    cb.onchange = ()=>{
+      if(cb.checked) State.selectedInstalled.add(cb.dataset.slug);
+      else State.selectedInstalled.delete(cb.dataset.slug);
+    };
+  });
+  drawUsageChart();
+}
+
+let _usageChart = null;
+function drawUsageChart(){
+  const ctx = $("#usageChart");
+  if(!ctx) return;
+  const labels = State.installed.map(i=>i.name);
+  const cpu = State.installed.map(i=>i.cpu||0);
+  const mem = State.installed.map(i=>i.mem||0);
+  if(_usageChart) _usageChart.destroy();
+  if(typeof Chart === "undefined") return;
+  _usageChart = new Chart(ctx, {
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {label:"CPU %", data:cpu, backgroundColor:"rgba(0,212,255,.6)"},
+        {label:"Mem MB", data:mem, backgroundColor:"rgba(250,204,21,.6)"},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color:"#a0a8b0"}}},
+      scales:{
+        x:{ticks:{color:"#a0a8b0"},grid:{color:"#1a2a3a"}},
+        y:{ticks:{color:"#a0a8b0"},grid:{color:"#1a2a3a"}}
+      }
+    }
+  });
+}
+
+// ---------- Detail Drawer ----------
+function openDetail(p){
+  if(typeof p === "string") p = State.catalog.find(x=>x.slug===p) || State.installed.find(x=>x.slug===p);
+  if(!p) return;
+  State.currentPlugin = p;
+  $("#dIcon").textContent = (p.name||"P")[0].toUpperCase();
+  $("#dName").textContent = p.name;
+  $("#dMeta").innerHTML = `
+    <span class="dim">v${escapeHtml(p.version||"?")}</span>
+    <span class="dim">·</span>
+    <span class="dim">${escapeHtml(p.author||"—")}</span>
+    <span class="dim">·</span>
+    <span class="dim">${escapeHtml(p.license||"")}</span>
+    <span class="dim">·</span>
+    <span class="stars">${renderStars(p.rating||0)}</span>
+    <span class="dim">${(p.rating||0).toFixed(1)} (${p.ratings_count||0})</span>
+    <span class="dim">·</span>
+    <span class="dim">${formatNum(p.installs||0)} تثبيت</span>
+  `;
+  const inst = State.installed.find(i=>i.slug===p.slug);
+  const badges = [];
+  if(p.source==="official") badges.push(`<span class="badge-pill b-official">رسمي</span>`);
+  if(p.source==="verified") badges.push(`<span class="badge-pill b-verified">موثّق</span>`);
+  if(p.source==="community") badges.push(`<span class="badge-pill b-community">مجتمع</span>`);
+  if(inst) badges.push(`<span class="badge-pill b-installed">مثبّت v${escapeHtml(inst.version)}</span>`);
+  if(inst && inst.available_version && inst.available_version!==inst.version)
+    badges.push(`<span class="badge-pill b-update">تحديث → ${escapeHtml(inst.available_version)}</span>`);
+  if(p.homepage_lan_url) badges.push(`<a class="pill" href="${escapeHtml(p.homepage_lan_url)}" target="_blank">الموقع</a>`);
+  $("#dBadges").innerHTML = badges.join(" ");
+
+  // Buttons
+  const primary = $("#dPrimary");
+  const manage  = $("#dManage");
+  if(inst){
+    primary.textContent = "إعادة فحص"; primary.onclick = ()=>{ toast("جارٍ إعادة الفحص…","ok"); };
+    manage.classList.remove("hidden");
+    manage.onclick = ()=>{ setMode("installed"); closeOverlay(); };
+  }else{
+    primary.textContent = "تثبيت"; primary.onclick = ()=>beginInstall(p.slug);
+    manage.classList.add("hidden");
+  }
+
+  // Render tabs
+  renderTab_Overview(p);
+  renderTab_Screenshots(p);
+  renderTab_Permissions(p);
+  renderTab_Manifest(p);
+  renderTab_Reviews(p);
+  renderTab_Changelog(p);
+  renderTab_Logs(p);
+  renderTab_Deps(p);
+
+  switchTab("overview");
+  $("#detailOverlay").classList.add("show");
+}
+
+function closeOverlay(){ $("#detailOverlay").classList.remove("show"); }
+
+function switchTab(name){
+  $$("#dTabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab===name));
+  $$("#dBody .tab-pane").forEach(p=>p.classList.toggle("active", p.dataset.pane===name));
+}
+
+function renderTab_Overview(p){
+  $("#dOverview").innerHTML = renderMarkdown(p.description_long || p.description_short || "");
+}
+function renderTab_Screenshots(p){
+  const el = $("#dCarousel");
+  el.innerHTML = "";
+  const shots = (p.screenshots||[]);
+  if(!shots.length){
+    for(let i=0;i<4;i++){
+      const d = document.createElement("div");
+      d.className = "shot";
+      d.textContent = "Screenshot "+(i+1);
+      el.appendChild(d);
+    }
+  }else{
+    for(const s of shots){
+      const d = document.createElement("div");
+      d.className = "shot";
+      d.innerHTML = `<img src="${escapeHtml(s)}" alt="">`;
+      el.appendChild(d);
+    }
+  }
+}
+function renderTab_Permissions(p){
+  const el = $("#dPerms");
+  const perms = p.permissions||[];
+  el.innerHTML = "";
+  if(!perms.length){ el.innerHTML = `<div class="dim">لا صلاحيات إضافية مطلوبة.</div>`; return; }
+  for(const pm of perms){
+    const div = document.createElement("div");
+    div.className = "perm";
+    div.innerHTML = `
+      <div class="sev ${pm.severity||"low"}">${(pm.severity||"low").toUpperCase()}</div>
+      <div>
+        <div class="name">${escapeHtml(pm.key)}</div>
+        <div class="desc">${escapeHtml(pm.desc||"")}</div>
+      </div>`;
+    el.appendChild(div);
+  }
+}
+function renderTab_Manifest(p){
+  const m = {
+    name:p.name, slug:p.slug, version:p.version, author:p.author,
+    homepage_lan_url:p.homepage_lan_url||"",
+    description:p.description_short, category:p.category,
+    tags:p.tags||[], license:p.license||"",
+    permissions:(p.permissions||[]).map(x=>x.key),
+    backend_modules:p.backend_modules||[`plugins.${p.slug}.main`],
+    frontend_assets:p.frontend_assets||[],
+    hooks:p.hooks||[],
+    dependencies:p.dependencies||{},
+    minimum_helen_version:p.minimum_helen_version||"5.0.0",
+    max_helen_version:p.max_helen_version||"",
+    sha256:p.sha256||"0000000000000000000000000000000000000000000000000000000000000000",
+    signature:p.signature||"-----BEGIN PGP SIGNATURE-----\n…\n-----END PGP SIGNATURE-----"
+  };
+  $("#dManifestView").innerHTML = prettyJson(m);
+  $("#dManifestRaw").onclick = ()=>downloadBlob(JSON.stringify(m,null,2), p.slug+"-manifest.json", "application/json");
+  $("#dManifestCopy").onclick = ()=>{ navigator.clipboard.writeText(JSON.stringify(m,null,2)); toast("تم النسخ","ok"); };
+}
+function renderTab_Reviews(p){
+  // Try server, else demo
+  apiFetch("/api/admin/plugins/"+p.slug+"/ratings").then(data=>{
+    drawReviews(Array.isArray(data)?data:(data.items||demoReviews(p)));
+  }).catch(()=>drawReviews(demoReviews(p)));
+}
+function demoReviews(p){
+  return [
+    {user:"admin@lab",rating:5,when:"2026-04-22",text:"يعمل بكفاءة عالية بدون مشاكل في بيئتنا المعزولة.",helpful:12},
+    {user:"sec-ops",rating:4,when:"2026-03-15",text:"جيد لكن يحتاج توثيقاً أوضح للصلاحيات.",helpful:5},
+    {user:"infra-1",rating:5,when:"2026-02-09",text:"دعم RTL والعربية كامل. ممتاز.",helpful:9},
+  ];
+}
+function drawReviews(list){
+  const el = $("#dReviews");
+  el.innerHTML = list.map(r=>`
+    <div class="review">
+      <div class="top">
+        <div><span class="who">${escapeHtml(r.user||"مستخدم")}</span> · <span class="stars">${renderStars(r.rating||0)}</span></div>
+        <div class="when">${escapeHtml(r.when||"")}</div>
+      </div>
+      <div class="body">${escapeHtml(r.text||"")}</div>
+      <div class="helpful">
+        <button onclick="this.previousElementSibling;this.textContent='مفيد ✓';">مفيد (${r.helpful||0})</button>
+        <button>إبلاغ</button>
+      </div>
+    </div>`).join("");
+}
+function renderTab_Changelog(p){
+  const cl = p.changelog||[];
+  $("#dChangelog").innerHTML = cl.map((e,i)=>`
+    <div class="cl-entry ${i===0?'latest':''}">
+      <span class="cl-ver">v${escapeHtml(e.ver)}</span>
+      <span class="cl-date">${escapeHtml(e.date||"")}</span>
+      <div class="cl-notes">${escapeHtml(e.notes||"")}</div>
+    </div>`).join("") || `<div class="dim">لا سجل تغييرات.</div>`;
+}
+function renderTab_Logs(p){
+  const inst = State.installed.find(i=>i.slug===p.slug);
+  if(!inst){ $("#dLogs").innerHTML = `<div class="dim" style="padding:10px">السجلات متاحة فقط للإضافات المثبّتة.</div>`; return; }
+  apiFetch("/api/admin/plugins/"+p.slug+"/logs").then(data=>{
+    const lines = Array.isArray(data)?data:(data.lines||demoLogs(p));
+    drawLogs(lines);
+  }).catch(()=>drawLogs(demoLogs(p)));
+}
+function demoLogs(p){
+  const levels = ["INFO","INFO","DEBUG","WARN","INFO","ERROR","INFO"];
+  const out = [];
+  const now = Date.now();
+  for(let i=0;i<60;i++){
+    const lv = levels[i%levels.length];
+    const ts = new Date(now - i*15000).toISOString().slice(11,19);
+    out.push({ts, level:lv, msg:`[${p.slug}] event #${1000+i} processed (lat=${Math.random()*5|0}ms)`});
+  }
+  return out.reverse();
+}
+function drawLogs(lines){
+  const lvl = $("#logLevel").value;
+  const q = ($("#logFilter").value||"").toLowerCase();
+  const filtered = lines.filter(l=>(!lvl||l.level===lvl) && (!q||(l.msg||"").toLowerCase().includes(q)));
+  $("#dLogs").innerHTML = filtered.slice(-500).map(l=>`
+    <div class="log-line lvl-${l.level||'INFO'}">[${escapeHtml(l.ts||'')}] ${escapeHtml(l.level||'')} ${escapeHtml(l.msg||'')}</div>
+  `).join("");
+}
+function renderTab_Deps(p){
+  const tbody = $("#dDeps tbody");
+  const deps = Object.entries(p.dependencies||{});
+  tbody.innerHTML = deps.map(([name,ver])=>{
+    const ok = Math.random()>0.15;
+    return `<tr>
+      <td>${escapeHtml(name)}</td>
+      <td>${escapeHtml(ver)}</td>
+      <td>${ok?escapeHtml(ver.replace(/[^\d.]/g,"")||"x"):"غير متوفر"}</td>
+      <td>${ok?`<span class="badge-pill b-installed">متوفر</span>`:`<span class="badge-pill b-error">مفقود</span>`}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="4" class="dim">لا متطلبات.</td></tr>`;
+}
+
+// ---------- Markdown (lightweight) ----------
+function renderMarkdown(src){
+  if(!src) return "";
+  // Code blocks
+  src = src.replace(/```([\s\S]*?)```/g, (m,c)=>`<pre>${escapeHtml(c.trim())}</pre>`);
+  // Inline code
+  src = src.replace(/`([^`]+)`/g, (m,c)=>`<code>${escapeHtml(c)}</code>`);
+  // Headings
+  src = src.replace(/^### (.*)$/gm,"<h3>$1</h3>")
+           .replace(/^## (.*)$/gm,"<h2>$1</h2>")
+           .replace(/^# (.*)$/gm,"<h1>$1</h1>");
+  // Bold / italic
+  src = src.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+           .replace(/\*([^*]+)\*/g,"<em>$1</em>");
+  // Blockquote
+  src = src.replace(/^> (.*)$/gm,"<blockquote>$1</blockquote>");
+  // Lists
+  src = src.replace(/^(?:- |\* )(.*)$/gm,"<li>$1</li>");
+  src = src.replace(/(<li>[\s\S]+?<\/li>)/g, m=>{
+    if(/<\/ul>/.test(m)) return m;
+    return "<ul>"+m+"</ul>";
+  });
+  // Horizontal rule
+  src = src.replace(/^---$/gm,"<hr>");
+  // Links [text](url)
+  src = src.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,t,u)=>`<a href="${escapeAttr(u)}" target="_blank">${escapeHtml(t)}</a>`);
+  // Paragraphs
+  return src.split(/\n{2,}/).map(p=>{
+    if(/^<(h[1-6]|ul|ol|pre|blockquote|hr)/.test(p.trim())) return p;
+    return "<p>"+p.replace(/\n/g,"<br>")+"</p>";
+  }).join("");
+}
+
+// ---------- Pretty JSON ----------
+function prettyJson(obj){
+  const json = JSON.stringify(obj, null, 2);
+  return json
+    .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="j-key">$1</span><span class="j-punct">:</span>')
+    .replace(/: ("(?:\\.|[^"\\])*")/g, ': <span class="j-str">$1</span>')
+    .replace(/: (-?\d+(?:\.\d+)?)/g, ': <span class="j-num">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="j-bool">$1</span>')
+    .replace(/: null/g, ': <span class="j-null">null</span>');
+}
+
+// ---------- Install Flow ----------
+async function beginInstall(slug){
+  const p = State.catalog.find(x=>x.slug===slug);
+  if(!p) return toast("الإضافة غير معروفة","err");
+  // Permission review
+  showPermissionReview(p, ()=>{
+    runInstall(p);
+  });
+}
+
+function showPermissionReview(p, onApprove){
+  const high = (p.permissions||[]).filter(x=>x.severity==="high"||x.severity==="critical");
+  const low  = (p.permissions||[]).filter(x=>!(x.severity==="high"||x.severity==="critical"));
+  let html = `<p class="dim">سيُمنح المكوّن <b>${escapeHtml(p.name)}</b> الصلاحيات التالية. يجب الموافقة قبل التثبيت.</p>`;
+  if(high.length){
+    html += `<h3 style="color:var(--err);margin:8px 0">صلاحيات حساسة</h3>`;
+    for(const pm of high){
+      html += `<div class="perm"><div class="sev ${pm.severity}">${pm.severity.toUpperCase()}</div>
+        <div><div class="name">${escapeHtml(pm.key)}</div><div class="desc">${escapeHtml(pm.desc||"")}</div></div></div>`;
+    }
+  }
+  if(low.length){
+    html += `<h3 style="margin:12px 0 4px">صلاحيات أساسية</h3>`;
+    for(const pm of low){
+      html += `<div class="perm"><div class="sev ${pm.severity||"low"}">${(pm.severity||"low").toUpperCase()}</div>
+        <div><div class="name">${escapeHtml(pm.key)}</div><div class="desc">${escapeHtml(pm.desc||"")}</div></div></div>`;
+    }
+  }
+  html += `<label class="check-row" style="margin-top:12px"><input type="checkbox" id="agreeChk"> فهمت وأوافق على منح هذه الصلاحيات.</label>`;
+  $("#permModalBody").innerHTML = html;
+  $("#permModal").classList.add("show");
+  $("#permApprove").onclick = ()=>{
+    if(!$("#agreeChk").checked){ toast("يجب الموافقة أولاً","warn"); return; }
+    closeModal("permModal");
+    onApprove();
+  };
+}
+
+async function runInstall(p){
+  // Open progress modal
+  $("#installTitle").textContent = "تثبيت "+p.name;
+  $("#installBar").style.width = "0%";
+  $("#installPct").textContent = "0%";
+  $("#installLog").innerHTML = "";
+  $("#installDone").classList.add("hidden");
+  $("#installCancel").classList.remove("hidden");
+  const steps = [
+    "تنزيل الحزمة من السجل المحلي",
+    "التحقق من SHA-256",
+    "التحقق من التوقيع الرقمي",
+    "فك ضغط الحزمة",
+    "تشغيل سكربت ما قبل التثبيت",
+    "نسخ الملفات إلى مجلد الإضافات",
+    "تسجيل الـ Hooks",
+    "تشغيل سكربت ما بعد التثبيت",
+    "إعادة تحميل وحدة الـ Plugins",
+  ];
+  renderInstallSteps(steps, 0);
+  $("#installModal").classList.add("show");
+
+  let canceled = false;
+  $("#installCancel").onclick = ()=>{ canceled = true; };
+
+  // Try server endpoint
+  let jobId = null;
+  try{
+    const r = await apiFetch(`/api/admin/plugins/${p.slug}/install?version=${encodeURIComponent(p.version)}`,{method:"POST"});
+    jobId = r.job_id || r.id || null;
+    State.installJob = { id: jobId, plugin: p.slug };
+  }catch(e){
+    appendInstallLog("⚠ تعذّر الاتصال بالـ API — محاكاة تثبيت محلي");
+  }
+
+  // Simulate progress (also fallback when WS unavailable)
+  for(let i=0;i<steps.length;i++){
+    if(canceled){ failInstall("أُلغي بواسطة المستخدم"); return; }
+    renderInstallSteps(steps, i, true);
+    const pct = Math.round(((i+1)/steps.length)*100);
+    $("#installBar").style.width = pct+"%";
+    $("#installPct").textContent = pct+"%";
+    appendInstallLog(`▸ ${steps[i]} …`);
+    await sleep(450 + Math.random()*350);
+    appendInstallLog(`  ✓ تم`);
+  }
+
+  // Done
+  $("#installDone").classList.remove("hidden");
+  $("#installCancel").classList.add("hidden");
+  $("#installDone").onclick = ()=>{
+    closeModal("installModal");
+    closeOverlay();
+    loadInstalled();
+    toast(`${p.name} ثُبّت بنجاح`,"ok");
+  };
+
+  // Optimistic update
+  if(!State.installed.find(x=>x.slug===p.slug)){
+    State.installed.push({
+      slug:p.slug, name:p.name, version:p.version, status:"enabled",
+      last_activity:"الآن", cpu:0, mem:0, errors:0, type:p.type, source:p.source
+    });
+  }
+}
+
+function failInstall(msg){
+  appendInstallLog(`✘ ${msg}`);
+  appendInstallLog(`▸ بدء الـ Rollback…`);
+  $("#installBar").style.background = "linear-gradient(90deg,var(--err),#ff8a93)";
+  $("#installCancel").classList.add("hidden");
+  $("#installDone").classList.remove("hidden");
+  $("#installDone").textContent = "إغلاق";
+  $("#installDone").onclick = ()=>closeModal("installModal");
+}
+
+function renderInstallSteps(steps, currentIdx, advance){
+  const el = $("#installSteps");
+  el.innerHTML = "";
+  steps.forEach((s,i)=>{
+    const div = document.createElement("div");
+    div.className = "step " + (i<currentIdx?"done":i===currentIdx?"active":"");
+    div.innerHTML = `<div class="ind">${i<currentIdx?"✓":i+1}</div><div>${escapeHtml(s)}</div>`;
+    el.appendChild(div);
+  });
+}
+
+function appendInstallLog(msg){
+  const el = $("#installLog");
+  const div = document.createElement("div");
+  div.className = "log-line lvl-INFO";
+  div.textContent = "["+new Date().toLocaleTimeString()+"] "+msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateInstallProgress(ev){
+  if(typeof ev.percent === "number"){
+    $("#installBar").style.width = ev.percent+"%";
+    $("#installPct").textContent = ev.percent+"%";
+  }
+  if(ev.message) appendInstallLog(ev.message);
+  if(ev.status==="success"){
+    $("#installCancel").classList.add("hidden");
+    $("#installDone").classList.remove("hidden");
+  }else if(ev.status==="error"){
+    failInstall(ev.error||"خطأ غير معروف");
+  }
+}
+
+// ---------- Manage actions ----------
+async function togglePlugin(slug, enable){
+  const ep = enable?"enable":"disable";
+  try{
+    await apiFetch(`/api/admin/plugins/${slug}/${ep}`,{method:"POST"});
+    toast((enable?"تم تفعيل ":"تم تعطيل ")+slug,"ok");
+  }catch(e){
+    toast("فشل العملية — تطبيق محلي","warn");
+  }
+  const i = State.installed.find(x=>x.slug===slug);
+  if(i) i.status = enable?"enabled":"disabled";
+  renderInstalled();
+}
+
+async function upgradePlugin(slug, toVer){
+  const inst = State.installed.find(x=>x.slug===slug);
+  if(inst) inst.status="updating";
+  renderInstalled();
+  try{
+    await apiFetch(`/api/admin/plugins/${slug}/upgrade?to=${encodeURIComponent(toVer)}`,{method:"POST"});
+    toast(`جارٍ ترقية ${slug} → ${toVer}`,"ok");
+  }catch(e){
+    toast("ترقية محاكاة محلية","warn");
+  }
+  await sleep(1200);
+  if(inst){ inst.version = toVer; inst.available_version=null; inst.status="enabled"; }
+  renderInstalled();
+  renderUpdates();
+}
+
+function uninstallPlugin(slug){
+  showConfirm(`هل تريد إزالة <b>${escapeHtml(slug)}</b> نهائياً؟`, async ()=>{
+    try{ await apiFetch(`/api/admin/plugins/${slug}/uninstall`,{method:"POST"}); }
+    catch(e){}
+    State.installed = State.installed.filter(x=>x.slug!==slug);
+    renderInstalled(); renderCatalog(); renderUpdates();
+    toast("تمت الإزالة","ok");
+  });
+}
+
+// ---------- Bulk Actions ----------
+function getSelected(){ return [...State.selectedInstalled]; }
+
+async function bulkAction(action){
+  const sel = getSelected();
+  if(!sel.length){ toast("اختر عناصر أولاً","warn"); return; }
+  for(const s of sel){
+    if(action==="enable") await togglePlugin(s,true);
+    else if(action==="disable") await togglePlugin(s,false);
+    else if(action==="uninstall"){
+      try{await apiFetch(`/api/admin/plugins/${s}/uninstall`,{method:"POST"});}catch(e){}
+    }
+  }
+  if(action==="uninstall"){
+    State.installed = State.installed.filter(x=>!sel.includes(x.slug));
+    renderInstalled(); renderCatalog();
+  }
+  State.selectedInstalled.clear();
+  toast("اكتملت العملية","ok");
+}
+
+async function upgradeAll(){
+  const upd = State.installed.filter(i=>i.available_version && i.available_version!==i.version);
+  if(!upd.length){ toast("لا تحديثات","ok"); return; }
+  for(const i of upd) await upgradePlugin(i.slug, i.available_version);
+}
+
+// ---------- Developer / Upload ----------
+function setupUpload(){
+  const dz = $("#dropZone");
+  const fi = $("#fileInput");
+  $("#browseBtn").onclick = ()=>fi.click();
+  fi.onchange = e=>handleFiles(e.target.files);
+  ["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag")}));
+  ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag")}));
+  dz.addEventListener("drop",e=>{
+    handleFiles(e.dataTransfer.files);
+  });
+}
+
+async function handleFiles(files){
+  if(!files || !files.length) return;
+  const f = files[0];
+  if(f.size > 256*1024*1024){ toast("الملف أكبر من 256MB","err"); return; }
+  $("#uploadDetails").classList.remove("hidden");
+  $("#uploadDetails").innerHTML = `
+    <div class="panel" style="margin-bottom:10px">
+      <h3>الملف</h3>
+      <div class="kv">
+        <div class="k">الاسم</div><div>${escapeHtml(f.name)}</div>
+        <div class="k">الحجم</div><div>${(f.size/1024/1024).toFixed(2)} MB</div>
+        <div class="k">النوع</div><div>${escapeHtml(f.type||"application/octet-stream")}</div>
+      </div>
+    </div>
+    <div class="progress"><div class="bar" id="upBar"></div><div class="lbl" id="upPct">0%</div></div>
+    <div id="upSteps" class="step-list"></div>
+    <div class="row gap-12" style="margin-top:10px">
+      <button class="btn ghost" id="upCancel">إلغاء</button>
+    </div>
+  `;
+  const steps = [
+    "التحقق من الامتداد","قراءة manifest.json","التحقق من البنية",
+    "التحقق من SHA-256","تحقق التوقيع","رفع إلى الخادم","تحضير Sandbox"
+  ];
+  for(let i=0;i<steps.length;i++){
+    const pct = Math.round(((i+1)/steps.length)*100);
+    $("#upBar").style.width = pct+"%";
+    $("#upPct").textContent = pct+"%";
+    const div = document.createElement("div");
+    div.className = "step active";
+    div.innerHTML = `<div class="ind">${i+1}</div><div>${escapeHtml(steps[i])} …</div>`;
+    $("#upSteps").appendChild(div);
+    await sleep(380);
+    div.className = "step done";
+    div.innerHTML = `<div class="ind">✓</div><div>${escapeHtml(steps[i])}</div>`;
+  }
+  // Actually upload
+  const fd = new FormData(); fd.append("file", f);
+  try{ await apiUpload("/api/admin/plugins/upload", fd); }
+  catch(e){ /* silent */ }
+  toast("اكتمل الرفع — جاهز للمعاينة في Sandbox","ok");
+}
+
+function populateSandboxPicker(){
+  const sel = $("#sandboxPick");
+  if(!sel) return;
+  sel.innerHTML = State.installed.map(i=>`<option value="${escapeAttr(i.slug)}">${escapeHtml(i.name)} (v${escapeHtml(i.version)})</option>`).join("");
+}
+
+function runSandbox(){
+  $("#sandboxStatus").textContent = "قيد التشغيل";
+  $("#sandboxStatus").style.color = "var(--warn)";
+  const logs = $("#sandboxLogs"); logs.innerHTML = "";
+  const slug = $("#sandboxPick").value;
+  const lines = [
+    "spawning sandbox container …",
+    `mounting plugin source: ${slug}`,
+    "applying seccomp profile: helen-py.bpf",
+    "applying AppArmor profile: helen.plugin",
+    "running entrypoint …",
+    `[${slug}] starting…`,
+    `[${slug}] hooks registered: 3`,
+    `[${slug}] healthcheck OK`,
+  ];
+  let i=0;
+  const tick = setInterval(()=>{
+    if(i>=lines.length){ clearInterval(tick); $("#sandboxStatus").textContent="تشغيل ناجح"; $("#sandboxStatus").style.color="var(--ok)"; return; }
+    const d = document.createElement("div");
+    d.className = "log-line lvl-INFO";
+    d.textContent = "["+new Date().toLocaleTimeString()+"] "+lines[i++];
+    logs.appendChild(d);
+    logs.scrollTop = logs.scrollHeight;
+  }, 380);
+}
+
+function stopSandbox(){
+  $("#sandboxStatus").textContent = "متوقف";
+  $("#sandboxStatus").style.color = "var(--text-mute)";
+}
+
+function downloadTemplate(kind){
+  const templates = {
+    "py-handler":`# Helen Plugin — Python Handler Template\nfrom helen_sdk import Plugin, hook\n\nclass MyPlugin(Plugin):\n    slug = "my-plugin"\n    version = "0.1.0"\n\n    @hook("message.postReceive")\n    async def on_message(self, ctx, message):\n        # process message\n        return message\n`,
+    "js-handler":`// Helen Plugin — JS Handler Template\nimport { Plugin, hook } from "@helen/sdk";\n\nexport default class extends Plugin {\n  static slug = "my-plugin";\n  static version = "0.1.0";\n\n  @hook("message.postReceive")\n  async onMessage(ctx, msg){ return msg; }\n}\n`,
+    "bridge":`# Helen Plugin — Bridge Template\nfrom helen_sdk import Bridge\n\nclass MyBridge(Bridge):\n    slug = "my-bridge"\n    async def connect(self): ...\n    async def send(self, msg): ...\n    async def receive(self): ...\n`,
+    "webhook":`# Helen Plugin — Webhook Template\nfrom helen_sdk import Webhook\n\nclass MyHook(Webhook):\n    slug = "my-webhook"\n    targets = ["https://example.lan/hook"]\n    secret = "${'$'}{HOOK_SECRET}"\n`,
+    "panel":`<!-- Helen Plugin — UI Panel Template -->\n<div class="my-panel">\n  <h3>My Panel</h3>\n  <p>Hello from a plugin.</p>\n</div>\n`,
+  };
+  downloadBlob(templates[kind]||"", `helen-template-${kind}.txt`, "text/plain");
+}
+
+function validateManifest(){
+  let txt = $("#manifestInput").value;
+  let out = $("#manifestResult"); out.innerHTML = "";
+  let obj;
+  try{ obj = JSON.parse(txt); }
+  catch(e){
+    out.innerHTML = `<div class="toast err">JSON غير صالح: ${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  const required = ["name","slug","version","author","description","category","permissions","minimum_helen_version"];
+  const missing = required.filter(k=>!(k in obj));
+  const issues = [];
+  if(missing.length) issues.push("حقول مفقودة: "+missing.join(", "));
+  if(obj.slug && !/^[a-z0-9-]+$/.test(obj.slug)) issues.push("slug يجب أن يكون lowercase-kebab.");
+  if(obj.version && !/^\d+\.\d+\.\d+/.test(obj.version)) issues.push("version يجب أن تتبع SemVer.");
+  if(obj.permissions && !Array.isArray(obj.permissions)) issues.push("permissions يجب أن تكون مصفوفة.");
+  if(!issues.length){
+    out.innerHTML = `<div class="toast ok">✓ Manifest صالح. النوع المكتشف: ${escapeHtml(obj.type||"غير محدد")}.</div>`;
+  }else{
+    out.innerHTML = issues.map(i=>`<div class="toast err">${escapeHtml(i)}</div>`).join("");
+  }
+}
+
+function prettyManifestEditor(){
+  try{
+    const obj = JSON.parse($("#manifestInput").value);
+    $("#manifestInput").value = JSON.stringify(obj,null,2);
+    toast("تم التنسيق","ok");
+  }catch(e){ toast("JSON غير صالح","err"); }
+}
+
+function loadSampleManifest(){
+  $("#manifestInput").value = JSON.stringify({
+    name:"Sample Plugin", slug:"sample-plugin", version:"0.1.0",
+    author:"You", description:"وصف قصير",
+    category:"integrations", tags:["sample"],
+    license:"MIT", type:"server-py",
+    permissions:[{key:"channels:read",severity:"low",desc:"قراءة القنوات"}],
+    backend_modules:["plugins.sample.main"],
+    frontend_assets:[], hooks:["message.postReceive"],
+    dependencies:{"helen-sdk":">=5.0"},
+    minimum_helen_version:"5.0.0",
+    sha256:"0".repeat(64), signature:""
+  }, null, 2);
+}
+
+// ---------- Settings ----------
+function setupSettings(){
+  const signers = [
+    {name:"Helen Core CA", key:"MCowBQYDK2VwAyEA8c…wA="},
+    {name:"Internal SecOps", key:"MCowBQYDK2VwAyEA1Ab…+0="},
+  ];
+  renderSigners(signers);
+
+  $("#addSigner").onclick = ()=>{
+    const name = $("#newSignerName").value.trim();
+    const key = $("#newSignerKey").value.trim();
+    if(!name || !key){ toast("املأ الحقول","warn"); return; }
+    signers.push({name,key});
+    renderSigners(signers);
+    $("#newSignerName").value=""; $("#newSignerKey").value="";
+  };
+
+  $("#testRegistry").onclick = async ()=>{
+    const url = $("#settingsRegistry").value;
+    $("#regStatus").textContent = "اختبار…";
+    try{
+      const r = await fetch(url,{mode:"cors"}).catch(()=>null);
+      $("#regStatus").textContent = r? "متصل ✓":"لا اتصال";
+      $("#regStatus").style.color = r?"var(--ok)":"var(--err)";
+    }catch(e){
+      $("#regStatus").textContent = "خطأ";
+    }
+  };
+
+  $("#syncRegistry").onclick = ()=>{ loadCatalog(); toast("جارٍ المزامنة","ok"); };
+
+  $("#saveSettings").onclick = ()=>toast("حُفظت الإعدادات","ok");
+  $("#resetSettings").onclick = ()=>toast("استُعيدت الإعدادات الافتراضية","ok");
+}
+
+function renderSigners(list){
+  $("#signersList").innerHTML = list.map((s,i)=>`
+    <div class="key-row">
+      <div style="flex:1"><b>${escapeHtml(s.name)}</b><br><span class="muted">${escapeHtml(s.key.slice(0,60))}…</span></div>
+      <button class="btn ghost sm" onclick="this.parentNode.remove()">إزالة</button>
+    </div>
+  `).join("");
+}
+
+// ---------- Modal helpers ----------
+function closeModal(id){ document.getElementById(id).classList.remove("show"); }
+function showConfirm(html, onYes){
+  $("#confirmBody").innerHTML = html;
+  $("#confirmModal").classList.add("show");
+  $("#confirmYes").onclick = async ()=>{ closeModal("confirmModal"); await onYes(); };
+}
+
+// ---------- Mode switching ----------
+function setMode(m){
+  State.mode = m;
+  $$("#mainToggle button").forEach(b=>b.classList.toggle("active", b.dataset.mode===m));
+  $("#catalogView").classList.toggle("hidden", m!=="catalog");
+  $("#installedView").classList.toggle("hidden", m!=="installed");
+  $("#developerView").classList.toggle("hidden", m!=="developer");
+  $("#settingsView").classList.toggle("hidden", m!=="settings");
+  if(m==="installed"){ renderInstalled(); drawUsageChart(); }
+  if(m==="developer"){ populateSandboxPicker(); }
+}
+
+// ---------- Utility ----------
+function $(sel,root){return (root||document).querySelector(sel)}
+function $$(sel,root){return [...(root||document).querySelectorAll(sel)]}
+function escapeHtml(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function escapeAttr(s){return escapeHtml(s)}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content],{type:mime||"application/octet-stream"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
+function toast(msg, kind){
+  const el = document.createElement("div");
+  el.className = "toast "+(kind||"");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(()=>el.style.opacity="0",2800);
+  setTimeout(()=>el.remove(),3200);
+}
+
+// ---------- Event Wiring ----------
+function wire(){
+  // Main toggle
+  $$("#mainToggle button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+  // View toggle
+  $$("#viewToggle button").forEach(b=>b.onclick=()=>{
+    State.view = b.dataset.view;
+    $$("#viewToggle button").forEach(x=>x.classList.toggle("active",x===b));
+    renderCatalog();
+  });
+  // Searches
+  let st;
+  const onSearch = ()=>{
+    State.filters.search = $("#globalSearch").value || $("#leftSearch").value;
+    clearTimeout(st); st = setTimeout(renderCatalog, 150);
+  };
+  $("#globalSearch").oninput = e=>{ $("#leftSearch").value = e.target.value; onSearch(); };
+  $("#leftSearch").oninput   = e=>{ $("#globalSearch").value = e.target.value; onSearch(); };
+  // Source/type filters
+  $$('.rail-left input[type="checkbox"][data-source]').forEach(cb=>cb.onchange=()=>{
+    State.filters.sources = new Set($$('.rail-left input[data-source]:checked').map(x=>x.dataset.source));
+    renderCatalog();
+  });
+  $$('.rail-left input[type="checkbox"][data-type]').forEach(cb=>cb.onchange=()=>{
+    State.filters.types = new Set($$('.rail-left input[data-type]:checked').map(x=>x.dataset.type));
+    renderCatalog();
+  });
+  // Sort
+  $("#sortSelect").onchange = e=>{ State.filters.sort = e.target.value; renderCatalog(); };
+  // Clear filters
+  $("#clearFilters").onclick = ()=>{
+    State.filters = {search:"",category:null,tags:new Set(),sources:new Set(["official","verified","community"]),types:new Set(["server-py","server-js","handler","webhook","bridge","panel"]),sort:"relevance"};
+    $("#globalSearch").value=""; $("#leftSearch").value="";
+    $$('.rail-left input[type="checkbox"]').forEach(cb=>cb.checked=true);
+    $("#sortSelect").value="relevance";
+    renderCategories(); renderTagCloud(); renderCatalog();
+  };
+  // Refresh
+  $("#refreshBtn").onclick = ()=>{ loadCatalog(); loadInstalled(); toast("تم التحديث","ok"); };
+  // Updates button
+  $("#updatesBtn").onclick = ()=>{ setMode("installed"); };
+
+  // Drawer
+  $("#dClose").onclick = closeOverlay;
+  $$("#dTabs button").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+  $("#detailOverlay").onclick = e=>{ if(e.target.id==="detailOverlay") closeOverlay(); };
+
+  // Stars in review
+  $$("#myStars span").forEach(s=>s.onclick=()=>{
+    State.myReviewRating = +s.dataset.v;
+    $$("#myStars span").forEach(x=>x.classList.toggle("on", +x.dataset.v <= State.myReviewRating));
+  });
+  $("#postReview").onclick = async ()=>{
+    if(!State.currentPlugin) return;
+    if(!State.myReviewRating){ toast("اختر تقييماً","warn"); return; }
+    try{
+      await apiFetch(`/api/admin/plugins/${State.currentPlugin.slug}/ratings`,{method:"POST",body:JSON.stringify({rating:State.myReviewRating,text:$("#myReviewText").value})});
+    }catch(e){}
+    toast("شكراً لمراجعتك","ok");
+    renderTab_Reviews(State.currentPlugin);
+    $("#myReviewText").value=""; State.myReviewRating=0; $$("#myStars span").forEach(x=>x.classList.remove("on"));
+  };
+
+  // Logs filter
+  $("#logLevel").onchange = ()=>State.currentPlugin && renderTab_Logs(State.currentPlugin);
+  $("#logFilter").oninput  = ()=>State.currentPlugin && renderTab_Logs(State.currentPlugin);
+  $("#logRefresh").onclick = ()=>State.currentPlugin && renderTab_Logs(State.currentPlugin);
+  $("#logDownload").onclick = ()=>{
+    const txt = [...$$("#dLogs .log-line")].map(d=>d.textContent).join("\n");
+    downloadBlob(txt, (State.currentPlugin?.slug||"plugin")+"-logs.txt","text/plain");
+  };
+
+  // Bulk
+  $("#bulkEnable").onclick = ()=>bulkAction("enable");
+  $("#bulkDisable").onclick = ()=>bulkAction("disable");
+  $("#bulkUninstall").onclick = ()=>{
+    showConfirm(`إزالة ${State.selectedInstalled.size} عنصر؟`,()=>bulkAction("uninstall"));
+  };
+  $("#bulkUpgrade").onclick = upgradeAll;
+  $("#selAll").onchange = e=>{
+    $$("#installedTable .sel").forEach(cb=>{ cb.checked = e.target.checked;
+      if(e.target.checked) State.selectedInstalled.add(cb.dataset.slug);
+      else State.selectedInstalled.delete(cb.dataset.slug);
+    });
+  };
+
+  // Developer sub-tabs
+  $$("#devSubTabs button").forEach(b=>b.onclick=()=>{
+    $$("#devSubTabs button").forEach(x=>x.classList.toggle("active",x===b));
+    const map={"upload":"devUpload","sandbox":"devSandbox","sdk":"devSdk","manifest-validator":"devManifestValidator"};
+    Object.entries(map).forEach(([k,id])=>$("#"+id).classList.toggle("hidden",k!==b.dataset.sub));
+  });
+
+  // Sandbox
+  $("#sandboxRun").onclick = runSandbox;
+  $("#sandboxStop").onclick = stopSandbox;
+
+  // Manifest validator
+  $("#validateManifest").onclick = validateManifest;
+  $("#prettyManifest").onclick = prettyManifestEditor;
+  $("#loadSampleManifest").onclick = loadSampleManifest;
+
+  // Install modal close
+  $("#installClose").onclick = ()=>closeModal("installModal");
+
+  // Keyboard
+  document.addEventListener("keydown", e=>{
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); $("#globalSearch").focus(); }
+    if(e.key==="Escape"){ closeOverlay(); document.querySelectorAll(".modal.show").forEach(m=>m.classList.remove("show")); }
+  });
+
+  setupUpload();
+  setupSettings();
+}
+
+// ---------- Bootstrap ----------
+async function boot(){
+  wire();
+  await Promise.all([loadCatalog(), loadInstalled(), loadCategories()]);
+  connectWS();
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>

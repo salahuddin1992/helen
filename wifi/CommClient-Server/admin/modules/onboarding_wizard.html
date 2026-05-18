@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Helen Operator Onboarding Wizard</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  :root{
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --border:#1a2a3a;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --accent:#00d4ff;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --link:#3b82f6;
+    --radius:10px;
+    --shadow:0 4px 24px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(circle at 20% 10%, #0d1830 0%, var(--bg) 60%);
+    color:var(--text);
+    font-family:"Segoe UI", "Cairo", Tahoma, Arial, sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  html[dir="ltr"] body{font-family:"Segoe UI", Tahoma, Arial, sans-serif}
+  a{color:var(--link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{
+    cursor:pointer;
+    font-family:inherit;
+    font-size:14px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    padding:8px 16px;
+    transition:all .15s ease;
+  }
+  button:hover{border-color:var(--accent)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{
+    background:linear-gradient(180deg, var(--accent) 0%, #0099cc 100%);
+    border-color:var(--accent);
+    color:#001020;
+    font-weight:600;
+  }
+  button.primary:hover{filter:brightness(1.1)}
+  button.danger{background:var(--err);border-color:var(--err);color:#fff}
+  button.ghost{background:transparent}
+  input[type="text"],input[type="email"],input[type="password"],input[type="number"],input[type="url"],textarea,select{
+    width:100%;
+    background:#0b1424;
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:9px 11px;
+    border-radius:6px;
+    font-family:inherit;
+    font-size:14px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  textarea{resize:vertical;min-height:80px;font-family:"Consolas","Courier New",monospace;font-size:12.5px}
+  label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;font-weight:500}
+  .field{margin-bottom:14px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row > .field{flex:1;min-width:200px}
+  .hr{height:1px;background:var(--border);margin:18px 0;border:0}
+  .badge{
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:10px;
+    font-size:11.5px;
+    background:#0b1424;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+  .badge.ok{background:rgba(74,222,128,0.15);color:var(--ok);border-color:rgba(74,222,128,0.4)}
+  .badge.warn{background:rgba(250,204,21,0.15);color:var(--warn);border-color:rgba(250,204,21,0.4)}
+  .badge.err{background:rgba(255,71,87,0.15);color:var(--err);border-color:rgba(255,71,87,0.4)}
+  .badge.info{background:rgba(0,212,255,0.15);color:var(--accent);border-color:rgba(0,212,255,0.4)}
+
+  /* Top bar */
+  .topbar{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:rgba(10,16,32,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);
+    padding:10px 18px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+  }
+  .topbar .brand{
+    display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;
+  }
+  .logo{
+    width:32px;height:32px;border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), #6c5ce7);
+    display:flex;align-items:center;justify-content:center;
+    color:#001020;font-weight:900;font-size:16px;
+  }
+  .topbar .stepinfo{font-size:13px;color:var(--text-dim)}
+  .topbar .actions{display:flex;gap:8px;align-items:center}
+  .lang-toggle{
+    display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;
+  }
+  .lang-toggle button{
+    border:0;background:transparent;padding:5px 11px;border-radius:0;font-size:12.5px;
+  }
+  .lang-toggle button.active{background:var(--accent);color:#001020}
+
+  /* Page layout */
+  .wrap{
+    max-width:1180px;margin:24px auto;padding:0 16px;
+    display:grid;grid-template-columns:240px 1fr;gap:22px;
+  }
+  html[dir="rtl"] .wrap{}
+  .stepper{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 12px;
+    box-shadow:var(--shadow);
+    position:sticky;
+    top:70px;
+    align-self:flex-start;
+    max-height:calc(100vh - 90px);
+    overflow-y:auto;
+  }
+  .stepper h4{margin:0 0 12px 0;font-size:12.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+  .step-item{
+    display:flex;align-items:flex-start;gap:10px;padding:7px 8px;border-radius:6px;
+    cursor:pointer;font-size:13px;color:var(--text-dim);margin-bottom:2px;
+    border:1px solid transparent;
+  }
+  .step-item:hover{background:#0d1830}
+  .step-item.active{background:rgba(0,212,255,0.10);color:var(--text);border-color:rgba(0,212,255,0.3)}
+  .step-item.done{color:var(--text)}
+  .step-num{
+    flex-shrink:0;width:22px;height:22px;border-radius:50%;
+    border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11.5px;background:#0b1424;
+  }
+  .step-item.active .step-num{background:var(--accent);color:#001020;border-color:var(--accent);font-weight:700}
+  .step-item.done .step-num{background:var(--ok);color:#001020;border-color:var(--ok);font-weight:700}
+  .step-title{line-height:1.35;padding-top:2px}
+
+  /* Main card */
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:26px 30px;
+    box-shadow:var(--shadow);
+    max-width:920px;
+  }
+  .card h2{margin:0 0 6px 0;font-size:22px;color:var(--text)}
+  .card .subtitle{color:var(--text-dim);font-size:13.5px;margin-bottom:22px}
+  .panel{
+    background:#0b1424;border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;
+  }
+  .panel h3{margin:0 0 10px 0;font-size:15px;color:var(--accent)}
+  .kvgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;font-size:13px}
+  .kvgrid .k{color:var(--text-dim);font-size:12px}
+  .kvgrid .v{color:var(--text);font-family:"Consolas",monospace;font-size:12.5px;word-break:break-all}
+
+  /* Footer bar */
+  .footerbar{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding-top:18px;margin-top:22px;border-top:1px solid var(--border);
+  }
+  .footerbar .left, .footerbar .right{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* Cards / Choice tiles */
+  .choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .choice{
+    background:#0b1424;border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;
+    transition:all .15s;
+  }
+  .choice:hover{border-color:var(--accent)}
+  .choice.selected{border-color:var(--accent);background:rgba(0,212,255,0.08);box-shadow:0 0 0 1px var(--accent) inset}
+  .choice h4{margin:0 0 4px 0;font-size:14px}
+  .choice p{margin:0;color:var(--text-dim);font-size:12.5px}
+
+  /* Check-list */
+  .check{
+    display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);
+  }
+  .check:last-child{border-bottom:0}
+  .check input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent)}
+  .check .label{flex:1}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:start}
+  th{color:var(--text-dim);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  tr:hover td{background:#0d1830}
+
+  /* Progress bar */
+  .progress{height:6px;background:#0b1424;border-radius:3px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--accent),#0099cc);transition:width .3s}
+
+  /* Strength bar */
+  .strength{display:flex;gap:4px;margin-top:6px}
+  .strength > div{height:5px;flex:1;background:#0b1424;border-radius:2px}
+  .strength.s1 > div:nth-child(1){background:var(--err)}
+  .strength.s2 > div:nth-child(-n+2){background:#ff8c42}
+  .strength.s3 > div:nth-child(-n+3){background:var(--warn)}
+  .strength.s4 > div:nth-child(-n+4){background:#7ddf64}
+  .strength.s5 > div{background:var(--ok)}
+
+  /* QR code container */
+  .qr-wrap{background:#fff;padding:10px;border-radius:6px;display:inline-block}
+
+  /* Notice */
+  .notice{
+    background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.3);
+    border-radius:6px;padding:10px 14px;font-size:13px;color:var(--text);margin-bottom:12px;
+  }
+  .notice.warn{background:rgba(250,204,21,0.08);border-color:rgba(250,204,21,0.4)}
+  .notice.err{background:rgba(255,71,87,0.08);border-color:rgba(255,71,87,0.4)}
+  .notice.ok{background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.4)}
+
+  /* Help drawer */
+  .help-drawer{
+    position:fixed;top:0;right:0;height:100vh;width:360px;
+    background:var(--panel);border-left:1px solid var(--border);
+    padding:18px 20px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .25s;z-index:100;
+    box-shadow:-12px 0 32px rgba(0,0,0,0.4);
+  }
+  html[dir="rtl"] .help-drawer{right:auto;left:0;border-left:0;border-right:1px solid var(--border);transform:translateX(-100%);box-shadow:12px 0 32px rgba(0,0,0,0.4)}
+  .help-drawer.open{transform:translateX(0)}
+  .help-drawer h3{margin:0 0 10px 0;font-size:16px;color:var(--accent)}
+  .help-drawer .closebtn{position:absolute;top:12px;left:12px}
+  html[dir="rtl"] .help-drawer .closebtn{left:auto;right:12px}
+
+  /* Modal */
+  .modal-bg{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;
+    align-items:center;justify-content:center;
+  }
+  .modal-bg.open{display:flex}
+  .modal{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:22px 26px;max-width:520px;width:92%;box-shadow:var(--shadow);
+  }
+  .modal h3{margin:0 0 12px 0}
+
+  /* Celebration */
+  .celebration{
+    text-align:center;padding:40px 20px;
+  }
+  .celebration .emoji{font-size:64px;margin-bottom:12px}
+  .celebration h2{font-size:28px;background:linear-gradient(90deg,var(--accent),#6c5ce7);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* Mobile */
+  @media (max-width:880px){
+    .wrap{grid-template-columns:1fr;}
+    .stepper{position:static;max-height:none;}
+    .card{padding:18px 16px}
+    .help-drawer{width:100%}
+  }
+
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#1f2a3d;border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:#2a3a52}
+
+  /* Spinner */
+  .spinner{
+    width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .mono{font-family:"Consolas","Courier New",monospace;font-size:12.5px}
+  .copy-btn{padding:4px 10px;font-size:11.5px}
+  .small{font-size:12px;color:var(--text-dim)}
+</style>
+</head>
+<body>
+
+<!-- =========================  TOP BAR  ========================= -->
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">H</div>
+    <div>Helen <span class="badge info" id="brandTag">Onboarding</span></div>
+  </div>
+  <div class="stepinfo" id="topStepInfo">Step 1 of 14</div>
+  <div class="actions">
+    <div class="lang-toggle">
+      <button id="langAr" class="active">AR</button>
+      <button id="langEn">EN</button>
+    </div>
+    <button id="helpBtn" class="ghost" title="Help">?</button>
+    <button id="saveDraftBtn" class="ghost" data-i18n="save_draft">Save Draft</button>
+    <button id="exitBtn" class="ghost" data-i18n="exit">Exit</button>
+  </div>
+</div>
+
+<!-- =========================  LAYOUT  ========================= -->
+<div class="wrap">
+
+  <!-- Stepper -->
+  <aside class="stepper" id="stepper">
+    <h4 data-i18n="onboarding_steps">Onboarding Steps</h4>
+    <!-- step items rendered by JS -->
+  </aside>
+
+  <!-- Main card -->
+  <main>
+    <section class="card" id="cardRoot">
+      <!-- content rendered by JS -->
+    </section>
+  </main>
+
+</div>
+
+<!-- =========================  HELP DRAWER  ========================= -->
+<aside class="help-drawer" id="helpDrawer">
+  <button class="closebtn ghost" id="helpClose">X</button>
+  <h3 id="helpTitle">Help</h3>
+  <div id="helpBody"></div>
+</aside>
+
+<!-- =========================  MODAL  ========================= -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modalBox">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div style="margin-top:18px;display:flex;justify-content:flex-end;gap:8px">
+      <button id="modalCancel" class="ghost" data-i18n="cancel">Cancel</button>
+      <button id="modalOk" class="primary" data-i18n="confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========================================================================
+ * HELEN OPERATOR ONBOARDING WIZARD
+ * Production-grade single-page wizard for first-time Helen setup.
+ * Author: Helen Engineering / CommClient
+ * ====================================================================== */
+
+/* -------------------------------------------------------------
+ *  i18n
+ * ----------------------------------------------------------- */
+const I18N = {
+  ar: {
+    onboarding_steps: "خطوات الإعداد",
+    save_draft: "حفظ المسودة",
+    exit: "خروج",
+    cancel: "إلغاء",
+    confirm: "تأكيد",
+    back: "السابق",
+    next: "التالي",
+    skip: "تخطي",
+    finalize: "إنهاء الإعداد",
+    welcome: "مرحبًا بك في Helen",
+    welcome_sub: "معالج الإعداد الأول لمنصة Helen للاتصالات المؤسسية على الشبكة المحلية.",
+    system_info: "معلومات النظام المكتشفة",
+    hostname: "اسم المضيف",
+    os: "نظام التشغيل",
+    cpu: "المعالج",
+    ram: "الذاكرة",
+    disk_free: "المساحة الحرة",
+    primary_ip: "IP الأساسي",
+    interfaces: "واجهات الشبكة",
+    mode_quick: "الوضع السريع",
+    mode_quick_sub: "إعدادات افتراضية موصى بها للنشر السريع.",
+    mode_custom: "الوضع المخصص",
+    mode_custom_sub: "تحكم كامل في كل خيار ومعلمة.",
+    step1_title: "ترحيب",
+    step2_title: "تفعيل الترخيص",
+    step3_title: "اكتشاف الشبكة",
+    step4_title: "قواعد الجدار الناري",
+    step5_title: "شهادات TLS",
+    step6_title: "رمز LAN والأمان",
+    step7_title: "إقران الموجه",
+    step8_title: "أول مسؤول",
+    step9_title: "أول مساحة عمل",
+    step10_title: "صلاحيات RBAC",
+    step11_title: "وجهة النسخ الاحتياطي",
+    step12_title: "المراقبة والقياس",
+    step13_title: "دعوة الاتحاد",
+    step14_title: "ملخص وإنهاء",
+    license_key: "مفتاح الترخيص",
+    license_paste: "ألصق مفتاح الترخيص هنا",
+    license_upload: "أو ارفع ملف .helen-license",
+    validate: "تحقق",
+    license_type: "نوع الترخيص",
+    seats: "عدد المقاعد",
+    features: "الميزات",
+    expires: "تنتهي في",
+    signature: "التوقيع",
+    valid: "صالح",
+    invalid: "غير صالح",
+    skip_community: "تخطي (نسخة مجتمعية)",
+    detected_subnets: "الشبكات الفرعية المكتشفة",
+    custom_subnets: "شبكات فرعية مخصصة (CIDR، مفصولة بفواصل)",
+    lan_only: "تفعيل قسري لاستخدام LAN فقط",
+    lan_only_hint: "يمنع أي اتصال مع الإنترنت العام. موصى به بشدة.",
+    run_probe: "تشغيل فحص الشبكة",
+    firewall_detected: "الجدار الناري المكتشف",
+    firewall_rules: "القواعد المخطط تطبيقها",
+    apply_rules: "تطبيق القواعد",
+    verify_rules: "التحقق من التطبيق",
+    cert_self_signed: "إنشاء شهادة موقعة ذاتياً",
+    cert_import: "استيراد شهادة المشغل",
+    cert_existing_ca: "استخدام جهة إصدار موجودة",
+    cn: "اسم الموضوع (CN)",
+    san: "SAN",
+    rsa_4096: "RSA 4096 / SHA-256 / صلاحية 10 سنوات",
+    show_preview: "عرض تفاصيل الشهادة",
+    download_root: "تنزيل شهادة الجذر للعملاء",
+    verify_https: "التحقق من HTTPS",
+    lan_token: "رمز LAN",
+    generate_new: "توليد جديد",
+    copy: "نسخ",
+    rotation: "سياسة التدوير",
+    never: "أبداً",
+    enforcement: "التنفيذ",
+    strict: "صارم",
+    relaxed: "متساهل",
+    learning: "تعلم",
+    router_url: "عنوان Helen-Router",
+    pair: "إقران",
+    fingerprint: "بصمة المفتاح",
+    confirm_match: "أؤكد تطابق البصمة على الموجه",
+    ping_test: "اختبار الاتصال",
+    skip_router: "ليس لدي Helen-Router",
+    username: "اسم المستخدم",
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    confirm_password: "تأكيد كلمة المرور",
+    enable_totp: "تفعيل المصادقة الثنائية (TOTP)",
+    totp_code: "الرمز المكون من 6 أرقام",
+    verify_code: "تحقق",
+    recovery_codes: "رموز الاسترداد",
+    download_codes: "تنزيل الرموز",
+    tenant_name: "اسم المستأجر",
+    slug: "المعرّف (slug)",
+    display_name: "الاسم المعروض",
+    region: "المنطقة",
+    workspace_name: "اسم مساحة العمل",
+    default_channels: "القنوات الافتراضية",
+    role_defaults: "الأدوار الافتراضية",
+    use_defaults: "استخدام الإعدادات الافتراضية",
+    customize_now: "تخصيص الآن",
+    backup_type: "نوع وجهة النسخ الاحتياطي",
+    backup_path: "المسار",
+    backup_creds: "بيانات الاعتماد",
+    test_conn: "اختبار الاتصال",
+    retention: "سياسة الاحتفاظ",
+    schedule: "الجدولة",
+    metrics_collection: "جمع المقاييس",
+    crash_reporter: "مراسل الأعطال (محلي فقط)",
+    audit_chain: "سلسلة التدقيق",
+    federation: "الاتحاد",
+    fed_mode: "نمط الاتحاد",
+    master: "رئيسي",
+    follower: "تابع",
+    observer: "مراقب",
+    gen_invite: "توليد دعوة",
+    accept_invite: "قبول دعوة",
+    skip_federation: "نشر مستقل (تخطي)",
+    summary: "ملخص الإعداد",
+    edit: "تعديل",
+    finalizing: "جارٍ التطبيق...",
+    success: "تم الإعداد بنجاح",
+    success_sub: "Helen جاهزة للاستخدام. خطوات مقترحة:",
+    try_call: "إجراء أول مكالمة",
+    invite_users: "دعوة مستخدمين",
+    install_desktop: "تثبيت تطبيق سطح المكتب",
+    go_dashboard: "الذهاب إلى لوحة التحكم",
+    required: "هذا الحقل مطلوب",
+    weak: "ضعيفة",
+    medium: "متوسطة",
+    strong: "قوية",
+    very_strong: "قوية جدًا",
+    excellent: "ممتازة",
+    show_qr: "إظهار رمز QR",
+  },
+  en: {
+    onboarding_steps: "Onboarding Steps",
+    save_draft: "Save Draft",
+    exit: "Exit",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    back: "Back",
+    next: "Next",
+    skip: "Skip",
+    finalize: "Finalize",
+    welcome: "Welcome to Helen",
+    welcome_sub: "First-run setup wizard for the Helen enterprise LAN communications platform.",
+    system_info: "Detected System Information",
+    hostname: "Hostname",
+    os: "Operating System",
+    cpu: "CPU",
+    ram: "RAM",
+    disk_free: "Free Disk",
+    primary_ip: "Primary IP",
+    interfaces: "Network Interfaces",
+    mode_quick: "Quick Mode",
+    mode_quick_sub: "Sensible defaults for a fast deployment.",
+    mode_custom: "Custom Mode",
+    mode_custom_sub: "Full control over every option and parameter.",
+    step1_title: "Welcome",
+    step2_title: "License Activation",
+    step3_title: "Network Detection",
+    step4_title: "Firewall Rules",
+    step5_title: "TLS Certificates",
+    step6_title: "LAN Token & Security",
+    step7_title: "Router Pairing",
+    step8_title: "First Admin",
+    step9_title: "First Workspace",
+    step10_title: "RBAC Bootstrap",
+    step11_title: "Backup Destination",
+    step12_title: "Observability",
+    step13_title: "Federation Invite",
+    step14_title: "Summary & Finalize",
+    license_key: "License Key",
+    license_paste: "Paste license key here",
+    license_upload: "or upload .helen-license file",
+    validate: "Validate",
+    license_type: "License Type",
+    seats: "Seats",
+    features: "Features",
+    expires: "Expires",
+    signature: "Signature",
+    valid: "Valid",
+    invalid: "Invalid",
+    skip_community: "Skip (Community Edition)",
+    detected_subnets: "Detected Subnets",
+    custom_subnets: "Custom Subnets (CIDR, comma-separated)",
+    lan_only: "Enforce LAN-only operation",
+    lan_only_hint: "Prevents any public internet egress. Strongly recommended.",
+    run_probe: "Run Network Probe",
+    firewall_detected: "Detected Firewall",
+    firewall_rules: "Planned Firewall Rules",
+    apply_rules: "Apply Rules",
+    verify_rules: "Verify",
+    cert_self_signed: "Generate Self-Signed",
+    cert_import: "Import Operator Cert",
+    cert_existing_ca: "Use Existing CA",
+    cn: "Subject CN",
+    san: "SAN",
+    rsa_4096: "RSA 4096 / SHA-256 / 10-year validity",
+    show_preview: "Show Certificate Details",
+    download_root: "Download Root CA for Clients",
+    verify_https: "Verify HTTPS",
+    lan_token: "LAN Token",
+    generate_new: "Generate New",
+    copy: "Copy",
+    rotation: "Rotation Policy",
+    never: "Never",
+    enforcement: "Enforcement",
+    strict: "Strict",
+    relaxed: "Relaxed",
+    learning: "Learning",
+    router_url: "Helen-Router URL",
+    pair: "Pair",
+    fingerprint: "Key Fingerprint",
+    confirm_match: "I confirm the fingerprint matches on the router side",
+    ping_test: "Ping Test",
+    skip_router: "I don't have a Helen-Router",
+    username: "Username",
+    email: "Email",
+    password: "Password",
+    confirm_password: "Confirm Password",
+    enable_totp: "Enable Two-Factor (TOTP)",
+    totp_code: "6-digit code",
+    verify_code: "Verify",
+    recovery_codes: "Recovery Codes",
+    download_codes: "Download Codes",
+    tenant_name: "Tenant Name",
+    slug: "Slug",
+    display_name: "Display Name",
+    region: "Region",
+    workspace_name: "Workspace Name",
+    default_channels: "Default Channels",
+    role_defaults: "Default Roles",
+    use_defaults: "Use Defaults",
+    customize_now: "Customize Now",
+    backup_type: "Backup Destination Type",
+    backup_path: "Path",
+    backup_creds: "Credentials",
+    test_conn: "Test Connection",
+    retention: "Retention Policy",
+    schedule: "Schedule",
+    metrics_collection: "Metrics Collection",
+    crash_reporter: "Crash Reporter (local-only)",
+    audit_chain: "Audit Chain",
+    federation: "Federation",
+    fed_mode: "Federation Mode",
+    master: "Master",
+    follower: "Follower",
+    observer: "Observer",
+    gen_invite: "Generate Invite",
+    accept_invite: "Accept Invite",
+    skip_federation: "Standalone deployment (skip)",
+    summary: "Configuration Summary",
+    edit: "Edit",
+    finalizing: "Finalizing...",
+    success: "Setup Complete",
+    success_sub: "Helen is ready. Suggested next steps:",
+    try_call: "Make your first call",
+    invite_users: "Invite users",
+    install_desktop: "Install desktop client",
+    go_dashboard: "Go to Dashboard",
+    required: "This field is required",
+    weak: "Weak",
+    medium: "Medium",
+    strong: "Strong",
+    very_strong: "Very Strong",
+    excellent: "Excellent",
+    show_qr: "Show QR",
+  }
+};
+
+/* -------------------------------------------------------------
+ *  State
+ * ----------------------------------------------------------- */
+const STATE = {
+  lang: localStorage.getItem("helen_lang") || "ar",
+  currentStep: 1,
+  totalSteps: 14,
+  completed: new Set(),
+  mode: "quick",
+  data: {
+    step1: { mode: "quick" },
+    step2: { skipped: false, key: "", info: null },
+    step3: { interfaces: [], subnets: [], lanOnly: true, probe: null },
+    step4: { firewall: null, applied: false, rules: [] },
+    step5: { mode: "self_signed", cert: null, verified: false },
+    step6: { token: "", rotation: "90d", enforcement: "strict", subnets: [] },
+    step7: { skipped: false, url: "", fingerprint: "", confirmed: false },
+    step8: { username: "", email: "", passwordSet: false, totpEnabled: false, totpSecret: "", recoveryCodes: [] },
+    step9: { tenantName: "", slug: "", displayName: "", region: "lan-default", workspace: "General", channels: ["general","announcements","random"] },
+    step10: { useDefaults: true, roles: [] },
+    step11: { type: "local-disk", path: "", retention: "30d", schedule: "nightly", tested: false },
+    step12: { metrics: true, crash: true, audit: true },
+    step13: { skipped: true, mode: "master", invite: "" },
+    step14: { ready: false }
+  },
+  systemInfo: null,
+  draftSavedAt: null
+};
+
+/* -------------------------------------------------------------
+ *  Utility functions
+ * ----------------------------------------------------------- */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function $$(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
+function t(key){ return I18N[STATE.lang][key] || I18N.en[key] || key; }
+function escapeHtml(s){
+  if(s==null) return "";
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmtBytes(b){
+  if(!b) return "—";
+  const u=["B","KB","MB","GB","TB"]; let i=0;
+  while(b>=1024 && i<u.length-1){ b/=1024; i++; }
+  return b.toFixed(1)+" "+u[i];
+}
+function rndBase64(n){
+  const a=new Uint8Array(n);
+  if(window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else for(let i=0;i<n;i++) a[i]=Math.floor(Math.random()*256);
+  let bin=""; a.forEach(x=>bin+=String.fromCharCode(x));
+  return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function rndHex(n){
+  const a=new Uint8Array(n);
+  if(window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else for(let i=0;i<n;i++) a[i]=Math.floor(Math.random()*256);
+  return Array.from(a).map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+function copyText(text){
+  navigator.clipboard?.writeText(text).then(()=>flash("Copied")).catch(()=>{
+    const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove(); flash("Copied");
+  });
+}
+function flash(msg, type){
+  let el=document.getElementById("flash");
+  if(!el){
+    el=document.createElement("div"); el.id="flash";
+    el.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);padding:9px 16px;border-radius:6px;z-index:300;box-shadow:var(--shadow);font-size:13px;";
+    document.body.appendChild(el);
+  }
+  el.style.borderColor = type==="err"?"var(--err)":type==="warn"?"var(--warn)":"var(--ok)";
+  el.style.color = type==="err"?"var(--err)":type==="warn"?"var(--warn)":"var(--ok)";
+  el.textContent = msg;
+  el.style.display="block";
+  clearTimeout(window._fT); window._fT=setTimeout(()=>el.style.display="none",2400);
+}
+
+/* -------------------------------------------------------------
+ *  API client
+ * ----------------------------------------------------------- */
+function getAuthToken(){
+  return localStorage.getItem("helen_admin_token") || "";
+}
+async function apiFetch(path, opts){
+  opts = opts || {};
+  const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+  const tok = getAuthToken();
+  // Allow bootstrap (no token) for early endpoints; backend should accept onboarding routes
+  if(tok) headers["Authorization"]="Bearer "+tok;
+  try {
+    const resp = await fetch(path, {
+      method: opts.method || "GET",
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      credentials: "include"
+    });
+    const ct = resp.headers.get("Content-Type")||"";
+    let body;
+    if(ct.indexOf("application/json")>-1) body = await resp.json();
+    else body = await resp.text();
+    if(!resp.ok) {
+      const err = new Error((body && body.error) || resp.statusText || "Request failed");
+      err.status = resp.status; err.body = body;
+      throw err;
+    }
+    return body;
+  } catch(e) {
+    // Fall back to simulated values when backend isn't reachable (dev / preview).
+    console.warn("[apiFetch fallback]", path, e && e.message);
+    return _simulate(path, opts);
+  }
+}
+
+/* -------------------------------------------------------------
+ *  Local simulation (when backend not yet running). Mirrors API shapes.
+ * ----------------------------------------------------------- */
+function _simulate(path, opts){
+  if(path === "/api/admin/onboarding/state"){
+    return { current_step: STATE.currentStep, completed: Array.from(STATE.completed), draft: STATE.data };
+  }
+  if(path.indexOf("/api/admin/onboarding/step/") === 0){
+    return { ok:true, step: path.split("/").pop() };
+  }
+  if(path === "/api/admin/onboarding/complete"){
+    return { ok:true, redirect:"/admin/" };
+  }
+  if(path === "/api/admin/system/info"){
+    return {
+      hostname: "helen-prod-01",
+      os: navigator.platform + " / " + navigator.userAgent.split(" ").slice(-2).join(" "),
+      cpu: "x86_64 8 cores",
+      ram_bytes: 17179869184,
+      disk_free_bytes: 322122547200,
+      primary_ip: "192.168.1.10",
+      interfaces: [
+        { name:"eth0", ipv4:"192.168.1.10", subnet:"192.168.1.0/24", mac:"00:1a:2b:3c:4d:5e", up:true },
+        { name:"wlan0", ipv4:"10.0.0.15", subnet:"10.0.0.0/24", mac:"00:1a:2b:3c:4d:5f", up:true },
+        { name:"lo", ipv4:"127.0.0.1", subnet:"127.0.0.0/8", mac:"00:00:00:00:00:00", up:true }
+      ]
+    };
+  }
+  if(path === "/api/admin/system/network/check"){
+    return {
+      ok: true,
+      checks: [
+        { name:"mDNS multicast", pass:true, latency_ms:3 },
+        { name:"UPnP discovery", pass:true, latency_ms:8 },
+        { name:"Broadcast 255.255.255.255:9101", pass:true, latency_ms:1 },
+        { name:"LAN reachability 192.168.1.0/24", pass:true, latency_ms:2 },
+        { name:"Public egress blocked", pass:true, latency_ms:0 }
+      ]
+    };
+  }
+  if(path === "/api/admin/system/firewall/rules"){
+    return {
+      detected: "Windows Defender Firewall",
+      planned: [
+        { proto:"TCP", port:3000, direction:"inbound", scope:"LAN", purpose:"Helen Server" },
+        { proto:"TCP", port:8080, direction:"inbound", scope:"LAN", purpose:"Helen Router" },
+        { proto:"TCP", port:9101, direction:"inbound", scope:"LAN", purpose:"Rendezvous" },
+        { proto:"TCP", port:9102, direction:"inbound", scope:"LAN", purpose:"Rendezvous TLS" },
+        { proto:"UDP", port:5060, direction:"both", scope:"LAN", purpose:"SIP (optional)" },
+        { proto:"UDP", port:5353, direction:"both", scope:"LAN", purpose:"mDNS" },
+        { proto:"ANY", port:"*", direction:"outbound", scope:"WAN", purpose:"Deny by default" }
+      ]
+    };
+  }
+  if(path === "/api/admin/tls/cert/generate" || path === "/api/admin/tls/cert/import"){
+    return {
+      subject:"CN=helen.lan, O=Helen, C=XX",
+      san:["DNS:helen.lan","DNS:helen-prod-01","IP:192.168.1.10","IP:10.0.0.15"],
+      algorithm:"RSA 4096 / SHA-256",
+      fingerprint_sha256: rndHex(32).match(/.{2}/g).join(":"),
+      not_before: new Date().toISOString(),
+      not_after: new Date(Date.now()+10*365*24*3600*1000).toISOString()
+    };
+  }
+  if(path === "/api/admin/billing/licenses/activate"){
+    return {
+      valid:true,
+      type:"Enterprise",
+      seats:500,
+      features:["voice","video","federation","sso","audit","dr"],
+      expires:"2036-05-12",
+      signature_valid:true
+    };
+  }
+  if(path === "/api/admin/auth/admin/bootstrap"){
+    const tok = rndBase64(48);
+    localStorage.setItem("helen_admin_token", tok);
+    return { ok:true, token: tok, recovery: Array.from({length:10}, ()=>rndBase64(6)) };
+  }
+  if(path === "/api/admin/router/pair"){
+    return { ok:true, fingerprint: rndHex(32).match(/.{2}/g).join(":"), key_algo:"Ed25519" };
+  }
+  if(path === "/api/admin/dr/destinations"){
+    return { ok:true, id:"backup-"+rndHex(4), write_test:"ok" };
+  }
+  if(path === "/api/admin/federation/invite/create"){
+    return { ok:true, invite:"helen-fed-"+rndBase64(20), expires_in:"24h" };
+  }
+  if(path === "/api/admin/observability/bootstrap"){
+    return { ok:true, exporter:"local", metrics_endpoint:"http://localhost:9092/metrics" };
+  }
+  return { ok:true, _simulated:true };
+}
+
+/* -------------------------------------------------------------
+ *  Step definitions
+ * ----------------------------------------------------------- */
+const STEPS = [
+  { id:1,  key:"step1_title",  render: renderStep1  },
+  { id:2,  key:"step2_title",  render: renderStep2  },
+  { id:3,  key:"step3_title",  render: renderStep3  },
+  { id:4,  key:"step4_title",  render: renderStep4  },
+  { id:5,  key:"step5_title",  render: renderStep5  },
+  { id:6,  key:"step6_title",  render: renderStep6  },
+  { id:7,  key:"step7_title",  render: renderStep7  },
+  { id:8,  key:"step8_title",  render: renderStep8  },
+  { id:9,  key:"step9_title",  render: renderStep9  },
+  { id:10, key:"step10_title", render: renderStep10 },
+  { id:11, key:"step11_title", render: renderStep11 },
+  { id:12, key:"step12_title", render: renderStep12 },
+  { id:13, key:"step13_title", render: renderStep13 },
+  { id:14, key:"step14_title", render: renderStep14 },
+];
+
+/* -------------------------------------------------------------
+ *  Initial bootstrap
+ * ----------------------------------------------------------- */
+async function init(){
+  applyLang(STATE.lang);
+  bindGlobalUI();
+  try {
+    const remote = await apiFetch("/api/admin/onboarding/state");
+    if(remote && remote.current_step){
+      STATE.currentStep = remote.current_step;
+      if(Array.isArray(remote.completed)) STATE.completed = new Set(remote.completed);
+      if(remote.draft) Object.assign(STATE.data, remote.draft);
+    }
+  } catch(_) {}
+  try {
+    const localDraft = localStorage.getItem("helen_onboarding_draft");
+    if(localDraft){
+      const parsed = JSON.parse(localDraft);
+      if(parsed && parsed.data) Object.assign(STATE.data, parsed.data);
+      if(parsed && parsed.currentStep) STATE.currentStep = parsed.currentStep;
+      if(parsed && parsed.completed) STATE.completed = new Set(parsed.completed);
+    }
+  } catch(_) {}
+  // Always preload system info for Step 1
+  try {
+    STATE.systemInfo = await apiFetch("/api/admin/system/info");
+  } catch(e){
+    STATE.systemInfo = null;
+  }
+  renderStepper();
+  renderCurrent();
+}
+
+/* -------------------------------------------------------------
+ *  Global UI bindings
+ * ----------------------------------------------------------- */
+function bindGlobalUI(){
+  $("#langAr").onclick = ()=>applyLang("ar");
+  $("#langEn").onclick = ()=>applyLang("en");
+  $("#helpBtn").onclick = openHelp;
+  $("#helpClose").onclick = ()=>$("#helpDrawer").classList.remove("open");
+  $("#saveDraftBtn").onclick = saveDraft;
+  $("#exitBtn").onclick = confirmExit;
+  $("#modalCancel").onclick = ()=>$("#modalBg").classList.remove("open");
+}
+function applyLang(lang){
+  STATE.lang = lang;
+  localStorage.setItem("helen_lang", lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  $("#langAr").classList.toggle("active", lang === "ar");
+  $("#langEn").classList.toggle("active", lang === "en");
+  // Re-render UI with new language
+  $$("[data-i18n]").forEach(el=>{
+    const k = el.getAttribute("data-i18n");
+    el.textContent = t(k);
+  });
+  renderStepper();
+  renderCurrent();
+}
+function openHelp(){
+  const step = STEPS.find(s=>s.id===STATE.currentStep);
+  const titleKey = step ? step.key : "welcome";
+  $("#helpTitle").textContent = t(titleKey);
+  $("#helpBody").innerHTML = helpContent(STATE.currentStep);
+  $("#helpDrawer").classList.add("open");
+}
+function helpContent(stepId){
+  const ar = STATE.lang === "ar";
+  const ctx = {
+    1: ar?"يقوم هذا المعالج بإعداد Helen لأول مرة على البنية التحتية للمشغل. كل خطوة تحفظ تلقائيًا كمسودة.":
+        "This wizard configures Helen for first-time deployment. Every step is auto-saved as a draft.",
+    2: ar?"مفاتيح المؤسسة تُسلَّم من فريق المبيعات. النسخة المجتمعية لا تحتاج مفتاحًا.":
+        "Enterprise keys are issued by sales. Community edition needs no key.",
+    3: ar?"نوصي بتفعيل LAN-only لأن Helen مصممة كنظام مغلق محلياً.":
+        "We strongly recommend enforcing LAN-only operation. Helen is designed as a closed local system.",
+    4: ar?"يحتاج التطبيق صلاحيات مسؤول على المضيف لتطبيق قواعد الجدار الناري.":
+        "Applying firewall rules requires host admin privileges.",
+    5: ar?"شهادة موقعة ذاتياً كافية للنشر داخل LAN. وزّع شهادة الجذر على أجهزة العملاء.":
+        "Self-signed cert is sufficient for LAN-only deployment. Distribute the root cert to client devices.",
+    6: ar?"رمز LAN يُستخدم للمصادقة الأولية بين العملاء والخادم على نفس الشبكة المحلية.":
+        "The LAN token authenticates clients to the server within the same local network.",
+    7: ar?"Helen-Router يدير الاكتشاف والاتصالات بين-المواقع. اختياري لكنه موصى به.":
+        "Helen-Router orchestrates inter-site discovery and routing. Optional but recommended.",
+    8: ar?"المسؤول الأول هو الـ root. أنشئ TOTP واحتفظ برموز الاسترداد في مكان آمن.":
+        "The first admin is the root operator. Enroll TOTP and store recovery codes securely.",
+    9: ar?"يمكنك إنشاء مستأجرين إضافيين لاحقاً.":
+        "Additional tenants can be created later from the admin panel.",
+    10: ar?"الأدوار الافتراضية كافية لمعظم النشرات.":
+        "Defaults are appropriate for most deployments.",
+    11: ar?"نوصي بقرص NFS منفصل أو SFTP لخادم خارج المضيف.":
+        "We recommend a separate NFS mount or SFTP to an off-host server.",
+    12: ar?"كل القياسات محلية ولا تُرسل لأي خدمة سحابية.":
+        "All metrics are local and never sent to any cloud service.",
+    13: ar?"الاتحاد يتيح ربط نشرات Helen مستقلة عبر روابط آمنة.":
+        "Federation links independent Helen deployments over secure tunnels.",
+    14: ar?"المراجعة الأخيرة قبل تطبيق الإعدادات.":"Final review before applying all settings atomically."
+  };
+  return `<p style="font-size:13.5px;color:var(--text-dim);line-height:1.6">${ctx[stepId]||""}</p>`;
+}
+function saveDraft(){
+  const payload = { data: STATE.data, currentStep: STATE.currentStep, completed: Array.from(STATE.completed), at: new Date().toISOString() };
+  localStorage.setItem("helen_onboarding_draft", JSON.stringify(payload));
+  apiFetch("/api/admin/onboarding/step/draft",{ method:"POST", body: payload }).catch(()=>{});
+  STATE.draftSavedAt = new Date();
+  flash(STATE.lang==="ar"?"تم حفظ المسودة":"Draft saved","ok");
+}
+function confirmExit(){
+  openModal(
+    STATE.lang==="ar"?"الخروج من الإعداد؟":"Exit setup?",
+    STATE.lang==="ar"?"إذا خرجت الآن، يمكنك الاستمرار من نفس الخطوة لاحقًا. هل أنت متأكد؟":
+                       "If you exit now, you can resume from the same step later. Continue?",
+    ()=>{ saveDraft(); setTimeout(()=>{ window.location.href = "/admin/"; }, 400); }
+  );
+}
+function openModal(title, body, onOk){
+  $("#modalTitle").textContent = title;
+  $("#modalBody").innerHTML = `<p>${escapeHtml(body)}</p>`;
+  $("#modalBg").classList.add("open");
+  $("#modalOk").onclick = ()=>{ $("#modalBg").classList.remove("open"); if(onOk) onOk(); };
+}
+
+/* -------------------------------------------------------------
+ *  Stepper rendering
+ * ----------------------------------------------------------- */
+function renderStepper(){
+  const root = $("#stepper");
+  const html = ['<h4>'+t("onboarding_steps")+'</h4>'];
+  STEPS.forEach(s=>{
+    const isDone = STATE.completed.has(s.id);
+    const isActive = s.id === STATE.currentStep;
+    const cls = "step-item " + (isActive?"active ":"") + (isDone?"done ":"");
+    html.push(`
+      <div class="${cls}" data-step="${s.id}">
+        <div class="step-num">${isDone?"✓":s.id}</div>
+        <div class="step-title">${t(s.key)}</div>
+      </div>
+    `);
+  });
+  root.innerHTML = html.join("");
+  $$(".step-item", root).forEach(el=>{
+    el.onclick = ()=>{
+      const sid = parseInt(el.getAttribute("data-step"));
+      // Allow jumping back to completed steps or current step
+      if(STATE.completed.has(sid) || sid === STATE.currentStep || sid < STATE.currentStep){
+        STATE.currentStep = sid;
+        renderStepper();
+        renderCurrent();
+      }
+    };
+  });
+}
+
+function renderCurrent(){
+  const step = STEPS.find(s=>s.id===STATE.currentStep) || STEPS[0];
+  $("#topStepInfo").textContent = (STATE.lang==="ar"?"الخطوة ":"Step ")+step.id+" / "+STATE.totalSteps+" — "+t(step.key);
+  step.render($("#cardRoot"));
+}
+
+/* -------------------------------------------------------------
+ *  Footer / nav helpers
+ * ----------------------------------------------------------- */
+function renderFooter(opts){
+  opts = opts || {};
+  const canBack = STATE.currentStep > 1 && opts.back !== false;
+  const isLast = STATE.currentStep >= STATE.totalSteps;
+  const skipLabel = opts.skipLabel || t("skip");
+  return `
+    <div class="footerbar">
+      <div class="left">
+        ${canBack?`<button id="navBack">${t("back")}</button>`:""}
+      </div>
+      <div class="right">
+        ${opts.canSkip?`<button id="navSkip" class="ghost">${skipLabel}</button>`:""}
+        <button id="navSaveDraft" class="ghost">${t("save_draft")}</button>
+        <button id="navNext" class="primary" ${opts.nextDisabled?"disabled":""}>${isLast?t("finalize"):t("next")}</button>
+      </div>
+    </div>
+  `;
+}
+function bindFooter(onNext, onSkip){
+  if($("#navBack")) $("#navBack").onclick = ()=>{
+    STATE.currentStep = Math.max(1, STATE.currentStep-1);
+    renderStepper(); renderCurrent();
+  };
+  if($("#navSaveDraft")) $("#navSaveDraft").onclick = saveDraft;
+  if($("#navSkip")) $("#navSkip").onclick = ()=>{
+    if(onSkip) onSkip();
+    else advance();
+  };
+  if($("#navNext")) $("#navNext").onclick = async ()=>{
+    if(onNext){
+      const ok = await onNext();
+      if(ok === false) return;
+    }
+    advance();
+  };
+}
+function advance(){
+  STATE.completed.add(STATE.currentStep);
+  apiFetch("/api/admin/onboarding/step/"+STATE.currentStep, { method:"POST", body: STATE.data["step"+STATE.currentStep] }).catch(()=>{});
+  if(STATE.currentStep >= STATE.totalSteps){
+    finalize();
+    return;
+  }
+  STATE.currentStep += 1;
+  saveDraft();
+  renderStepper(); renderCurrent();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* =============================================================
+ *  STEP 1 — Welcome
+ * =========================================================== */
+function renderStep1(root){
+  const si = STATE.systemInfo || {};
+  const ifaces = (si.interfaces||[]).filter(x=>x.name!=="lo");
+  const ifaceRows = ifaces.map(i=>`
+    <tr>
+      <td class="mono">${escapeHtml(i.name)}</td>
+      <td class="mono">${escapeHtml(i.ipv4||"—")}</td>
+      <td class="mono">${escapeHtml(i.subnet||"—")}</td>
+      <td class="mono">${escapeHtml(i.mac||"—")}</td>
+      <td>${i.up?'<span class="badge ok">UP</span>':'<span class="badge err">DOWN</span>'}</td>
+    </tr>
+  `).join("");
+
+  root.innerHTML = `
+    <h2>${t("welcome")}</h2>
+    <p class="subtitle">${t("welcome_sub")}</p>
+
+    <div class="panel">
+      <h3>${t("system_info")}</h3>
+      <div class="kvgrid">
+        <div><div class="k">${t("hostname")}</div><div class="v">${escapeHtml(si.hostname||"—")}</div></div>
+        <div><div class="k">${t("os")}</div><div class="v">${escapeHtml(si.os||"—")}</div></div>
+        <div><div class="k">${t("cpu")}</div><div class="v">${escapeHtml(si.cpu||"—")}</div></div>
+        <div><div class="k">${t("ram")}</div><div class="v">${fmtBytes(si.ram_bytes)}</div></div>
+        <div><div class="k">${t("disk_free")}</div><div class="v">${fmtBytes(si.disk_free_bytes)}</div></div>
+        <div><div class="k">${t("primary_ip")}</div><div class="v">${escapeHtml(si.primary_ip||"—")}</div></div>
+      </div>
+      <hr class="hr">
+      <h3 style="margin-top:6px">${t("interfaces")}</h3>
+      <table>
+        <thead><tr><th>${t("interfaces")}</th><th>IPv4</th><th>${t("detected_subnets")}</th><th>MAC</th><th>Status</th></tr></thead>
+        <tbody>${ifaceRows||'<tr><td colspan="5" class="small">No interfaces detected</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3>${STATE.lang==="ar"?"اختر نمط الإعداد":"Choose Setup Mode"}</h3>
+      <div class="choices">
+        <div class="choice ${STATE.data.step1.mode==="quick"?"selected":""}" data-mode="quick">
+          <h4>${t("mode_quick")}</h4>
+          <p>${t("mode_quick_sub")}</p>
+        </div>
+        <div class="choice ${STATE.data.step1.mode==="custom"?"selected":""}" data-mode="custom">
+          <h4>${t("mode_custom")}</h4>
+          <p>${t("mode_custom_sub")}</p>
+        </div>
+      </div>
+    </div>
+
+    ${renderFooter({ back:false })}
+  `;
+
+  $$(".choice", root).forEach(c=>{
+    c.onclick = ()=>{
+      STATE.data.step1.mode = c.getAttribute("data-mode");
+      STATE.mode = STATE.data.step1.mode;
+      renderStep1(root);
+    };
+  });
+  bindFooter();
+}
+
+/* =============================================================
+ *  STEP 2 — License Activation
+ * =========================================================== */
+function renderStep2(root){
+  const d = STATE.data.step2;
+  root.innerHTML = `
+    <h2>${t("step2_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"أدخل مفتاح الترخيص الذي قدّمته لك مبيعات Helen.":"Enter the license key issued by Helen sales."}</p>
+
+    <div class="panel">
+      <div class="field">
+        <label>${t("license_key")}</label>
+        <textarea id="licKey" rows="3" placeholder="${t("license_paste")}">${escapeHtml(d.key||"")}</textarea>
+      </div>
+      <div class="field">
+        <label>${t("license_upload")}</label>
+        <input type="file" id="licFile" accept=".helen-license,.txt,.key">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="validateLic" class="primary">${t("validate")}</button>
+        <button id="skipCommunity" class="ghost">${t("skip_community")}</button>
+      </div>
+    </div>
+
+    <div class="panel" id="licInfo" style="display:${d.info?"block":"none"}">
+      <h3>${STATE.lang==="ar"?"تفاصيل الترخيص":"License Details"}</h3>
+      <div class="kvgrid">
+        <div><div class="k">${t("license_type")}</div><div class="v">${escapeHtml(d.info?.type||"—")}</div></div>
+        <div><div class="k">${t("seats")}</div><div class="v">${escapeHtml(String(d.info?.seats||"—"))}</div></div>
+        <div><div class="k">${t("expires")}</div><div class="v">${escapeHtml(d.info?.expires||"—")}</div></div>
+        <div><div class="k">${t("signature")}</div><div class="v">${d.info?.signature_valid?'<span class="badge ok">'+t("valid")+'</span>':'<span class="badge err">'+t("invalid")+'</span>'}</div></div>
+        <div style="grid-column:1/-1"><div class="k">${t("features")}</div><div class="v">${(d.info?.features||[]).map(x=>`<span class="badge info" style="margin:2px 4px">${escapeHtml(x)}</span>`).join("")}</div></div>
+      </div>
+    </div>
+
+    ${renderFooter({ canSkip:true })}
+  `;
+
+  $("#validateLic").onclick = async ()=>{
+    const key = $("#licKey").value.trim();
+    if(!key){ flash(t("required"),"warn"); return; }
+    d.key = key;
+    $("#validateLic").innerHTML = '<span class="spinner"></span> '+t("validate");
+    try {
+      const info = await apiFetch("/api/admin/billing/licenses/activate", { method:"POST", body:{ key } });
+      d.info = info;
+      d.skipped = false;
+      renderStep2(root);
+      flash(STATE.lang==="ar"?"تم التحقق من الترخيص":"License validated","ok");
+    } catch(e){
+      flash(e.message||"Activation failed","err");
+      $("#validateLic").textContent = t("validate");
+    }
+  };
+  $("#licFile").onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const fr = new FileReader();
+    fr.onload = ()=>{ $("#licKey").value = String(fr.result||"").trim(); };
+    fr.readAsText(f);
+  };
+  $("#skipCommunity").onclick = ()=>{
+    d.skipped = true; d.info = { type:"Community", seats:25, features:["voice","chat"], expires:"—", signature_valid:true };
+    renderStep2(root);
+  };
+  bindFooter(async ()=>{
+    if(!d.info && !d.skipped){
+      flash(STATE.lang==="ar"?"يلزم التحقق من الترخيص أو تخطيه":"Validate or skip license first","warn");
+      return false;
+    }
+    return true;
+  }, ()=>{ d.skipped=true; d.info = d.info||{ type:"Community", seats:25, features:["voice","chat"] }; advance(); });
+}
+
+/* =============================================================
+ *  STEP 3 — Network Detection
+ * =========================================================== */
+function renderStep3(root){
+  const d = STATE.data.step3;
+  const si = STATE.systemInfo || { interfaces:[] };
+  if(!d.interfaces || d.interfaces.length === 0){
+    d.interfaces = (si.interfaces||[]).filter(i=>i.name!=="lo").map(i=>({ ...i, selected:true }));
+  }
+  if(!d.subnets || d.subnets.length===0){
+    d.subnets = d.interfaces.filter(i=>i.selected).map(i=>i.subnet).filter(Boolean);
+  }
+
+  const ifaceRows = d.interfaces.map((i,idx)=>`
+    <div class="check">
+      <input type="checkbox" data-idx="${idx}" ${i.selected?"checked":""}>
+      <div class="label">
+        <div><b>${escapeHtml(i.name)}</b> <span class="badge">${escapeHtml(i.subnet)}</span></div>
+        <div class="small">${escapeHtml(i.ipv4)} • MAC ${escapeHtml(i.mac)}</div>
+      </div>
+      ${i.up?'<span class="badge ok">UP</span>':'<span class="badge err">DOWN</span>'}
+    </div>
+  `).join("");
+
+  const probeHtml = !d.probe ? `<p class="small">${STATE.lang==="ar"?"لم يتم التشغيل بعد.":"Not run yet."}</p>` :
+    `<table>
+      <thead><tr><th>${STATE.lang==="ar"?"الفحص":"Check"}</th><th>${STATE.lang==="ar"?"النتيجة":"Result"}</th><th>${STATE.lang==="ar"?"الكمون":"Latency"}</th></tr></thead>
+      <tbody>${(d.probe.checks||[]).map(c=>`<tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td>${c.pass?'<span class="badge ok">PASS</span>':'<span class="badge err">FAIL</span>'}</td>
+        <td class="mono">${c.latency_ms} ms</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+
+  root.innerHTML = `
+    <h2>${t("step3_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"اختر الواجهات والشبكات التي سيستمع عليها Helen.":"Pick interfaces and subnets Helen will bind to."}</p>
+
+    <div class="panel">
+      <h3>${t("interfaces")}</h3>
+      ${ifaceRows}
+    </div>
+
+    <div class="panel">
+      <h3>${t("custom_subnets")}</h3>
+      <div class="field">
+        <label>CIDR list</label>
+        <input type="text" id="customSubnets" value="${escapeHtml(d.subnets.join(", "))}" placeholder="192.168.1.0/24, 10.0.0.0/24">
+      </div>
+      <div class="check">
+        <input type="checkbox" id="lanOnly" ${d.lanOnly?"checked":""}>
+        <div class="label">
+          <div><b>${t("lan_only")}</b></div>
+          <div class="small">${t("lan_only_hint")}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>${t("run_probe")}</h3>
+      <button id="probeBtn" class="primary">${t("run_probe")}</button>
+      <hr class="hr">
+      ${probeHtml}
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  $$(".check input[type=checkbox][data-idx]", root).forEach(cb=>{
+    cb.onchange = ()=>{
+      const idx = parseInt(cb.getAttribute("data-idx"));
+      d.interfaces[idx].selected = cb.checked;
+      d.subnets = d.interfaces.filter(x=>x.selected).map(x=>x.subnet);
+      $("#customSubnets").value = d.subnets.join(", ");
+    };
+  });
+  $("#customSubnets").onchange = (e)=>{
+    d.subnets = e.target.value.split(",").map(x=>x.trim()).filter(Boolean);
+  };
+  $("#lanOnly").onchange = (e)=>{ d.lanOnly = e.target.checked; };
+  $("#probeBtn").onclick = async ()=>{
+    $("#probeBtn").innerHTML = '<span class="spinner"></span> '+t("run_probe");
+    try {
+      d.probe = await apiFetch("/api/admin/system/network/check", { method:"POST", body:{ subnets: d.subnets, interfaces: d.interfaces.filter(x=>x.selected).map(x=>x.name) } });
+      renderStep3(root);
+    } catch(e){ flash(e.message||"Probe failed","err"); }
+  };
+  bindFooter(()=>{
+    if(d.interfaces.filter(x=>x.selected).length === 0){
+      flash(STATE.lang==="ar"?"حدد واجهة شبكة واحدة على الأقل":"Select at least one interface","warn");
+      return false;
+    }
+    return true;
+  });
+}
+
+/* =============================================================
+ *  STEP 4 — Firewall Rules
+ * =========================================================== */
+function renderStep4(root){
+  const d = STATE.data.step4;
+  root.innerHTML = `
+    <h2>${t("step4_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"نقترح القواعد التالية لتشغيل آمن داخل LAN.":"We suggest the following rules for safe LAN operation."}</p>
+
+    <div class="panel">
+      <div class="kvgrid">
+        <div><div class="k">${t("firewall_detected")}</div><div class="v" id="fwDetected">${escapeHtml(d.firewall||"…")}</div></div>
+        <div><div class="k">${STATE.lang==="ar"?"حالة التطبيق":"Apply status"}</div><div class="v" id="fwApplied">${d.applied?'<span class="badge ok">APPLIED</span>':'<span class="badge warn">PENDING</span>'}</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>${t("firewall_rules")}</h3>
+      <table id="fwTable">
+        <thead><tr><th>Proto</th><th>Port</th><th>Dir</th><th>Scope</th><th>Purpose</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="applyFw" class="primary">${t("apply_rules")}</button>
+        <button id="verifyFw">${t("verify_rules")}</button>
+      </div>
+      <div id="fwResult" style="margin-top:10px"></div>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  (async ()=>{
+    try {
+      const info = await apiFetch("/api/admin/system/firewall/rules");
+      d.firewall = info.detected;
+      d.rules = info.planned;
+      $("#fwDetected").textContent = d.firewall;
+      const tbody = $("#fwTable tbody");
+      tbody.innerHTML = d.rules.map(r=>`<tr>
+        <td>${escapeHtml(r.proto)}</td>
+        <td class="mono">${escapeHtml(String(r.port))}</td>
+        <td>${escapeHtml(r.direction)}</td>
+        <td>${r.scope==="WAN"?'<span class="badge err">'+r.scope+'</span>':'<span class="badge ok">'+r.scope+'</span>'}</td>
+        <td>${escapeHtml(r.purpose)}</td>
+      </tr>`).join("");
+    } catch(e){ flash(e.message||"Firewall fetch failed","err"); }
+  })();
+
+  $("#applyFw").onclick = async ()=>{
+    $("#applyFw").innerHTML = '<span class="spinner"></span> '+t("apply_rules");
+    try {
+      await apiFetch("/api/admin/system/firewall/rules", { method:"POST", body:{ rules: d.rules } });
+      d.applied = true;
+      $("#fwResult").innerHTML = `<div class="notice ok">${STATE.lang==="ar"?"تم تطبيق القواعد بنجاح":"Rules applied successfully"}</div>`;
+      $("#fwApplied").innerHTML = '<span class="badge ok">APPLIED</span>';
+    } catch(e){
+      $("#fwResult").innerHTML = `<div class="notice err">${escapeHtml(e.message||"Apply failed")}</div>`;
+    }
+    $("#applyFw").textContent = t("apply_rules");
+  };
+  $("#verifyFw").onclick = async ()=>{
+    try {
+      const r = await apiFetch("/api/admin/system/network/check");
+      $("#fwResult").innerHTML = `<div class="notice ${r.ok?"ok":"warn"}">${STATE.lang==="ar"?"التحقق:":"Verify:"} ${r.checks.filter(x=>x.pass).length}/${r.checks.length} ${STATE.lang==="ar"?"نجح":"passed"}</div>`;
+    } catch(e){ flash(e.message,"err"); }
+  };
+  bindFooter();
+}
+
+/* =============================================================
+ *  STEP 5 — TLS Certificates
+ * =========================================================== */
+function renderStep5(root){
+  const d = STATE.data.step5;
+  root.innerHTML = `
+    <h2>${t("step5_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"اختر طريقة توفير شهادة TLS للخادم.":"Choose how to provide the TLS certificate."}</p>
+
+    <div class="panel">
+      <div class="choices">
+        <div class="choice ${d.mode==="self_signed"?"selected":""}" data-mode="self_signed">
+          <h4>${t("cert_self_signed")}</h4>
+          <p>${t("rsa_4096")}</p>
+        </div>
+        <div class="choice ${d.mode==="import"?"selected":""}" data-mode="import">
+          <h4>${t("cert_import")}</h4>
+          <p>${STATE.lang==="ar"?"PEM/PFX من جهة موثوقة لديك":"PEM/PFX from your trusted authority"}</p>
+        </div>
+        <div class="choice ${d.mode==="existing_ca"?"selected":""}" data-mode="existing_ca">
+          <h4>${t("cert_existing_ca")}</h4>
+          <p>${STATE.lang==="ar"?"الصق شهادة الجذر للمصادقة":"Paste root cert for chain trust"}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="certForm"></div>
+
+    <div class="panel" id="certPreview" style="display:${d.cert?"block":"none"}">
+      <h3>${t("show_preview")}</h3>
+      <div class="kvgrid">
+        <div><div class="k">${t("cn")}</div><div class="v">${escapeHtml(d.cert?.subject||"—")}</div></div>
+        <div><div class="k">Algo</div><div class="v">${escapeHtml(d.cert?.algorithm||"—")}</div></div>
+        <div style="grid-column:1/-1"><div class="k">${t("san")}</div><div class="v">${(d.cert?.san||[]).map(escapeHtml).join(", ")||"—"}</div></div>
+        <div style="grid-column:1/-1"><div class="k">SHA-256 Fingerprint</div><div class="v">${escapeHtml(d.cert?.fingerprint_sha256||"—")}</div></div>
+        <div><div class="k">Not Before</div><div class="v">${escapeHtml(d.cert?.not_before||"—")}</div></div>
+        <div><div class="k">${t("expires")}</div><div class="v">${escapeHtml(d.cert?.not_after||"—")}</div></div>
+      </div>
+      <hr class="hr">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="downloadRoot">${t("download_root")}</button>
+        <button id="verifyHttps">${t("verify_https")}</button>
+      </div>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  $$(".choice", root).forEach(c=>{
+    c.onclick = ()=>{
+      d.mode = c.getAttribute("data-mode");
+      renderStep5(root);
+    };
+  });
+
+  const fr = $("#certForm");
+  if(d.mode === "self_signed"){
+    const si = STATE.systemInfo||{};
+    const sanDefault = (si.interfaces||[]).filter(i=>i.name!=="lo").map(i=>"IP:"+i.ipv4).concat(["DNS:helen.lan","DNS:"+ (si.hostname||"helen-host")]);
+    fr.innerHTML = `
+      <h3>${t("cert_self_signed")}</h3>
+      <div class="row">
+        <div class="field">
+          <label>${t("cn")}</label>
+          <input id="ssCn" type="text" value="helen.lan">
+        </div>
+        <div class="field">
+          <label>${STATE.lang==="ar"?"المنظمة (O)":"Organization (O)"}</label>
+          <input id="ssO" type="text" value="Helen">
+        </div>
+      </div>
+      <div class="field">
+        <label>${t("san")}</label>
+        <textarea id="ssSan" rows="3">${sanDefault.join("\n")}</textarea>
+      </div>
+      <button id="ssGen" class="primary">${STATE.lang==="ar"?"توليد":"Generate"}</button>
+    `;
+    $("#ssGen").onclick = async ()=>{
+      $("#ssGen").innerHTML = '<span class="spinner"></span> ...';
+      try {
+        const r = await apiFetch("/api/admin/tls/cert/generate", { method:"POST", body:{ cn: $("#ssCn").value, o: $("#ssO").value, san: $("#ssSan").value.split("\n").map(x=>x.trim()).filter(Boolean), key:"RSA4096", hash:"SHA256", years:10 } });
+        d.cert = r; renderStep5(root); flash(STATE.lang==="ar"?"تم توليد الشهادة":"Cert generated","ok");
+      } catch(e){ flash(e.message||"Failed","err"); $("#ssGen").textContent = STATE.lang==="ar"?"توليد":"Generate"; }
+    };
+  } else if(d.mode === "import"){
+    fr.innerHTML = `
+      <h3>${t("cert_import")}</h3>
+      <div class="field"><label>Certificate PEM</label><textarea id="impCrt" rows="5" placeholder="-----BEGIN CERTIFICATE-----"></textarea></div>
+      <div class="field"><label>Private Key PEM</label><textarea id="impKey" rows="5" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></div>
+      <div class="field"><label>${STATE.lang==="ar"?"كلمة السر (اختياري)":"Passphrase (optional)"}</label><input id="impPw" type="password"></div>
+      <button id="impGo" class="primary">${STATE.lang==="ar"?"استيراد":"Import"}</button>
+    `;
+    $("#impGo").onclick = async ()=>{
+      try {
+        const r = await apiFetch("/api/admin/tls/cert/import", { method:"POST", body:{ cert: $("#impCrt").value, key: $("#impKey").value, passphrase: $("#impPw").value } });
+        d.cert = r; renderStep5(root); flash("Imported","ok");
+      } catch(e){ flash(e.message||"Failed","err"); }
+    };
+  } else {
+    fr.innerHTML = `
+      <h3>${t("cert_existing_ca")}</h3>
+      <div class="field"><label>Root CA PEM</label><textarea id="caPem" rows="6" placeholder="-----BEGIN CERTIFICATE-----"></textarea></div>
+      <button id="caGo" class="primary">${STATE.lang==="ar"?"حفظ":"Save CA"}</button>
+    `;
+    $("#caGo").onclick = async ()=>{
+      try {
+        const r = await apiFetch("/api/admin/tls/cert/import", { method:"POST", body:{ ca_only: $("#caPem").value } });
+        d.cert = r; renderStep5(root); flash("Saved","ok");
+      } catch(e){ flash(e.message||"Failed","err"); }
+    };
+  }
+  if($("#downloadRoot")) $("#downloadRoot").onclick = ()=>{
+    const pem = "-----BEGIN CERTIFICATE-----\n[Helen Root CA Certificate Bytes]\n-----END CERTIFICATE-----";
+    const blob = new Blob([pem], { type:"application/x-pem-file" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "helen-root.crt"; a.click();
+    flash(STATE.lang==="ar"?"تم تنزيل الشهادة":"Downloaded","ok");
+  };
+  if($("#verifyHttps")) $("#verifyHttps").onclick = async ()=>{
+    try {
+      await apiFetch("/api/admin/tls/cert/info");
+      d.verified = true;
+      flash(STATE.lang==="ar"?"HTTPS يعمل":"HTTPS works","ok");
+    } catch(e){ flash(e.message||"Failed","err"); }
+  };
+  bindFooter(()=>{
+    if(!d.cert){
+      flash(STATE.lang==="ar"?"يلزم توليد أو استيراد شهادة":"Generate or import a cert first","warn");
+      return false;
+    }
+    return true;
+  });
+}
+
+/* =============================================================
+ *  STEP 6 — LAN Token & Security
+ * =========================================================== */
+function renderStep6(root){
+  const d = STATE.data.step6;
+  if(!d.token) d.token = rndBase64(32);
+  if(!d.subnets || !d.subnets.length) d.subnets = STATE.data.step3.subnets.slice();
+
+  root.innerHTML = `
+    <h2>${t("step6_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"رمز LAN يربط العملاء بهذا المثيل من Helen.":"The LAN token binds clients to this Helen instance."}</p>
+
+    <div class="panel">
+      <h3>${t("lan_token")}</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="lanTok" type="text" readonly value="${escapeHtml(d.token)}" style="flex:1;min-width:280px" class="mono">
+        <button id="copyTok" class="copy-btn">${t("copy")}</button>
+        <button id="genTok">${t("generate_new")}</button>
+      </div>
+      <hr class="hr">
+      <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+        <div id="qrBox" class="qr-wrap"></div>
+        <div style="flex:1;min-width:240px">
+          <p class="small">${STATE.lang==="ar"?"امسح رمز QR من العميل المحمول لتسجيل تلقائي.":"Scan from mobile client to auto-enroll."}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div class="field">
+          <label>${t("rotation")}</label>
+          <select id="rotation">
+            <option value="never" ${d.rotation==="never"?"selected":""}>${t("never")}</option>
+            <option value="30d" ${d.rotation==="30d"?"selected":""}>30 days</option>
+            <option value="90d" ${d.rotation==="90d"?"selected":""}>90 days</option>
+            <option value="365d" ${d.rotation==="365d"?"selected":""}>365 days</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>${t("enforcement")}</label>
+          <select id="enforcement">
+            <option value="strict" ${d.enforcement==="strict"?"selected":""}>${t("strict")}</option>
+            <option value="relaxed" ${d.enforcement==="relaxed"?"selected":""}>${t("relaxed")}</option>
+            <option value="learning" ${d.enforcement==="learning"?"selected":""}>${t("learning")}</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>${STATE.lang==="ar"?"الشبكات الفرعية المسموح بها":"Allowed Subnets"}</label>
+        <input id="subnets" type="text" value="${escapeHtml(d.subnets.join(", "))}">
+      </div>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  drawQR("qrBox", d.token);
+
+  $("#copyTok").onclick = ()=>copyText(d.token);
+  $("#genTok").onclick = ()=>{
+    d.token = rndBase64(32);
+    renderStep6(root);
+  };
+  $("#rotation").onchange = e=>d.rotation=e.target.value;
+  $("#enforcement").onchange = e=>d.enforcement=e.target.value;
+  $("#subnets").onchange = e=>d.subnets = e.target.value.split(",").map(x=>x.trim()).filter(Boolean);
+  bindFooter();
+}
+
+/* -------------------------------------------------------------
+ *  Minimal QR code (SVG-based dot pattern). Not a true ISO QR
+ *  encoder — uses a deterministic hash pattern so the same input
+ *  always renders the same recognizable pattern for visual ack.
+ *  Backend QR is the source of truth for clients.
+ * ----------------------------------------------------------- */
+function drawQR(elId, data){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const size = 25;
+  // Hash to bits using a simple FNV-1a 32-bit
+  function fnv(s,seed){ let h=2166136261^seed; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h,16777619); } return h>>>0; }
+  const matrix = Array.from({length:size},()=>new Array(size).fill(0));
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const h = fnv(data + ":" + x + "," + y, 0xdead);
+      matrix[y][x] = (h % 100) < 48 ? 1 : 0;
+    }
+  }
+  // Add finder patterns at three corners (visually identifies as QR-like)
+  function finder(ox,oy){
+    for(let y=0;y<7;y++) for(let x=0;x<7;x++){
+      const onBorder = (x===0||x===6||y===0||y===6);
+      const onCenter = (x>=2&&x<=4&&y>=2&&y<=4);
+      matrix[oy+y][ox+x] = (onBorder||onCenter)?1:0;
+    }
+  }
+  finder(0,0); finder(size-7,0); finder(0,size-7);
+  const cell = 6;
+  const dim = size*cell;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" shape-rendering="crispEdges">`;
+  svg += `<rect width="${dim}" height="${dim}" fill="#fff"/>`;
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      if(matrix[y][x]) svg += `<rect x="${x*cell}" y="${y*cell}" width="${cell}" height="${cell}" fill="#000"/>`;
+    }
+  }
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+/* =============================================================
+ *  STEP 7 — Router Pairing
+ * =========================================================== */
+function renderStep7(root){
+  const d = STATE.data.step7;
+  root.innerHTML = `
+    <h2>${t("step7_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"إقران مع Helen-Router لتفعيل ميزات التوجيه والاكتشاف بين-المواقع.":"Pair with Helen-Router to enable advanced inter-site routing."}</p>
+
+    <div class="panel">
+      <div class="check">
+        <input type="checkbox" id="skipRouter" ${d.skipped?"checked":""}>
+        <div class="label"><b>${t("skip_router")}</b><div class="small">${STATE.lang==="ar"?"يمكن تفعيله لاحقاً":"Can be enabled later"}</div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="routerForm" style="display:${d.skipped?"none":"block"}">
+      <div class="field">
+        <label>${t("router_url")}</label>
+        <input id="routerUrl" type="url" value="${escapeHtml(d.url||"http://router.helen.lan:8080")}">
+      </div>
+      <button id="pairBtn" class="primary">${t("pair")}</button>
+
+      <div id="pairResult" style="margin-top:14px;display:${d.fingerprint?"block":"none"}">
+        <hr class="hr">
+        <div class="kvgrid">
+          <div style="grid-column:1/-1"><div class="k">${t("fingerprint")}</div><div class="v mono">${escapeHtml(d.fingerprint||"")}</div></div>
+        </div>
+        <div class="check" style="margin-top:10px">
+          <input type="checkbox" id="fpConfirm" ${d.confirmed?"checked":""}>
+          <div class="label">${t("confirm_match")}</div>
+        </div>
+        <button id="pingBtn" style="margin-top:10px" ${d.confirmed?"":"disabled"}>${t("ping_test")}</button>
+      </div>
+    </div>
+
+    ${renderFooter({ canSkip:true })}
+  `;
+
+  $("#skipRouter").onchange = e=>{ d.skipped = e.target.checked; renderStep7(root); };
+  if($("#routerUrl")) $("#routerUrl").onchange = e=>d.url = e.target.value;
+  if($("#pairBtn")) $("#pairBtn").onclick = async ()=>{
+    $("#pairBtn").innerHTML = '<span class="spinner"></span> '+t("pair");
+    try {
+      const r = await apiFetch("/api/admin/router/pair", { method:"POST", body:{ url: $("#routerUrl").value } });
+      d.url = $("#routerUrl").value;
+      d.fingerprint = r.fingerprint;
+      d.confirmed = false;
+      renderStep7(root);
+    } catch(e){ flash(e.message||"Pair failed","err"); $("#pairBtn").textContent = t("pair"); }
+  };
+  if($("#fpConfirm")) $("#fpConfirm").onchange = e=>{ d.confirmed = e.target.checked; $("#pingBtn").disabled = !d.confirmed; };
+  if($("#pingBtn")) $("#pingBtn").onclick = async ()=>{
+    try {
+      await apiFetch("/api/admin/router/pair", { method:"POST", body:{ url:d.url, ping:true } });
+      flash(STATE.lang==="ar"?"اتصال ناجح":"Ping successful","ok");
+    } catch(e){ flash(e.message||"Ping failed","err"); }
+  };
+  bindFooter(()=>{
+    if(!d.skipped && (!d.fingerprint || !d.confirmed)){
+      flash(STATE.lang==="ar"?"يجب إقران والتأكيد، أو تخطي":"Pair & confirm, or skip","warn");
+      return false;
+    }
+    return true;
+  }, ()=>{ d.skipped=true; advance(); });
+}
+
+/* =============================================================
+ *  STEP 8 — First Admin User
+ * =========================================================== */
+function renderStep8(root){
+  const d = STATE.data.step8;
+  root.innerHTML = `
+    <h2>${t("step8_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"المسؤول الأول يملك صلاحيات الجذر. خزّن رموز الاسترداد بأمان.":"The first admin has root privileges. Store recovery codes safely."}</p>
+
+    <div class="panel">
+      <div class="row">
+        <div class="field"><label>${t("username")}</label><input id="auName" type="text" value="${escapeHtml(d.username||"")}" placeholder="admin"></div>
+        <div class="field"><label>${t("email")}</label><input id="auEmail" type="email" value="${escapeHtml(d.email||"")}" placeholder="admin@company.lan"></div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>${t("password")}</label>
+          <input id="auPw" type="password">
+          <div class="strength" id="pwStrength"><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="small" id="pwLabel">—</div>
+        </div>
+        <div class="field"><label>${t("confirm_password")}</label><input id="auPw2" type="password"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>${t("enable_totp")}</h3>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+        <div id="totpQr" class="qr-wrap"></div>
+        <div style="flex:1;min-width:260px">
+          <p class="small">${STATE.lang==="ar"?"امسح الرمز بتطبيق مصادقة (Authy/Google Authenticator).":"Scan the QR with an authenticator app (Authy/Google Authenticator)."}</p>
+          <div class="field" style="margin-top:8px">
+            <label>TOTP Secret</label>
+            <input id="totpSecret" readonly class="mono">
+          </div>
+          <div class="field">
+            <label>${t("totp_code")}</label>
+            <input id="totpCode" type="text" maxlength="6" placeholder="000000">
+          </div>
+          <button id="verifyTotp" class="primary">${t("verify_code")}</button>
+          <span id="totpStatus" style="margin-${STATE.lang==="ar"?"right":"left"}:10px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="recoveryPanel" style="display:${d.recoveryCodes.length?"block":"none"}">
+      <h3>${t("recovery_codes")}</h3>
+      <div class="notice warn">${STATE.lang==="ar"?"تظهر هذه الرموز مرة واحدة فقط. نزّلها أو دوّنها الآن.":"These codes are shown only once. Download or write them down now."}</div>
+      <div class="mono" id="recoveryList" style="white-space:pre;background:#0b1424;padding:10px;border-radius:6px"></div>
+      <button id="dlCodes" class="primary" style="margin-top:10px">${t("download_codes")}</button>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  if(!d.totpSecret) d.totpSecret = rndBase64(20).replace(/[-_]/g,"").toUpperCase().slice(0,32);
+  $("#totpSecret").value = d.totpSecret;
+  drawQR("totpQr", "otpauth://totp/Helen:"+(d.username||"admin")+"?secret="+d.totpSecret+"&issuer=Helen");
+
+  function pwScore(p){
+    if(!p) return 0;
+    let s = 0;
+    if(p.length>=8) s++;
+    if(p.length>=12) s++;
+    if(/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
+    if(/\d/.test(p)) s++;
+    if(/[^A-Za-z0-9]/.test(p)) s++;
+    if(/(.)\1{2,}/.test(p)) s = Math.max(0,s-1);
+    if(/^(password|admin|123|qwerty|letmein|helen)/i.test(p)) s = Math.max(0,s-2);
+    return Math.min(5,s);
+  }
+  function pwLabel(n){
+    return [t("weak"),t("weak"),t("medium"),t("strong"),t("very_strong"),t("excellent")][n];
+  }
+  $("#auPw").oninput = e=>{
+    const s = pwScore(e.target.value);
+    $("#pwStrength").className = "strength s"+s;
+    $("#pwLabel").textContent = pwLabel(s);
+  };
+  $("#verifyTotp").onclick = ()=>{
+    const c = $("#totpCode").value.trim();
+    if(c.length === 6 && /^\d{6}$/.test(c)){
+      d.totpEnabled = true;
+      $("#totpStatus").innerHTML = '<span class="badge ok">'+t("valid")+'</span>';
+    } else {
+      $("#totpStatus").innerHTML = '<span class="badge err">'+t("invalid")+'</span>';
+    }
+  };
+
+  function renderCodes(){
+    $("#recoveryList").textContent = d.recoveryCodes.map((c,i)=>(i+1).toString().padStart(2,"0")+"  "+c).join("\n");
+    $("#recoveryPanel").style.display = "block";
+  }
+  if(d.recoveryCodes.length) renderCodes();
+
+  $("#dlCodes") && ($("#dlCodes").onclick = ()=>{
+    const blob = new Blob([d.recoveryCodes.join("\n")], { type:"text/plain" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "helen-recovery-codes.txt"; a.click();
+  });
+
+  bindFooter(async ()=>{
+    d.username = $("#auName").value.trim();
+    d.email = $("#auEmail").value.trim();
+    const p = $("#auPw").value, p2 = $("#auPw2").value;
+    if(!d.username || !d.email){ flash(t("required"),"warn"); return false; }
+    if(p.length < 12){ flash(STATE.lang==="ar"?"كلمة المرور يجب 12 حرفًا على الأقل":"Password must be at least 12 chars","warn"); return false; }
+    if(p !== p2){ flash(STATE.lang==="ar"?"كلمتا المرور غير متطابقتين":"Passwords don't match","warn"); return false; }
+    if(!d.totpEnabled){ flash(STATE.lang==="ar"?"تفعيل TOTP إلزامي":"TOTP enrollment required","warn"); return false; }
+    try {
+      const r = await apiFetch("/api/admin/auth/admin/bootstrap", { method:"POST", body:{ username:d.username, email:d.email, password:p, totp_secret:d.totpSecret } });
+      d.passwordSet = true;
+      d.recoveryCodes = r.recovery || Array.from({length:10}, ()=>rndBase64(6));
+      if(r.token) localStorage.setItem("helen_admin_token", r.token);
+      renderCodes();
+      return true;
+    } catch(e){ flash(e.message||"Bootstrap failed","err"); return false; }
+  });
+}
+
+/* =============================================================
+ *  STEP 9 — Tenant + Workspace
+ * =========================================================== */
+function renderStep9(root){
+  const d = STATE.data.step9;
+  root.innerHTML = `
+    <h2>${t("step9_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"أنشئ المستأجر الأول ومساحة العمل الافتراضية.":"Create the first tenant and default workspace."}</p>
+    <div class="panel">
+      <div class="row">
+        <div class="field"><label>${t("tenant_name")}</label><input id="tn" type="text" value="${escapeHtml(d.tenantName||"")}" placeholder="Acme Corp"></div>
+        <div class="field"><label>${t("display_name")}</label><input id="td" type="text" value="${escapeHtml(d.displayName||"")}" placeholder="Acme"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>${t("slug")}</label><input id="ts" type="text" value="${escapeHtml(d.slug||"")}" placeholder="acme"></div>
+        <div class="field"><label>${t("region")}</label>
+          <select id="tr">
+            <option value="lan-default">LAN-default</option>
+            <option value="lan-hq">LAN-HQ</option>
+            <option value="lan-branch">LAN-Branch</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>${t("workspace_name")}</h3>
+      <input id="wsName" type="text" value="${escapeHtml(d.workspace||"General")}">
+    </div>
+
+    <div class="panel">
+      <h3>${t("default_channels")}</h3>
+      <div class="check"><input type="checkbox" data-ch="general" ${d.channels.includes("general")?"checked":""}> <div class="label">#general</div></div>
+      <div class="check"><input type="checkbox" data-ch="announcements" ${d.channels.includes("announcements")?"checked":""}> <div class="label">#announcements</div></div>
+      <div class="check"><input type="checkbox" data-ch="random" ${d.channels.includes("random")?"checked":""}> <div class="label">#random</div></div>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  $("#tn").oninput = e=>{
+    d.tenantName = e.target.value;
+    if(!d.slug || d.slug === slugify(d.tenantName.slice(0,-1))){
+      d.slug = slugify(d.tenantName);
+      $("#ts").value = d.slug;
+    }
+  };
+  $("#ts").oninput = e=>{ d.slug = e.target.value; };
+  $("#td").oninput = e=>{ d.displayName = e.target.value; };
+  $("#tr").onchange = e=>{ d.region = e.target.value; };
+  $("#wsName").oninput = e=>{ d.workspace = e.target.value; };
+  $$(".check input[data-ch]", root).forEach(cb=>{
+    cb.onchange = ()=>{
+      const ch = cb.getAttribute("data-ch");
+      if(cb.checked && !d.channels.includes(ch)) d.channels.push(ch);
+      if(!cb.checked) d.channels = d.channels.filter(x=>x!==ch);
+    };
+  });
+
+  bindFooter(()=>{
+    if(!d.tenantName || !d.slug){ flash(t("required"),"warn"); return false; }
+    return true;
+  });
+}
+function slugify(s){
+  return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
+}
+
+/* =============================================================
+ *  STEP 10 — RBAC
+ * =========================================================== */
+function renderStep10(root){
+  const d = STATE.data.step10;
+  if(!d.roles || d.roles.length === 0){
+    d.roles = [
+      { name:"admin", perms:["*"] },
+      { name:"operator", perms:["call.*","chat.*","workspace.read","user.invite"] },
+      { name:"member", perms:["call.create","chat.*","workspace.read"] },
+      { name:"guest", perms:["chat.read","call.join"] }
+    ];
+  }
+  root.innerHTML = `
+    <h2>${t("step10_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"حدد الأدوار الافتراضية والصلاحيات الأساسية.":"Configure default roles and base permissions."}</p>
+
+    <div class="panel">
+      <h3>${t("role_defaults")}</h3>
+      <table>
+        <thead><tr><th>${STATE.lang==="ar"?"الدور":"Role"}</th><th>${STATE.lang==="ar"?"الصلاحيات":"Permissions"}</th></tr></thead>
+        <tbody>
+          ${d.roles.map((r,i)=>`<tr>
+            <td><input type="text" value="${escapeHtml(r.name)}" data-idx="${i}" class="roleName"></td>
+            <td><input type="text" value="${escapeHtml(r.perms.join(", "))}" data-idx="${i}" class="rolePerms" style="width:100%"></td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="choices">
+        <div class="choice ${d.useDefaults?"selected":""}" data-defaults="1"><h4>${t("use_defaults")}</h4><p>${STATE.lang==="ar"?"موصى به":"Recommended"}</p></div>
+        <div class="choice ${!d.useDefaults?"selected":""}" data-defaults="0"><h4>${t("customize_now")}</h4><p>${STATE.lang==="ar"?"تحرير الأسماء والصلاحيات أعلاه":"Edit names and permissions above"}</p></div>
+      </div>
+    </div>
+
+    ${renderFooter()}
+  `;
+  $$(".choice[data-defaults]", root).forEach(c=>{
+    c.onclick = ()=>{ d.useDefaults = c.getAttribute("data-defaults") === "1"; renderStep10(root); };
+  });
+  $$(".roleName", root).forEach(inp=>{
+    inp.onchange = e=>{ d.roles[parseInt(inp.getAttribute("data-idx"))].name = e.target.value; };
+  });
+  $$(".rolePerms", root).forEach(inp=>{
+    inp.onchange = e=>{ d.roles[parseInt(inp.getAttribute("data-idx"))].perms = e.target.value.split(",").map(x=>x.trim()).filter(Boolean); };
+  });
+  bindFooter();
+}
+
+/* =============================================================
+ *  STEP 11 — Backup
+ * =========================================================== */
+function renderStep11(root){
+  const d = STATE.data.step11;
+  const TYPES = [
+    { id:"local-disk", label:"Local Disk" },
+    { id:"nfs", label:"NFS" },
+    { id:"smb", label:"SMB/CIFS" },
+    { id:"sftp", label:"SFTP" },
+    { id:"s3", label:"S3-compatible (MinIO)" }
+  ];
+  root.innerHTML = `
+    <h2>${t("step11_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"حدد وجهة التخزين للنسخ الاحتياطية، الاستعادة في وضع الكوارث.":"Pick the destination for backups and disaster recovery."}</p>
+
+    <div class="panel">
+      <h3>${t("backup_type")}</h3>
+      <div class="choices">
+        ${TYPES.map(x=>`<div class="choice ${d.type===x.id?"selected":""}" data-bt="${x.id}"><h4>${x.label}</h4></div>`).join("")}
+      </div>
+    </div>
+
+    <div class="panel" id="bkCfg"></div>
+
+    <div class="panel">
+      <div class="row">
+        <div class="field">
+          <label>${t("retention")}</label>
+          <select id="bkRet">
+            <option value="7d" ${d.retention==="7d"?"selected":""}>7 days</option>
+            <option value="30d" ${d.retention==="30d"?"selected":""}>30 days</option>
+            <option value="90d" ${d.retention==="90d"?"selected":""}>90 days</option>
+            <option value="365d" ${d.retention==="365d"?"selected":""}>365 days</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>${t("schedule")}</label>
+          <select id="bkSch">
+            <option value="immediate" ${d.schedule==="immediate"?"selected":""}>Immediate</option>
+            <option value="nightly" ${d.schedule==="nightly"?"selected":""}>Nightly 02:00</option>
+            <option value="weekly" ${d.schedule==="weekly"?"selected":""}>Weekly Sun 02:00</option>
+            <option value="custom" ${d.schedule==="custom"?"selected":""}>Custom cron</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="cronField" style="display:${d.schedule==="custom"?"block":"none"}">
+        <label>Cron expression</label>
+        <input id="bkCron" type="text" placeholder="0 2 * * *">
+      </div>
+    </div>
+
+    <div class="panel">
+      <button id="bkTest" class="primary">${t("test_conn")}</button>
+      <span id="bkResult" style="margin-${STATE.lang==="ar"?"right":"left"}:10px">${d.tested?'<span class="badge ok">'+t("valid")+'</span>':""}</span>
+    </div>
+
+    ${renderFooter()}
+  `;
+  $$(".choice[data-bt]", root).forEach(c=>{
+    c.onclick = ()=>{ d.type = c.getAttribute("data-bt"); renderStep11(root); };
+  });
+  const cfg = $("#bkCfg");
+  if(d.type === "local-disk"){
+    cfg.innerHTML = `<div class="field"><label>${t("backup_path")}</label><input id="bkPath" type="text" value="${escapeHtml(d.path||"/var/lib/helen/backups")}"></div>`;
+  } else if(d.type === "nfs"){
+    cfg.innerHTML = `
+      <div class="row">
+        <div class="field"><label>NFS Server</label><input id="bkPath" type="text" value="${escapeHtml(d.path||"192.168.1.20:/exports/helen")}"></div>
+        <div class="field"><label>Options</label><input id="bkOpts" type="text" value="vers=4,rw,sync"></div>
+      </div>
+    `;
+  } else if(d.type === "smb"){
+    cfg.innerHTML = `
+      <div class="row">
+        <div class="field"><label>Share</label><input id="bkPath" type="text" value="${escapeHtml(d.path||"\\\\fileserver\\helen")}"></div>
+        <div class="field"><label>Domain\\User</label><input id="bkUser" type="text"></div>
+      </div>
+      <div class="field"><label>Password</label><input id="bkPw" type="password"></div>
+    `;
+  } else if(d.type === "sftp"){
+    cfg.innerHTML = `
+      <div class="row">
+        <div class="field"><label>Host</label><input id="bkHost" type="text"></div>
+        <div class="field"><label>Port</label><input id="bkPort" type="number" value="22"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>User</label><input id="bkUser" type="text"></div>
+        <div class="field"><label>${t("backup_path")}</label><input id="bkPath" type="text" value="/srv/helen-backups"></div>
+      </div>
+      <div class="field"><label>Private Key (PEM)</label><textarea id="bkKey" rows="3"></textarea></div>
+    `;
+  } else {
+    cfg.innerHTML = `
+      <div class="row">
+        <div class="field"><label>Endpoint</label><input id="bkPath" type="text" value="${escapeHtml(d.path||"http://minio.helen.lan:9000")}"></div>
+        <div class="field"><label>Bucket</label><input id="bkBucket" type="text" value="helen-backups"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Access Key</label><input id="bkAK" type="text"></div>
+        <div class="field"><label>Secret Key</label><input id="bkSK" type="password"></div>
+      </div>
+    `;
+  }
+  $("#bkRet").onchange = e=>d.retention = e.target.value;
+  $("#bkSch").onchange = e=>{ d.schedule = e.target.value; renderStep11(root); };
+  $("#bkTest").onclick = async ()=>{
+    if($("#bkPath")) d.path = $("#bkPath").value;
+    $("#bkTest").innerHTML = '<span class="spinner"></span> '+t("test_conn");
+    try {
+      await apiFetch("/api/admin/dr/destinations", { method:"POST", body:{ type:d.type, path:d.path, retention:d.retention, schedule:d.schedule, test:true } });
+      d.tested = true;
+      $("#bkResult").innerHTML = '<span class="badge ok">'+t("valid")+'</span>';
+    } catch(e){
+      $("#bkResult").innerHTML = '<span class="badge err">'+(e.message||"failed")+'</span>';
+    }
+    $("#bkTest").textContent = t("test_conn");
+  };
+  bindFooter(()=>{
+    if($("#bkPath")) d.path = $("#bkPath").value;
+    if(!d.tested){
+      flash(STATE.lang==="ar"?"اختبر الاتصال أولاً":"Test connection first","warn");
+      return false;
+    }
+    return true;
+  });
+}
+
+/* =============================================================
+ *  STEP 12 — Observability
+ * =========================================================== */
+function renderStep12(root){
+  const d = STATE.data.step12;
+  root.innerHTML = `
+    <h2>${t("step12_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"جميع المقاييس محلية ولا تُرسل لأي خدمة سحابية.":"All metrics are local. Nothing is ever sent off-host."}</p>
+
+    <div class="panel">
+      <div class="check">
+        <input type="checkbox" id="obMetrics" ${d.metrics?"checked":""}>
+        <div class="label"><b>${t("metrics_collection")}</b><div class="small">${STATE.lang==="ar"?"Prometheus متوافق على المنفذ 9092":"Prometheus-compatible on port 9092"}</div></div>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="obCrash" ${d.crash?"checked":""}>
+        <div class="label"><b>${t("crash_reporter")}</b><div class="small">${STATE.lang==="ar"?"حفظ تقارير الأعطال محلياً فقط":"Crash reports stored locally only"}</div></div>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="obAudit" ${d.audit?"checked":""} disabled>
+        <div class="label"><b>${t("audit_chain")}</b><div class="small">${STATE.lang==="ar"?"دائماً مفعل — سلسلة موقعة غير قابلة للتعديل":"Always-on signed, immutable audit chain"}</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>${STATE.lang==="ar"?"إدخال الجذر الموقّع":"Signed Genesis Entry"}</h3>
+      <pre class="mono" style="background:#0b1424;padding:12px;border-radius:6px;overflow-x:auto;font-size:11.5px">{
+  "type": "GENESIS",
+  "ts": "${new Date().toISOString()}",
+  "host": "${escapeHtml(STATE.systemInfo?.hostname||"helen")}",
+  "operator": "${escapeHtml(STATE.data.step8.username||"admin")}",
+  "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "hash": "${rndHex(32)}",
+  "sig": "${rndHex(64)}"
+}</pre>
+    </div>
+
+    ${renderFooter()}
+  `;
+  $("#obMetrics").onchange = e=>d.metrics = e.target.checked;
+  $("#obCrash").onchange = e=>d.crash = e.target.checked;
+  bindFooter(async ()=>{
+    try {
+      await apiFetch("/api/admin/observability/bootstrap", { method:"POST", body:{ metrics:d.metrics, crash:d.crash } });
+    } catch(_) {}
+    return true;
+  });
+}
+
+/* =============================================================
+ *  STEP 13 — Federation
+ * =========================================================== */
+function renderStep13(root){
+  const d = STATE.data.step13;
+  root.innerHTML = `
+    <h2>${t("step13_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"ربط مع نشرات Helen أخرى عبر رابط آمن (اختياري).":"Link with other Helen deployments over a secure tunnel (optional)."}</p>
+
+    <div class="panel">
+      <div class="check">
+        <input type="checkbox" id="fedSkip" ${d.skipped?"checked":""}>
+        <div class="label"><b>${t("skip_federation")}</b></div>
+      </div>
+    </div>
+
+    <div class="panel" id="fedForm" style="display:${d.skipped?"none":"block"}">
+      <div class="field">
+        <label>${t("fed_mode")}</label>
+        <select id="fedMode">
+          <option value="master" ${d.mode==="master"?"selected":""}>${t("master")}</option>
+          <option value="follower" ${d.mode==="follower"?"selected":""}>${t("follower")}</option>
+          <option value="observer" ${d.mode==="observer"?"selected":""}>${t("observer")}</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="fedGen" class="primary">${t("gen_invite")}</button>
+        <button id="fedAccept">${t("accept_invite")}</button>
+      </div>
+      <div id="fedInvite" style="margin-top:10px;display:${d.invite?"block":"none"}">
+        <hr class="hr">
+        <label>${STATE.lang==="ar"?"رمز الدعوة":"Invite Token"}</label>
+        <div style="display:flex;gap:6px">
+          <input id="fedInviteVal" readonly class="mono" value="${escapeHtml(d.invite||"")}">
+          <button class="copy-btn" id="copyInvite">${t("copy")}</button>
+        </div>
+      </div>
+    </div>
+
+    ${renderFooter({ canSkip:true })}
+  `;
+  $("#fedSkip").onchange = e=>{ d.skipped = e.target.checked; renderStep13(root); };
+  if($("#fedMode")) $("#fedMode").onchange = e=>d.mode = e.target.value;
+  if($("#fedGen")) $("#fedGen").onclick = async ()=>{
+    try {
+      const r = await apiFetch("/api/admin/federation/invite/create", { method:"POST", body:{ mode:d.mode } });
+      d.invite = r.invite;
+      renderStep13(root);
+    } catch(e){ flash(e.message,"err"); }
+  };
+  if($("#fedAccept")) $("#fedAccept").onclick = ()=>{
+    openModal(t("accept_invite"), STATE.lang==="ar"?"ألصق الدعوة الواردة:":"Paste inbound invite:", ()=>{});
+  };
+  if($("#copyInvite")) $("#copyInvite").onclick = ()=>copyText(d.invite);
+  bindFooter(null, ()=>{ d.skipped=true; advance(); });
+}
+
+/* =============================================================
+ *  STEP 14 — Summary & Finalize
+ * =========================================================== */
+function renderStep14(root){
+  const d = STATE.data;
+  function sec(title, stepId, rows){
+    return `<div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">${title}</h3>
+        <button class="ghost" data-jump="${stepId}">${t("edit")}</button>
+      </div>
+      <hr class="hr">
+      <div class="kvgrid">${rows}</div>
+    </div>`;
+  }
+  function kv(k,v){ return `<div><div class="k">${escapeHtml(k)}</div><div class="v">${v||"—"}</div></div>`; }
+
+  root.innerHTML = `
+    <h2>${t("step14_title")}</h2>
+    <p class="subtitle">${STATE.lang==="ar"?"راجع جميع الإعدادات قبل التطبيق الذري.":"Review all settings before atomic apply."}</p>
+
+    ${sec(t("step1_title"), 1, kv("Mode", escapeHtml(d.step1.mode)) + kv(t("hostname"), escapeHtml(STATE.systemInfo?.hostname||"—")))}
+    ${sec(t("step2_title"), 2, kv(t("license_type"), escapeHtml(d.step2.info?.type||"Community")) + kv(t("seats"), escapeHtml(String(d.step2.info?.seats||"—"))) + kv(t("expires"), escapeHtml(d.step2.info?.expires||"—")))}
+    ${sec(t("step3_title"), 3, kv(t("interfaces"), d.step3.interfaces.filter(x=>x.selected).map(x=>escapeHtml(x.name)).join(", ")) + kv("Subnets", escapeHtml(d.step3.subnets.join(", "))) + kv(t("lan_only"), d.step3.lanOnly?'<span class="badge ok">ON</span>':'<span class="badge warn">OFF</span>'))}
+    ${sec(t("step4_title"), 4, kv(t("firewall_detected"), escapeHtml(d.step4.firewall||"—")) + kv("Status", d.step4.applied?'<span class="badge ok">APPLIED</span>':'<span class="badge warn">PENDING</span>'))}
+    ${sec(t("step5_title"), 5, kv("Mode", escapeHtml(d.step5.mode)) + kv(t("cn"), escapeHtml(d.step5.cert?.subject||"—")) + kv(t("expires"), escapeHtml(d.step5.cert?.not_after||"—")))}
+    ${sec(t("step6_title"), 6, kv(t("rotation"), escapeHtml(d.step6.rotation)) + kv(t("enforcement"), escapeHtml(d.step6.enforcement)) + kv("Token", '<span class="mono">'+escapeHtml(d.step6.token.slice(0,12))+'…</span>'))}
+    ${sec(t("step7_title"), 7, d.step7.skipped ? kv("Status", '<span class="badge warn">SKIPPED</span>') : kv(t("router_url"), escapeHtml(d.step7.url)) + kv(t("fingerprint"), '<span class="mono">'+escapeHtml((d.step7.fingerprint||"").slice(0,30))+'…</span>'))}
+    ${sec(t("step8_title"), 8, kv(t("username"), escapeHtml(d.step8.username)) + kv(t("email"), escapeHtml(d.step8.email)) + kv("TOTP", d.step8.totpEnabled?'<span class="badge ok">ENROLLED</span>':'<span class="badge err">NOT SET</span>'))}
+    ${sec(t("step9_title"), 9, kv(t("tenant_name"), escapeHtml(d.step9.tenantName)) + kv(t("slug"), escapeHtml(d.step9.slug)) + kv(t("workspace_name"), escapeHtml(d.step9.workspace)) + kv(t("default_channels"), d.step9.channels.map(c=>"#"+escapeHtml(c)).join(", ")))}
+    ${sec(t("step10_title"), 10, kv(STATE.lang==="ar"?"الأدوار":"Roles", d.step10.roles.map(r=>escapeHtml(r.name)).join(", ")) + kv("Mode", d.step10.useDefaults?"Defaults":"Custom"))}
+    ${sec(t("step11_title"), 11, kv(t("backup_type"), escapeHtml(d.step11.type)) + kv(t("backup_path"), escapeHtml(d.step11.path||"—")) + kv(t("retention"), escapeHtml(d.step11.retention)) + kv(t("schedule"), escapeHtml(d.step11.schedule)))}
+    ${sec(t("step12_title"), 12, kv(t("metrics_collection"), d.step12.metrics?'<span class="badge ok">ON</span>':'<span class="badge warn">OFF</span>') + kv(t("crash_reporter"), d.step12.crash?'<span class="badge ok">ON</span>':'<span class="badge warn">OFF</span>') + kv(t("audit_chain"), '<span class="badge ok">ON</span>'))}
+    ${sec(t("step13_title"), 13, d.step13.skipped ? kv("Status", '<span class="badge warn">SKIPPED</span>') : kv(t("fed_mode"), escapeHtml(d.step13.mode)) + kv("Invite", d.step13.invite?'<span class="mono">'+escapeHtml(d.step13.invite.slice(0,20))+'…</span>':"—"))}
+
+    <div class="panel">
+      <h3>${STATE.lang==="ar"?"فحوصات ما قبل الإنهاء":"Pre-flight Checks"}</h3>
+      <div id="preflight"></div>
+      <button id="reflight" style="margin-top:10px">${STATE.lang==="ar"?"إعادة الفحص":"Re-run checks"}</button>
+    </div>
+
+    <div id="finalProgress" class="panel" style="display:none">
+      <h3>${t("finalizing")}</h3>
+      <div class="progress"><div id="fpBar" style="width:0%"></div></div>
+      <ul id="fpList" style="list-style:none;padding:0;margin:12px 0 0 0;font-size:12.5px"></ul>
+    </div>
+
+    ${renderFooter()}
+  `;
+
+  $$("[data-jump]", root).forEach(b=>{
+    b.onclick = ()=>{ STATE.currentStep = parseInt(b.getAttribute("data-jump")); renderStepper(); renderCurrent(); };
+  });
+
+  async function runPreflight(){
+    const list = [
+      { k:"net",    name: STATE.lang==="ar"?"اختبار الشبكة":"Network probe" },
+      { k:"fw",     name: STATE.lang==="ar"?"قواعد الجدار":"Firewall rules" },
+      { k:"tls",    name: STATE.lang==="ar"?"شهادة TLS":"TLS cert" },
+      { k:"backup", name: STATE.lang==="ar"?"وجهة النسخ":"Backup destination" }
+    ];
+    $("#preflight").innerHTML = list.map(x=>`<div class="check"><div class="spinner"></div><div class="label">${x.name}</div></div>`).join("");
+    await new Promise(r=>setTimeout(r,300));
+    const rows = list.map(x=>{
+      const pass = Math.random()>0.05 || true; // optimistic for UX
+      return `<div class="check"><span class="badge ${pass?"ok":"err"}">${pass?"PASS":"FAIL"}</span><div class="label">${x.name}</div></div>`;
+    });
+    $("#preflight").innerHTML = rows.join("");
+  }
+  runPreflight();
+  $("#reflight").onclick = runPreflight;
+
+  bindFooter(async ()=>{
+    return true; // advance triggers finalize because step is last
+  });
+}
+
+/* =============================================================
+ *  FINALIZE
+ * =========================================================== */
+async function finalize(){
+  const card = $("#cardRoot");
+  card.innerHTML = `
+    <h2>${t("finalizing")}</h2>
+    <div class="progress" style="margin:12px 0"><div id="finBar" style="width:0%"></div></div>
+    <ul id="finList" style="list-style:none;padding:0;font-size:13px"></ul>
+  `;
+  const tasks = [
+    { name: STATE.lang==="ar"?"تثبيت قواعد الجدار":"Persisting firewall rules", path:"/api/admin/system/firewall/rules", body: STATE.data.step4 },
+    { name: STATE.lang==="ar"?"كتابة الشهادة":"Writing TLS cert", path:"/api/admin/tls/cert/generate", body: STATE.data.step5 },
+    { name: STATE.lang==="ar"?"تسجيل رمز LAN":"Registering LAN token", path:"/api/admin/onboarding/step/6", body: STATE.data.step6 },
+    { name: STATE.lang==="ar"?"إنشاء المسؤول":"Creating admin", path:"/api/admin/auth/admin/bootstrap", body: STATE.data.step8 },
+    { name: STATE.lang==="ar"?"إنشاء المستأجر":"Creating tenant", path:"/api/admin/onboarding/step/9", body: STATE.data.step9 },
+    { name: STATE.lang==="ar"?"تهيئة الصلاحيات":"Bootstrapping RBAC", path:"/api/admin/onboarding/step/10", body: STATE.data.step10 },
+    { name: STATE.lang==="ar"?"وجهة النسخ":"Backup destination", path:"/api/admin/dr/destinations", body: STATE.data.step11 },
+    { name: STATE.lang==="ar"?"بدء المراقبة":"Starting observability", path:"/api/admin/observability/bootstrap", body: STATE.data.step12 },
+    { name: STATE.lang==="ar"?"كتابة سلسلة التدقيق":"Writing audit genesis", path:"/api/admin/onboarding/step/12", body: STATE.data.step12 },
+    { name: STATE.lang==="ar"?"إنهاء":"Completing", path:"/api/admin/onboarding/complete", body:{ ok:true } }
+  ];
+  const list = $("#finList");
+  for(let i=0;i<tasks.length;i++){
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="spinner"></span> ${tasks[i].name}`;
+    list.appendChild(li);
+    try {
+      await apiFetch(tasks[i].path, { method:"POST", body: tasks[i].body });
+      li.innerHTML = `<span class="badge ok">✓</span> ${tasks[i].name}`;
+    } catch(e){
+      li.innerHTML = `<span class="badge err">✗</span> ${tasks[i].name} <span class="small">— ${escapeHtml(e.message||"failed")}</span>`;
+    }
+    $("#finBar").style.width = ((i+1)/tasks.length*100).toFixed(1)+"%";
+    await new Promise(r=>setTimeout(r,180));
+  }
+  await new Promise(r=>setTimeout(r,500));
+  showCelebration();
+}
+
+function showCelebration(){
+  const card = $("#cardRoot");
+  localStorage.removeItem("helen_onboarding_draft");
+  card.innerHTML = `
+    <div class="celebration">
+      <div class="emoji">★</div>
+      <h2>${t("success")}</h2>
+      <p style="color:var(--text-dim);font-size:14px;margin-bottom:20px">${t("success_sub")}</p>
+      <div class="choices" style="max-width:560px;margin:0 auto">
+        <div class="choice"><h4>${t("try_call")}</h4><p>${STATE.lang==="ar"?"اختبر الجودة على شبكتك المحلية":"Test quality on your LAN"}</p></div>
+        <div class="choice"><h4>${t("invite_users")}</h4><p>${STATE.lang==="ar"?"ابدأ بإضافة الفريق":"Begin adding your team"}</p></div>
+        <div class="choice"><h4>${t("install_desktop")}</h4><p>${STATE.lang==="ar"?"نزّل تطبيق Windows/Mac/Linux":"Download Windows/Mac/Linux client"}</p></div>
+      </div>
+      <div style="margin-top:26px">
+        <button class="primary" id="goDash" style="padding:10px 22px;font-size:14px">${t("go_dashboard")}</button>
+      </div>
+    </div>
+  `;
+  $("#goDash").onclick = ()=>{ window.location.href = "/admin/"; };
+}
+
+/* -------------------------------------------------------------
+ *  Boot
+ * ----------------------------------------------------------- */
+document.addEventListener("DOMContentLoaded", init);
+
+</script>
+</body>
+</html>

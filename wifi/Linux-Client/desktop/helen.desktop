@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Helen
+GenericName=LAN Communication
+Comment=Private LAN messaging, voice, and video
+Comment[ar]=الاتصال الخاص على الشبكة المحلية — رسائل، صوت، فيديو
+Exec=helen %U
+Icon=helen
+Terminal=false
+Categories=Network;InstantMessaging;AudioVideo;
+Keywords=chat;voice;video;lan;messaging;
+StartupNotify=true
+StartupWMClass=Helen
+MimeType=x-scheme-handler/helen;

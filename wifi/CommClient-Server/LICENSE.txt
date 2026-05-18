@@ -1,0 +1,28 @@
+Helen Server — Internal LAN Communication Platform
+====================================================
+
+License: Proprietary / Internal Use Only
+
+Copyright (C) 2024-2026 Helen Project Team
+All rights reserved.
+
+This software is intended for use within private internal networks
+only. It is NOT licensed for distribution over the public internet
+or commercial redistribution outside the licensee's organization.
+
+By installing this software, you agree to:
+
+  1. Use it only on your private internal network (LAN / VPN / fiber).
+  2. Not redistribute, sublicense, or resell it.
+  3. Not use it as part of any service offered to the general public.
+  4. Comply with all local laws regarding communication privacy.
+
+Bundled third-party components retain their original licenses:
+  - Python (PSF License)
+  - FastAPI / Starlette (MIT)
+  - SQLAlchemy (MIT)
+  - Zeroconf (LGPL 2.1+)
+  - NSSM (Public Domain)
+  - OpenSSL libraries (Apache 2.0)
+
+For internal support, contact your system administrator.

@@ -1,0 +1,120 @@
+[package]
+name = "helen-agent"
+version = "1.0.0"
+edition = "2021"
+authors = ["Helen Project <helen@local>"]
+description = "Helen Device Agent for Windows — registers with Helen-Server and exposes managed device control."
+license = "Proprietary"
+publish = false
+build = "build.rs"
+
+[[bin]]
+name = "helen-agent"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+incremental = false
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.38", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+# HTTP / WebSocket
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls-native-roots",
+    "stream",
+    "multipart",
+    "gzip",
+] }
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-native-roots"] }
+url = "2.5"
+http = "1.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# System info
+sysinfo = "0.30"
+hostname = "0.4"
+mac_address = "1.1"
+ipconfig = "0.3"
+
+# Crypto / hashing
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+
+# Identity
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-appender = "0.2"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Errors
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Filesystem / config
+dirs = "5.0"
+config = { version = "0.14", default-features = false, features = ["toml"] }
+
+# Misc
+chrono = { version = "0.4", features = ["serde"] }
+bytes = "1.6"
+futures-util = "0.3"
+async-trait = "0.1"
+parking_lot = "0.12"
+once_cell = "1.19"
+rand = "0.8"
+backoff = { version = "0.4", features = ["tokio"] }
+zip = { version = "2.1", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.7"
+winreg = "0.52"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Cryptography",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_EventLog",
+    "Win32_System_Power",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Services",
+    "Win32_Storage_FileSystem",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
+    "Win32_Devices_Display",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_System_Com",
+    "Win32_System_Wmi",
+    "Win32_System_Ole",
+    "Win32_System_Variant",
+] }
+
+[build-dependencies]
+winres = "0.1"

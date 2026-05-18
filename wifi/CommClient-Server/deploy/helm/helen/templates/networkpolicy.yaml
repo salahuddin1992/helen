@@ -1,0 +1,46 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "helen.fullname" . }}-restrict-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: helen
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS within cluster
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow intra-namespace traffic (Helen components)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: helen
+    # Allow Postgres / Redis services (same namespace)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+    # Allow LAN egress (configurable)
+    {{- range .Values.networkPolicy.allowedEgressCIDRs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+    {{- end }}
+{{- end }}

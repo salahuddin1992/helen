@@ -1,0 +1,2621 @@
+<!DOCTYPE html>
+<!--
+  Disaster Recovery Console — Helen / CommClient admin panel
+  Production-grade, single-file, RTL Arabic, LAN-only on-prem destinations.
+
+  Consumes: /api/admin/dr/* endpoints
+  Auth:     Bearer token from localStorage.helen_admin_token
+  Realtime: WebSocket /api/admin/ws/dr  (fallback poll @ 2s)
+  Charts:   /admin/vendor/chart.min.js (local, no CDN)
+
+  Sections:
+    1.  Top RPO/RTO Strip
+    2.  Destinations Grid (+ Add wizard)
+    3.  Backup History (filter, drawer, bulk)
+    4.  Policies Editor (cron, retention, encryption)
+    5.  Restore Wizard (5 steps, typed RESTORE confirmation)
+    6.  DR Drill Center
+    7.  Integrity Verifier
+    8.  Chain of Custody
+    9.  Encryption Keys
+    10. Reports (ISO 22301 / SOC 2 / HIPAA / NIST 800-34)
+    11. Charts
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disaster Recovery Console</title>
+<script src="/admin/vendor/chart.min.js"></script>
+<style>
+  :root {
+    --bg:#0a1020;
+    --panel:#111a2e;
+    --panel-2:#0d1426;
+    --border:#1a2a3a;
+    --border-soft:#172234;
+    --text:#e0e6ed;
+    --text-dim:#a0a8b0;
+    --text-mute:#6b7280;
+    --accent:#00d4ff;
+    --accent-2:#0891b2;
+    --ok:#4ade80;
+    --warn:#facc15;
+    --err:#ff4757;
+    --link:#3b82f6;
+    --shadow:0 4px 20px rgba(0,0,0,0.35);
+    --radius:10px;
+    --radius-sm:6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Cairo", "Tajawal", Tahoma, sans-serif;
+    font-size: 14px; line-height: 1.55;
+    direction: rtl;
+  }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font-family: inherit; }
+  input, select, textarea {
+    font-family: inherit; color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.15);
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a3a4a; }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  .dr {
+    padding: 18px 22px;
+    max-width: 1600px; margin: 0 auto;
+  }
+  .dr-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 18px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dr-header h1 {
+    margin: 0; font-size: 22px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .dr-header h1 .badge {
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 99px;
+    background: rgba(0,212,255,0.12); color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.25);
+  }
+  .dr-header .toolbar { display: flex; gap: 8px; align-items: center; }
+
+  /* ── Tabs ───────────────────────────────────────────────── */
+  .dr-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .dr-tab {
+    padding: 10px 16px; cursor: pointer;
+    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-weight: 500; font-size: 13px;
+    user-select: none;
+  }
+  .dr-tab:hover { color: var(--text); }
+  .dr-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .dr-pane { display: none; }
+  .dr-pane.active { display: block; }
+
+  /* ── Panels & cards ─────────────────────────────────────── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h3 {
+    margin: 0 0 12px; font-size: 15px; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-sub { color: var(--text-dim); font-size: 12px; margin: -4px 0 12px; }
+
+  /* ── RPO/RTO strip ──────────────────────────────────────── */
+  .strip {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(6, 1fr);
+    margin-bottom: 18px;
+  }
+  .strip-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    position: relative; overflow: hidden;
+  }
+  .strip-card::before {
+    content: ""; position: absolute; top: 0; right: 0; left: 0;
+    height: 3px; background: var(--accent);
+  }
+  .strip-card.ok::before { background: var(--ok); }
+  .strip-card.warn::before { background: var(--warn); }
+  .strip-card.err::before { background: var(--err); }
+  .strip-card .lbl {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .strip-card .val {
+    font-size: 22px; font-weight: 700; line-height: 1.1;
+  }
+  .strip-card .sub {
+    font-size: 11px; color: var(--text-dim); margin-top: 4px;
+  }
+  .strip-card.ok .val { color: var(--ok); }
+  .strip-card.warn .val { color: var(--warn); }
+  .strip-card.err .val { color: var(--err); }
+
+  /* readiness ring */
+  .ring {
+    --pct: 0;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: conic-gradient(var(--ok) calc(var(--pct)*1%), var(--border-soft) 0);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .ring::after {
+    content: ""; position: absolute; inset: 5px;
+    background: var(--panel); border-radius: 50%;
+  }
+  .ring span {
+    position: relative; z-index: 1;
+    font-weight: 700; font-size: 14px;
+  }
+  .strip-card.flex { display: flex; gap: 12px; align-items: center; }
+
+  /* ── Destination grid ───────────────────────────────────── */
+  .dest-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+  .dest-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    position: relative;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .dest-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .dest-card .dest-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .dest-card .dest-name {
+    font-weight: 600; font-size: 14px; display: flex; gap: 8px; align-items: center;
+  }
+  .dest-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(0,212,255,0.12); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .dest-meta { font-size: 11px; color: var(--text-dim); margin: 2px 0; }
+  .cap-bar {
+    height: 6px; background: var(--border-soft); border-radius: 3px;
+    overflow: hidden; margin: 8px 0 4px;
+  }
+  .cap-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ok), var(--accent));
+    transition: width 0.3s;
+  }
+  .cap-bar .fill.warn { background: linear-gradient(90deg, var(--warn), #f97316); }
+  .cap-bar .fill.err { background: linear-gradient(90deg, var(--err), #b91c1c); }
+  .dest-card .actions {
+    display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap;
+  }
+
+  /* ── Buttons & pills ────────────────────────────────────── */
+  .btn {
+    padding: 7px 12px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text);
+    font-size: 12px; font-weight: 500;
+    transition: all 0.15s; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent); color: #0a1020; border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn.primary:hover { background: #00b8e0; color: #0a1020; }
+  .btn.danger { background: var(--err); color: #fff; border-color: var(--err); }
+  .btn.danger:hover { background: #e0394a; color: #fff; }
+  .btn.ghost { background: transparent; }
+  .btn.sm { padding: 4px 8px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-group { display: inline-flex; gap: 6px; }
+
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 500;
+    background: var(--border-soft); color: var(--text-dim);
+  }
+  .pill.ok { background: rgba(74,222,128,0.15); color: var(--ok); }
+  .pill.warn { background: rgba(250,204,21,0.15); color: var(--warn); }
+  .pill.err { background: rgba(255,71,87,0.15); color: var(--err); }
+  .pill.info { background: rgba(0,212,255,0.15); color: var(--accent); }
+
+  .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-mute); margin-left: 4px;
+  }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot.warn { background: var(--warn); }
+  .dot.err { background: var(--err); box-shadow: 0 0 6px var(--err); }
+
+  /* ── Tables ─────────────────────────────────────────────── */
+  table.tbl {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.tbl th, table.tbl td {
+    padding: 9px 10px; text-align: right;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  table.tbl th {
+    color: var(--text-dim); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--panel-2); position: sticky; top: 0;
+  }
+  table.tbl tr:hover td { background: rgba(0,212,255,0.04); }
+  table.tbl tr.clickable { cursor: pointer; }
+  table.tbl tr.sel td { background: rgba(0,212,255,0.08); }
+  .tbl-wrap { overflow: auto; max-height: 540px; border: 1px solid var(--border); border-radius: var(--radius); }
+
+  /* ── Filters bar ────────────────────────────────────────── */
+  .filters {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
+  }
+  .filters select, .filters input {
+    width: auto; min-width: 140px;
+  }
+
+  /* ── Modal ──────────────────────────────────────────────── */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    max-width: 720px; width: 100%; max-height: 90vh;
+    overflow: auto;
+    animation: pop 0.15s ease-out;
+  }
+  .modal.wide { max-width: 980px; }
+  @keyframes pop {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .modal-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-head h3 { margin: 0; font-size: 16px; }
+  .modal-body { padding: 18px; }
+  .modal-foot {
+    padding: 12px 18px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-start; gap: 8px;
+  }
+  .close-x {
+    cursor: pointer; padding: 4px 8px; color: var(--text-dim);
+    border-radius: var(--radius-sm); font-size: 18px;
+  }
+  .close-x:hover { color: var(--err); background: rgba(255,71,87,0.1); }
+
+  /* form layout */
+  .form-row {
+    display: grid; gap: 12px;
+    grid-template-columns: 180px 1fr;
+    margin-bottom: 12px; align-items: center;
+  }
+  .form-row label { color: var(--text-dim); font-size: 13px; }
+  .form-row .hint { font-size: 11px; color: var(--text-mute); margin-top: 4px; }
+  .form-grid { display: grid; gap: 12px; }
+  .form-grid.cols2 { grid-template-columns: 1fr 1fr; }
+  .form-grid.cols3 { grid-template-columns: repeat(3, 1fr); }
+
+  /* ── Stepper ────────────────────────────────────────────── */
+  .stepper {
+    display: flex; gap: 0; margin-bottom: 20px;
+    border-bottom: 1px solid var(--border); padding-bottom: 14px;
+  }
+  .step {
+    flex: 1; text-align: center; padding: 8px 4px;
+    position: relative; color: var(--text-mute);
+    font-size: 12px;
+  }
+  .step .n {
+    display: inline-flex; width: 28px; height: 28px;
+    border-radius: 50%; align-items: center; justify-content: center;
+    background: var(--panel-2); border: 1px solid var(--border);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .step.active { color: var(--accent); }
+  .step.active .n { background: var(--accent); color: #0a1020; border-color: var(--accent); }
+  .step.done { color: var(--ok); }
+  .step.done .n { background: var(--ok); color: #0a1020; border-color: var(--ok); }
+  .step::after {
+    content: ""; position: absolute; top: 22px;
+    left: -50%; right: 50%; height: 2px;
+    background: var(--border);
+  }
+  .step:first-child::after { display: none; }
+  .step.done::after, .step.active::after { background: var(--accent); }
+  .step-pane { display: none; }
+  .step-pane.active { display: block; }
+
+  /* ── Progress / drawer ──────────────────────────────────── */
+  .progress {
+    height: 10px; background: var(--border-soft);
+    border-radius: 5px; overflow: hidden;
+    margin: 8px 0;
+  }
+  .progress .bar {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.3s ease;
+  }
+  .drawer-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 900; display: none;
+  }
+  .drawer-bg.show { display: block; }
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 480px; max-width: 90vw;
+    background: var(--panel); border-left: 1px solid var(--border);
+    transform: translateX(-100%); transition: transform 0.25s;
+    z-index: 901; overflow-y: auto;
+    box-shadow: var(--shadow);
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; background: var(--panel); z-index: 1;
+  }
+  .drawer-body { padding: 18px 20px; }
+
+  /* ── Toast / banner ─────────────────────────────────────── */
+  .toasts {
+    position: fixed; bottom: 20px; left: 20px; z-index: 2000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius); padding: 10px 14px;
+    box-shadow: var(--shadow);
+    min-width: 280px; max-width: 420px;
+    animation: slide 0.2s ease-out;
+  }
+  .toast.ok { border-left-color: var(--ok); }
+  .toast.warn { border-left-color: var(--warn); }
+  .toast.err { border-left-color: var(--err); }
+  .toast .t-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .toast .t-msg { font-size: 12px; color: var(--text-dim); }
+  @keyframes slide {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* ── Charts wrapper ─────────────────────────────────────── */
+  .chart-grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .chart-box { height: 240px; position: relative; }
+
+  /* ── Misc helpers ───────────────────────────────────────── */
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row.between { justify-content: space-between; }
+  .row.end { justify-content: flex-end; }
+  .gap-8 { gap: 8px; }
+  .gap-12 { gap: 12px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-12 { margin-top: 12px; }
+  .mt-16 { margin-top: 16px; }
+  .mb-12 { margin-bottom: 12px; }
+  .muted { color: var(--text-dim); }
+  .mono { font-family: "Cascadia Code", "Consolas", monospace; font-size: 12px; }
+  .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .checkbox { width: auto !important; margin-left: 8px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .empty {
+    text-align: center; padding: 40px 20px; color: var(--text-dim);
+    font-size: 13px;
+  }
+  .kbd {
+    display: inline-block; padding: 2px 6px; border-radius: 3px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    font-family: "Cascadia Code", monospace; font-size: 11px;
+  }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ─────────────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .strip { grid-template-columns: repeat(3, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+    .form-grid.cols3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 720px) {
+    .strip { grid-template-columns: repeat(2, 1fr); }
+    .form-grid.cols2, .form-grid.cols3 { grid-template-columns: 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+    .dest-grid { grid-template-columns: 1fr; }
+    .dr { padding: 12px; }
+    .dr-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .drawer { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dr">
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <div class="dr-header">
+    <h1>
+      مركز التعافي من الكوارث
+      <span class="badge" id="dr-mode-badge">LAN-only / On-prem</span>
+      <span id="dr-conn-status" class="pill ok"><span class="dot ok"></span>متصل</span>
+    </h1>
+    <div class="toolbar">
+      <button class="btn ghost sm" onclick="DR.refreshAll()" title="تحديث">
+        <span>تحديث</span>
+      </button>
+      <button class="btn sm" onclick="DR.openReports()">التقارير</button>
+      <button class="btn primary sm" onclick="DR.openRestore()">بدء استعادة</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ SECTION 1: RPO/RTO STRIP ═══════════ -->
+  <div class="strip" id="strip-rpo-rto">
+    <div class="strip-card ok" id="card-rpo">
+      <div class="lbl">RPO الحالي</div>
+      <div class="val" id="rpo-val">--</div>
+      <div class="sub" id="rpo-target">الهدف: 1h</div>
+    </div>
+    <div class="strip-card ok" id="card-rto">
+      <div class="lbl">RTO المُقدّر</div>
+      <div class="val" id="rto-val">--</div>
+      <div class="sub" id="rto-target">الهدف: 4h</div>
+    </div>
+    <div class="strip-card" id="card-last-backup">
+      <div class="lbl">آخر نسخة احتياطية ناجحة</div>
+      <div class="val" id="last-bk-val">--</div>
+      <div class="sub" id="last-bk-size">--</div>
+    </div>
+    <div class="strip-card" id="card-next-backup">
+      <div class="lbl">النسخة التالية</div>
+      <div class="val" id="next-bk-val">--</div>
+      <div class="sub" id="next-bk-policy">--</div>
+    </div>
+    <div class="strip-card" id="card-verified">
+      <div class="lbl">المتحقق منها</div>
+      <div class="val" id="verified-val">--</div>
+      <div class="sub" id="verified-sub">--</div>
+    </div>
+    <div class="strip-card flex ok" id="card-readiness">
+      <div class="ring" id="ready-ring" style="--pct:0">
+        <span id="ready-score">0</span>
+      </div>
+      <div>
+        <div class="lbl">جاهزية DR</div>
+        <div class="sub" id="ready-sub">يحسب...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ TABS ═══════════ -->
+  <div class="dr-tabs" id="dr-tabs">
+    <div class="dr-tab active" data-tab="destinations">الوجهات</div>
+    <div class="dr-tab" data-tab="backups">سجل النسخ</div>
+    <div class="dr-tab" data-tab="policies">السياسات</div>
+    <div class="dr-tab" data-tab="drills">التدريبات</div>
+    <div class="dr-tab" data-tab="verifier">المُتحقق</div>
+    <div class="dr-tab" data-tab="custody">سلسلة العهدة</div>
+    <div class="dr-tab" data-tab="keys">مفاتيح التشفير</div>
+    <div class="dr-tab" data-tab="charts">الرسوم البيانية</div>
+  </div>
+
+  <!-- ═══════════ PANE: DESTINATIONS ═══════════ -->
+  <div class="dr-pane active" data-pane="destinations">
+    <div class="panel">
+      <h3>
+        <span>الوجهات المُسجَّلة</span>
+        <button class="btn primary sm" onclick="DR.openAddDestination()">+ إضافة وجهة</button>
+      </h3>
+      <div class="panel-sub">على الشبكة المحلية فقط — لا يدعم AWS S3 أو الوجهات السحابية العامة.</div>
+      <div class="dest-grid" id="dest-grid">
+        <div class="empty">جاري التحميل...</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>المهام النشطة (مهام نسخ / استعادة)</h3>
+      <div class="tbl-wrap" style="max-height:280px;">
+        <table class="tbl">
+          <thead><tr>
+            <th>المعرف</th><th>النوع</th><th>الحالة</th><th>التقدم</th><th>الوجهة</th><th>بدأ</th><th>إجراء</th>
+          </tr></thead>
+          <tbody id="jobs-tbody">
+            <tr><td colspan="7" class="empty">لا توجد مهام نشطة</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: BACKUPS ═══════════ -->
+  <div class="dr-pane" data-pane="backups">
+    <div class="panel">
+      <h3>
+        <span>سجل النسخ الاحتياطية</span>
+        <div class="row gap-8">
+          <button class="btn sm" id="bulk-verify-btn" disabled onclick="DR.bulkVerify()">تحقق</button>
+          <button class="btn sm" id="bulk-archive-btn" disabled onclick="DR.bulkArchive()">أرشفة</button>
+          <button class="btn danger sm" id="bulk-delete-btn" disabled onclick="DR.bulkDelete()">حذف</button>
+        </div>
+      </h3>
+      <div class="filters">
+        <select id="f-dest"><option value="">كل الوجهات</option></select>
+        <select id="f-policy"><option value="">كل السياسات</option></select>
+        <select id="f-status">
+          <option value="">كل الحالات</option>
+          <option value="success">نجاح</option>
+          <option value="failed">فشل</option>
+          <option value="running">قيد التنفيذ</option>
+          <option value="partial">جزئي</option>
+        </select>
+        <select id="f-integrity">
+          <option value="">السلامة</option>
+          <option value="verified">متحقق منها</option>
+          <option value="unverified">غير متحقق</option>
+          <option value="corrupt">تالفة</option>
+        </select>
+        <input type="date" id="f-date-from" placeholder="من">
+        <input type="date" id="f-date-to" placeholder="إلى">
+        <button class="btn sm" onclick="DR.applyFilters()">تطبيق</button>
+        <button class="btn ghost sm" onclick="DR.clearFilters()">مسح</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="backups-tbl">
+          <thead><tr>
+            <th><input type="checkbox" id="bk-check-all" class="checkbox" onclick="DR.toggleAllBackups(this)"></th>
+            <th>الوقت</th>
+            <th>السياسة</th>
+            <th>الوجهة</th>
+            <th>النطاق</th>
+            <th>النوع</th>
+            <th>الحجم</th>
+            <th>المدة</th>
+            <th>الحالة</th>
+            <th>السلامة</th>
+            <th>الاحتفاظ</th>
+            <th>إجراء</th>
+          </tr></thead>
+          <tbody id="backups-tbody">
+            <tr><td colspan="12" class="empty">جاري التحميل...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: POLICIES ═══════════ -->
+  <div class="dr-pane" data-pane="policies">
+    <div class="panel">
+      <h3>
+        <span>سياسات النسخ الاحتياطي</span>
+        <button class="btn primary sm" onclick="DR.openAddPolicy()">+ إضافة سياسة</button>
+      </h3>
+      <div class="panel-sub">عرّف الجدول، النطاق، الاحتفاظ، التشفير، والوجهات لكل سياسة.</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>الاسم</th><th>الحالة</th><th>الجدول</th><th>النطاق</th><th>التشفير</th>
+            <th>الاحتفاظ</th><th>الوجهات</th><th>آخر تشغيل</th><th>إجراء</th>
+          </tr></thead>
+          <tbody id="policies-tbody">
+            <tr><td colspan="9" class="empty">لا توجد سياسات</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: DRILLS ═══════════ -->
+  <div class="dr-pane" data-pane="drills">
+    <div class="grid-3">
+      <div class="panel">
+        <h3>الجدولة</h3>
+        <div class="form-row">
+          <label>التكرار</label>
+          <select id="drill-cadence">
+            <option value="weekly">أسبوعياً</option>
+            <option value="monthly" selected>شهرياً</option>
+            <option value="quarterly">ربع سنوي</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>أيام مفعّلة</label>
+          <input type="text" id="drill-days" value="السبت" placeholder="السبت,الأحد">
+        </div>
+        <button class="btn primary" onclick="DR.scheduleDrills()">حفظ الجدول</button>
+      </div>
+      <div class="panel">
+        <h3>آخر تدريب</h3>
+        <div id="last-drill">جاري التحميل...</div>
+      </div>
+      <div class="panel">
+        <h3>إجراء فوري</h3>
+        <p class="muted">يقوم بتشغيل استعادة اختبارية إلى بيئة الاختبار (sandbox) ويقيس RTO الفعلي.</p>
+        <button class="btn primary" onclick="DR.runDrillNow()">تشغيل تدريب الآن</button>
+        <button class="btn mt-12" onclick="DR.openDrillReport()">توليد تقرير</button>
+      </div>
+    </div>
+
+    <div class="panel mt-16">
+      <h3>سجل التدريبات</h3>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>التاريخ</th><th>النتيجة</th><th>RPO المُقاس</th><th>RTO المُقاس</th>
+            <th>نسخة الاختبار</th><th>المُشغِّل</th><th>المدة</th><th>تقرير</th>
+          </tr></thead>
+          <tbody id="drills-tbody">
+            <tr><td colspan="8" class="empty">لا توجد تدريبات سابقة</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: VERIFIER ═══════════ -->
+  <div class="dr-pane" data-pane="verifier">
+    <div class="grid-2">
+      <div class="panel">
+        <h3>قائمة التحقق الحية</h3>
+        <div id="verify-queue"><div class="empty">لا توجد عمليات تحقق نشطة</div></div>
+      </div>
+      <div class="panel">
+        <h3>التحقق الشامل المجدوَل</h3>
+        <div class="form-row">
+          <label>الجدول</label>
+          <input type="text" id="verify-cron" placeholder="0 2 * * 0" value="0 2 * * 0">
+        </div>
+        <div class="form-row">
+          <label>ملاحظة</label>
+          <span class="muted">يعمل خارج ساعات الذروة (افتراضياً 02:00 الأحد).</span>
+        </div>
+        <div class="row gap-8">
+          <button class="btn primary" onclick="DR.saveVerifySchedule()">حفظ</button>
+          <button class="btn" onclick="DR.runFullVerify()">تشغيل فوري</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>تحذيرات سلامة فاشلة</h3>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>التاريخ</th><th>النسخة</th><th>الوجهة</th><th>السبب</th><th>الحدّة</th><th>إجراء</th></tr></thead>
+          <tbody id="integrity-alerts-tbody">
+            <tr><td colspan="6" class="empty">لا توجد تحذيرات</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: CUSTODY ═══════════ -->
+  <div class="dr-pane" data-pane="custody">
+    <div class="panel">
+      <h3>سلسلة العهدة</h3>
+      <div class="panel-sub">من بدأ كل نسخة، من تحقق منها، من استعادها — مع روابط إلى سجل التدقيق (SIEM).</div>
+      <div class="filters">
+        <input type="text" id="custody-search" placeholder="ابحث بمعرف النسخة / المستخدم...">
+        <button class="btn sm" onclick="DR.loadCustody()">بحث</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>النسخة</th><th>بدأها</th><th>تحقق منها</th><th>استعادها</th><th>معرفات التدقيق</th><th>إجراء</th>
+          </tr></thead>
+          <tbody id="custody-tbody">
+            <tr><td colspan="6" class="empty">لا توجد بيانات</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: KEYS ═══════════ -->
+  <div class="dr-pane" data-pane="keys">
+    <div class="panel">
+      <h3>
+        <span>مفاتيح التشفير (KMS)</span>
+        <div class="row gap-8">
+          <button class="btn sm" onclick="DR.exportPublicKey()">تصدير مفتاح عام</button>
+          <button class="btn primary sm" onclick="DR.openAddKey()">+ مفتاح جديد</button>
+        </div>
+      </h3>
+      <div class="panel-sub">يدعم: ملف محلي (file:), HSM (PKCS#11), Yubikey (OpenPGP/PIV). لا تخرج المفاتيح الخاصة من المضيف.</div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>المُعرّف</th><th>الاسم</th><th>النوع</th><th>الخوارزمية</th>
+            <th>المالك</th><th>الحالة</th><th>أُنشئ</th><th>دوران</th><th>إجراء</th>
+          </tr></thead>
+          <tbody id="keys-tbody">
+            <tr><td colspan="9" class="empty">لا توجد مفاتيح</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PANE: CHARTS ═══════════ -->
+  <div class="dr-pane" data-pane="charts">
+    <div class="chart-grid">
+      <div class="panel">
+        <h3>نسبة نجاح النسخ (30 يوماً)</h3>
+        <div class="chart-box"><canvas id="chart-success"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>اتجاه حجم النسخ</h3>
+        <div class="chart-box"><canvas id="chart-size"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>RPO عبر الزمن</h3>
+        <div class="chart-box"><canvas id="chart-rpo"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>نتائج تدريبات RTO</h3>
+        <div class="chart-box"><canvas id="chart-rto"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════ DRAWER (backup detail) ═══════════ -->
+<div class="drawer-bg" id="drawer-bg" onclick="DR.closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3 id="drawer-title">تفاصيل النسخة</h3>
+    <span class="close-x" onclick="DR.closeDrawer()">×</span>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<!-- ═══════════ MODAL CONTAINER ═══════════ -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal-frame">
+    <div class="modal-head">
+      <h3 id="modal-title">نافذة</h3>
+      <span class="close-x" onclick="DR.closeModal()">×</span>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST CONTAINER ═══════════ -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   DR Console — client logic
+   ════════════════════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+
+  const API_BASE = "http://127.0.0.1:3000";
+  const WS_PATH  = "/api/admin/ws/dr";
+  const POLL_MS  = 2000;
+
+  // ─────────────────────────────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────────────────────────────
+  const state = {
+    destinations: [],
+    backups: [],
+    policies: [],
+    drills: [],
+    jobs: [],
+    keys: [],
+    rpoRto: { rpo: null, rto: null, rpo_target: 3600, rto_target: 14400 },
+    selectedBackups: new Set(),
+    filters: {},
+    ws: null,
+    pollTimer: null,
+    activeRestoreJob: null,
+    charts: {},
+    restoreState: {
+      step: 1, backup: null, scope: "full", target: "in-place",
+      reason: "", confirmText: "", jobId: null
+    },
+    destWizard: { step: 1, type: null, form: {} },
+  };
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────
+  const $  = (s, root) => (root || document).querySelector(s);
+  const $$ = (s, root) => [...(root || document).querySelectorAll(s)];
+
+  function token() {
+    try { return localStorage.getItem("helen_admin_token") || ""; }
+    catch { return ""; }
+  }
+
+  async function apiFetch(path, opts = {}, retries = 2) {
+    const url = path.startsWith("http") ? path : (API_BASE + path);
+    const init = {
+      method: opts.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": "Bearer " + token(),
+        ...(opts.headers || {}),
+      },
+      body: opts.body ? (typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body)) : undefined,
+    };
+    let lastErr;
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const r = await fetch(url, init);
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          if (r.status >= 500 && i < retries) {
+            await sleep(300 * (i + 1));
+            continue;
+          }
+          throw new Error(`HTTP ${r.status}: ${txt || r.statusText}`);
+        }
+        const ct = r.headers.get("content-type") || "";
+        return ct.includes("json") ? r.json() : r.text();
+      } catch (e) {
+        lastErr = e;
+        if (i === retries) break;
+        await sleep(250 * (i + 1));
+      }
+    }
+    throw lastErr;
+  }
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function fmtBytes(n) {
+    if (n == null || isNaN(n)) return "—";
+    const u = ["B","KB","MB","GB","TB","PB"];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return n.toFixed(i ? 1 : 0) + " " + u[i];
+  }
+
+  function fmtDur(sec) {
+    if (sec == null || isNaN(sec)) return "—";
+    sec = Math.max(0, Math.floor(sec));
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (d) return `${d}d ${h}h`;
+    if (h) return `${h}h ${m}m`;
+    if (m) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return "—";
+    const d = (ts instanceof Date) ? ts : new Date(ts);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("ar-EG", { hour12: false });
+  }
+
+  function relTime(ts) {
+    if (!ts) return "—";
+    const d = (ts instanceof Date) ? ts : new Date(ts);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return "قبل لحظات";
+    if (diff < 3600) return `قبل ${Math.floor(diff/60)} د`;
+    if (diff < 86400) return `قبل ${Math.floor(diff/3600)} س`;
+    return `قبل ${Math.floor(diff/86400)} يوم`;
+  }
+
+  function esc(s) {
+    if (s == null) return "";
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  }
+
+  function destIcon(type) {
+    const map = {
+      "local-disk": "💾", "local": "💾",
+      "nfs": "🗂️",
+      "smb": "🗄️", "cifs": "🗄️",
+      "sftp": "🔐",
+      "minio": "☁️", "s3": "☁️", "s3-compat": "☁️",
+      "tape": "📼", "lto": "📼",
+      "usb": "🔌", "removable": "🔌",
+    };
+    return map[(type || "").toLowerCase()] || "📦";
+  }
+
+  function destTypeLabel(t) {
+    const map = {
+      "local-disk":"قرص محلي", "local":"قرص محلي",
+      "nfs":"NFS", "smb":"SMB/CIFS", "cifs":"SMB/CIFS",
+      "sftp":"SFTP", "minio":"MinIO/S3 محلي", "s3-compat":"MinIO/S3 محلي",
+      "tape":"شريط LTO", "lto":"شريط LTO",
+      "usb":"USB قابل للإزالة", "removable":"USB قابل للإزالة",
+    };
+    return map[(t || "").toLowerCase()] || t || "—";
+  }
+
+  function statusPill(s) {
+    if (!s) return `<span class="pill">—</span>`;
+    const cls = s === "success" || s === "healthy" || s === "ok" ? "ok"
+              : s === "failed" || s === "down" || s === "corrupt" ? "err"
+              : s === "running" || s === "active" ? "info"
+              : "warn";
+    const txt = { success:"نجاح", failed:"فشل", running:"جارٍ", partial:"جزئي",
+                  healthy:"سليم", degraded:"متراجع", down:"معطّل",
+                  verified:"متحقق", unverified:"غير متحقق", corrupt:"تالف" }[s] || s;
+    return `<span class="pill ${cls}">${esc(txt)}</span>`;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Toasts
+  // ─────────────────────────────────────────────────────────────────────
+  function toast(title, msg, kind = "info", ttl = 4500) {
+    const wrap = $("#toasts");
+    const t = document.createElement("div");
+    t.className = `toast ${kind === "ok" ? "ok" : kind === "warn" ? "warn" : kind === "err" ? "err" : ""}`;
+    t.innerHTML = `<div class="t-title">${esc(title)}</div>${msg ? `<div class="t-msg">${esc(msg)}</div>` : ""}`;
+    wrap.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 300); }, ttl);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Modal helpers
+  // ─────────────────────────────────────────────────────────────────────
+  function openModal({ title, body, foot, wide }) {
+    $("#modal-title").textContent = title || "";
+    $("#modal-body").innerHTML = body || "";
+    $("#modal-foot").innerHTML = foot || "";
+    $("#modal-frame").classList.toggle("wide", !!wide);
+    $("#modal-bg").classList.add("show");
+  }
+  function closeModal() { $("#modal-bg").classList.remove("show"); }
+
+  function openDrawer(title, html) {
+    $("#drawer-title").textContent = title || "تفاصيل";
+    $("#drawer-body").innerHTML = html || "";
+    $("#drawer").classList.add("show");
+    $("#drawer-bg").classList.add("show");
+  }
+  function closeDrawer() {
+    $("#drawer").classList.remove("show");
+    $("#drawer-bg").classList.remove("show");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // RPO/RTO strip
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadRpoRto() {
+    try {
+      const d = await apiFetch("/api/admin/dr/rpo-rto");
+      state.rpoRto = Object.assign(state.rpoRto, d || {});
+      renderStrip();
+    } catch (e) {
+      console.warn("rpo-rto:", e.message);
+      renderStrip();
+    }
+  }
+
+  function renderStrip() {
+    const { rpo, rto, rpo_target, rto_target,
+            last_backup_at, last_backup_size,
+            next_backup_at, next_backup_policy,
+            verified_count, total_backups, drill_recency_days } = state.rpoRto;
+
+    // RPO
+    setStripCard("card-rpo", "rpo-val", rpo != null ? fmtDur(rpo) : "—",
+      compareTarget(rpo, rpo_target));
+    $("#rpo-target").textContent = `الهدف: ${fmtDur(rpo_target)}`;
+
+    // RTO
+    setStripCard("card-rto", "rto-val", rto != null ? fmtDur(rto) : "—",
+      compareTarget(rto, rto_target));
+    $("#rto-target").textContent = `الهدف: ${fmtDur(rto_target)}`;
+
+    // last
+    $("#last-bk-val").textContent  = last_backup_at ? relTime(last_backup_at) : "—";
+    $("#last-bk-size").textContent = last_backup_size ? fmtBytes(last_backup_size) : "—";
+
+    // next
+    if (next_backup_at) {
+      const dt = new Date(next_backup_at);
+      const diffSec = Math.max(0, (dt.getTime() - Date.now()) / 1000);
+      $("#next-bk-val").textContent = fmtDur(diffSec);
+      $("#next-bk-policy").textContent = next_backup_policy || "";
+    } else {
+      $("#next-bk-val").textContent = "—";
+      $("#next-bk-policy").textContent = "";
+    }
+
+    // verified
+    const v = verified_count || 0, t = total_backups || 0;
+    $("#verified-val").textContent = `${v}/${t}`;
+    const rate = t ? (v / t) : 0;
+    $("#verified-sub").textContent = t ? `${(rate * 100).toFixed(1)}%` : "—";
+
+    // readiness — composite score
+    const score = computeReadiness();
+    $("#ready-score").textContent = score;
+    $("#ready-ring").style.setProperty("--pct", score);
+    const card = $("#card-readiness");
+    card.classList.remove("ok", "warn", "err");
+    card.classList.add(score >= 85 ? "ok" : score >= 60 ? "warn" : "err");
+    const drillDays = drill_recency_days != null ? drill_recency_days : 999;
+    $("#ready-sub").textContent =
+      `${score >= 85 ? "ممتاز" : score >= 60 ? "مقبول" : "ضعيف"} · آخر تدريب: ${drillDays}d`;
+  }
+
+  function setStripCard(cardId, valId, text, kind) {
+    const c = $("#" + cardId);
+    c.classList.remove("ok", "warn", "err");
+    c.classList.add(kind);
+    $("#" + valId).textContent = text;
+  }
+
+  function compareTarget(actual, target) {
+    if (actual == null || target == null) return "warn";
+    if (actual <= target) return "ok";
+    if (actual <= target * 1.5) return "warn";
+    return "err";
+  }
+
+  function computeReadiness() {
+    const { rpo, rto, rpo_target, rto_target, verified_count,
+            total_backups, drill_recency_days } = state.rpoRto;
+    const dests = state.destinations || [];
+    const destHealth = dests.length === 0 ? 0
+      : dests.filter(d => (d.status || "").toLowerCase() === "healthy").length / dests.length;
+    const freshRpo = (rpo == null || rpo_target == null) ? 0.5
+      : Math.max(0, Math.min(1, 1 - (rpo - rpo_target) / (2 * rpo_target)));
+    const freshRto = (rto == null || rto_target == null) ? 0.5
+      : Math.max(0, Math.min(1, 1 - (rto - rto_target) / (2 * rto_target)));
+    const verifyRate = total_backups ? (verified_count || 0) / total_backups : 0;
+    const drillFresh = drill_recency_days == null ? 0
+      : drill_recency_days <= 30 ? 1
+      : drill_recency_days <= 90 ? 0.7
+      : drill_recency_days <= 180 ? 0.4 : 0.1;
+    const w = 0.25 * destHealth + 0.20 * freshRpo + 0.15 * freshRto
+            + 0.25 * verifyRate + 0.15 * drillFresh;
+    return Math.round(w * 100);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Destinations
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadDestinations() {
+    try {
+      const r = await apiFetch("/api/admin/dr/destinations");
+      state.destinations = (r && r.items) || r || [];
+      renderDestinations();
+      populateDestFilter();
+    } catch (e) {
+      state.destinations = [];
+      $("#dest-grid").innerHTML = `<div class="empty">تعذّر تحميل الوجهات: ${esc(e.message)}</div>`;
+    }
+  }
+
+  function renderDestinations() {
+    const grid = $("#dest-grid");
+    if (!state.destinations.length) {
+      grid.innerHTML = `<div class="empty">لا توجد وجهات مُسجَّلة. ابدأ بإضافة وجهة محلية.</div>`;
+      return;
+    }
+    grid.innerHTML = state.destinations.map(d => {
+      const used = d.used_bytes || 0;
+      const cap  = d.total_bytes || 0;
+      const pct  = cap ? Math.min(100, (used / cap) * 100) : 0;
+      const fillCls = pct >= 90 ? "err" : pct >= 75 ? "warn" : "";
+      const statusKind = (d.status === "healthy") ? "ok"
+                       : (d.status === "down") ? "err" : "warn";
+      return `
+        <div class="dest-card">
+          <div class="dest-head">
+            <div class="dest-name">
+              <div class="dest-icon">${destIcon(d.type)}</div>
+              <div>
+                <div>${esc(d.name)}</div>
+                <div class="dest-meta">${esc(destTypeLabel(d.type))}</div>
+              </div>
+            </div>
+            <span class="pill ${statusKind}"><span class="dot ${statusKind}"></span>${esc(d.status || "—")}</span>
+          </div>
+          <div class="dest-meta mono truncate" title="${esc(d.path || d.endpoint || "")}">
+            ${esc(d.path || d.endpoint || "")}
+          </div>
+          <div class="cap-bar"><div class="fill ${fillCls}" style="width:${pct}%"></div></div>
+          <div class="dest-meta">${fmtBytes(used)} / ${fmtBytes(cap)} (${pct.toFixed(1)}%)</div>
+          <div class="dest-meta">آخر نسخة: ${d.last_backup_at ? relTime(d.last_backup_at) : "—"}</div>
+          <div class="dest-meta">آخر اختبار: ${d.last_tested_at ? relTime(d.last_tested_at) : "—"}</div>
+          <div class="actions">
+            <button class="btn sm" onclick="DR.testDestination('${esc(d.id)}')">اختبار</button>
+            <button class="btn sm" onclick="DR.editDestination('${esc(d.id)}')">تحرير</button>
+            <button class="btn sm" onclick="DR.forceBackup('${esc(d.id)}')">نسخ الآن</button>
+            <button class="btn danger sm" onclick="DR.retireDestination('${esc(d.id)}')">سحب</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  async function testDestination(id) {
+    toast("جارٍ اختبار الوجهة", id, "info");
+    try {
+      const r = await apiFetch(`/api/admin/dr/destinations/${encodeURIComponent(id)}/test`, { method: "POST" });
+      toast("اختبار نجح",
+        `كتابة: ${r.write_ok ? "✓" : "✗"} | قراءة: ${r.read_ok ? "✓" : "✗"} | RTT: ${r.rtt_ms || "—"}ms`,
+        r.write_ok && r.read_ok ? "ok" : "warn");
+      loadDestinations();
+    } catch (e) { toast("فشل الاختبار", e.message, "err"); }
+  }
+
+  async function forceBackup(destId) {
+    if (!confirm("بدء نسخة احتياطية فورية إلى هذه الوجهة؟")) return;
+    try {
+      const r = await apiFetch("/api/admin/dr/backups", {
+        method: "POST",
+        body: { destination_id: destId, kind: "incremental", source: "manual" },
+      });
+      toast("بدأت النسخة", `معرف: ${r.job_id || r.id || "—"}`, "ok");
+      loadJobs();
+    } catch (e) { toast("فشل البدء", e.message, "err"); }
+  }
+
+  async function retireDestination(id) {
+    if (!confirm("سحب هذه الوجهة من الدوران؟ لن تُستخدم في النسخ الجديدة.")) return;
+    try {
+      await apiFetch(`/api/admin/dr/destinations/${encodeURIComponent(id)}`,
+        { method: "DELETE" });
+      toast("تم السحب", id, "ok");
+      loadDestinations();
+    } catch (e) { toast("فشل السحب", e.message, "err"); }
+  }
+
+  function editDestination(id) {
+    const d = state.destinations.find(x => x.id === id);
+    if (!d) return;
+    openDestinationModal(d);
+  }
+
+  function openAddDestination() {
+    openDestinationModal(null);
+  }
+
+  function openDestinationModal(existing) {
+    const isEdit = !!existing;
+    const types = [
+      ["local-disk", "💾 قرص محلي / حجم مُركَّب"],
+      ["nfs", "🗂️ NFS export"],
+      ["smb", "🗄️ SMB / CIFS share"],
+      ["sftp", "🔐 SFTP server"],
+      ["s3-compat", "☁️ MinIO / S3-compatible (على الشبكة فقط)"],
+      ["tape", "📼 شريط LTO"],
+      ["usb", "🔌 USB قابل للإزالة (تدوير أقراص)"],
+    ];
+    const f = existing || {};
+    const body = `
+      <div class="form-row">
+        <label>الاسم</label>
+        <input id="d-name" value="${esc(f.name || "")}" placeholder="primary-nas">
+      </div>
+      <div class="form-row">
+        <label>النوع</label>
+        <select id="d-type" onchange="DR._toggleDestFields()">
+          ${types.map(([k, v]) => `<option value="${k}" ${k === f.type ? "selected" : ""}>${v}</option>`).join("")}
+        </select>
+      </div>
+      <div id="d-fields"></div>
+      <div class="form-row">
+        <label>الأولوية</label>
+        <input id="d-priority" type="number" min="1" max="100" value="${esc(f.priority || 10)}">
+      </div>
+      <div class="form-row">
+        <label>تشفير عند الراحة</label>
+        <select id="d-encrypt">
+          <option value="aes256-gcm" ${f.encrypt === "aes256-gcm" || !f.encrypt ? "selected" : ""}>AES-256-GCM</option>
+          <option value="aes256-cbc" ${f.encrypt === "aes256-cbc" ? "selected" : ""}>AES-256-CBC</option>
+          <option value="none" ${f.encrypt === "none" ? "selected" : ""}>لا يوجد (غير موصى به)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>مفعّلة</label>
+        <input type="checkbox" id="d-enabled" class="checkbox" ${f.enabled !== false ? "checked" : ""}>
+      </div>`;
+    const foot = `
+      <button class="btn primary" onclick="DR.saveDestination(${isEdit ? `'${esc(existing.id)}'` : "null"})">${isEdit ? "حفظ" : "إضافة"}</button>
+      <button class="btn ghost" onclick="DR.closeModal()">إلغاء</button>
+      ${isEdit ? `<button class="btn" onclick="DR.testDestination('${esc(existing.id)}')">اختبار الآن</button>` : ""}
+    `;
+    openModal({ title: isEdit ? "تحرير وجهة" : "إضافة وجهة جديدة", body, foot, wide: true });
+    _toggleDestFields(f);
+  }
+
+  function _toggleDestFields(prefill) {
+    const t = $("#d-type").value;
+    const f = prefill || {};
+    const wrap = $("#d-fields");
+    let html = "";
+    if (t === "local-disk") {
+      html = `<div class="form-row"><label>المسار</label>
+        <input id="d-path" value="${esc(f.path || "/var/lib/helen/dr")}" placeholder="/var/lib/helen/dr"></div>`;
+    } else if (t === "nfs") {
+      html = `
+        <div class="form-row"><label>الخادم</label><input id="d-host" value="${esc(f.host || "")}" placeholder="nas01.lan"></div>
+        <div class="form-row"><label>مسار التصدير</label><input id="d-export" value="${esc(f.export || "")}" placeholder="/exports/helen-dr"></div>
+        <div class="form-row"><label>خيارات mount</label><input id="d-opts" value="${esc(f.mount_opts || "rw,vers=4")}"></div>`;
+    } else if (t === "smb") {
+      html = `
+        <div class="form-row"><label>الخادم</label><input id="d-host" value="${esc(f.host || "")}" placeholder="fileserver.lan"></div>
+        <div class="form-row"><label>المشاركة</label><input id="d-share" value="${esc(f.share || "")}" placeholder="dr-backups"></div>
+        <div class="form-row"><label>المستخدم</label><input id="d-user" value="${esc(f.user || "")}"></div>
+        <div class="form-row"><label>كلمة المرور</label><input id="d-pass" type="password" placeholder="${isEditable(f.pass)}"></div>
+        <div class="form-row"><label>المجال</label><input id="d-domain" value="${esc(f.domain || "")}"></div>`;
+    } else if (t === "sftp") {
+      html = `
+        <div class="form-row"><label>المضيف</label><input id="d-host" value="${esc(f.host || "")}"></div>
+        <div class="form-row"><label>المنفذ</label><input id="d-port" type="number" value="${esc(f.port || 22)}"></div>
+        <div class="form-row"><label>المستخدم</label><input id="d-user" value="${esc(f.user || "")}"></div>
+        <div class="form-row"><label>مفتاح خاص (مسار)</label><input id="d-key" value="${esc(f.private_key_path || "")}"></div>
+        <div class="form-row"><label>المسار البعيد</label><input id="d-path" value="${esc(f.path || "/srv/backups")}"></div>`;
+    } else if (t === "s3-compat") {
+      html = `
+        <div class="form-row"><label>Endpoint</label>
+          <input id="d-endpoint" value="${esc(f.endpoint || "")}" placeholder="https://minio.lan:9000">
+        </div>
+        <div class="form-row"><label>Bucket</label><input id="d-bucket" value="${esc(f.bucket || "")}"></div>
+        <div class="form-row"><label>Access Key</label><input id="d-akid" value="${esc(f.access_key || "")}"></div>
+        <div class="form-row"><label>Secret Key</label><input id="d-secret" type="password" placeholder="${isEditable(f.secret_key)}"></div>
+        <div class="form-row"><label>المنطقة</label><input id="d-region" value="${esc(f.region || "us-east-1")}"></div>
+        <div class="form-row"><label>SSL</label><input type="checkbox" id="d-ssl" class="checkbox" ${f.ssl !== false ? "checked" : ""}></div>
+        <div class="form-row"><label></label>
+          <div class="hint" style="color:var(--warn)">⚠ يقبل الخوادم على الشبكة المحلية فقط — سيُرفض AWS public.</div></div>`;
+    } else if (t === "tape") {
+      html = `
+        <div class="form-row"><label>جهاز الشريط</label><input id="d-device" value="${esc(f.device || "/dev/nst0")}"></div>
+        <div class="form-row"><label>المكتبة</label><input id="d-library" value="${esc(f.library || "")}" placeholder="LTO-9 Library #1"></div>
+        <div class="form-row"><label>تشفير الشريط</label>
+          <select id="d-tape-enc"><option value="lto-hw" ${f.tape_enc === "lto-hw" ? "selected" : ""}>LTO Hardware</option>
+            <option value="sw" ${f.tape_enc === "sw" ? "selected" : ""}>SW (libcryptsetup)</option></select></div>`;
+    } else if (t === "usb") {
+      html = `
+        <div class="form-row"><label>عدد الأقراص في الدوران</label><input id="d-rotation" type="number" value="${esc(f.rotation_count || 3)}"></div>
+        <div class="form-row"><label>نقطة المسار</label><input id="d-path" value="${esc(f.path || "/media/helen-usb")}"></div>
+        <div class="form-row"><label>UUID المتوقعة</label><input id="d-uuids" value="${esc((f.uuids || []).join(","))}" placeholder="uuid1,uuid2,uuid3"></div>`;
+    }
+    wrap.innerHTML = html;
+  }
+  function isEditable(v) { return v ? "(غير معروض)" : ""; }
+
+  async function saveDestination(id) {
+    const t = $("#d-type").value;
+    const body = {
+      name: $("#d-name").value.trim(),
+      type: t,
+      priority: parseInt($("#d-priority").value || "10", 10),
+      encrypt: $("#d-encrypt").value,
+      enabled: $("#d-enabled").checked,
+    };
+    if (!body.name) { toast("الاسم مطلوب", "", "warn"); return; }
+    if (t === "local-disk") body.path = $("#d-path").value.trim();
+    else if (t === "nfs") {
+      body.host = $("#d-host").value.trim();
+      body.export = $("#d-export").value.trim();
+      body.mount_opts = $("#d-opts").value.trim();
+    } else if (t === "smb") {
+      body.host = $("#d-host").value.trim();
+      body.share = $("#d-share").value.trim();
+      body.user = $("#d-user").value.trim();
+      const p = $("#d-pass").value; if (p) body.pass = p;
+      body.domain = $("#d-domain").value.trim();
+    } else if (t === "sftp") {
+      body.host = $("#d-host").value.trim();
+      body.port = parseInt($("#d-port").value, 10);
+      body.user = $("#d-user").value.trim();
+      body.private_key_path = $("#d-key").value.trim();
+      body.path = $("#d-path").value.trim();
+    } else if (t === "s3-compat") {
+      body.endpoint = $("#d-endpoint").value.trim();
+      body.bucket = $("#d-bucket").value.trim();
+      body.access_key = $("#d-akid").value.trim();
+      const s = $("#d-secret").value; if (s) body.secret_key = s;
+      body.region = $("#d-region").value.trim();
+      body.ssl = $("#d-ssl").checked;
+      if (/amazonaws\.com/i.test(body.endpoint)) {
+        toast("AWS عام مرفوض", "هذا الكونسول يقبل الشبكة المحلية فقط.", "err");
+        return;
+      }
+    } else if (t === "tape") {
+      body.device = $("#d-device").value.trim();
+      body.library = $("#d-library").value.trim();
+      body.tape_enc = $("#d-tape-enc").value;
+    } else if (t === "usb") {
+      body.rotation_count = parseInt($("#d-rotation").value, 10);
+      body.path = $("#d-path").value.trim();
+      body.uuids = $("#d-uuids").value.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    try {
+      if (id) {
+        await apiFetch(`/api/admin/dr/destinations/${encodeURIComponent(id)}`,
+          { method: "PUT", body });
+        toast("تم الحفظ", body.name, "ok");
+      } else {
+        await apiFetch("/api/admin/dr/destinations", { method: "POST", body });
+        toast("تمت الإضافة", body.name, "ok");
+      }
+      closeModal();
+      loadDestinations();
+    } catch (e) { toast("فشل الحفظ", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Backups (history table)
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadBackups() {
+    try {
+      const qs = new URLSearchParams();
+      Object.entries(state.filters).forEach(([k, v]) => { if (v) qs.append(k, v); });
+      const r = await apiFetch("/api/admin/dr/backups" + (qs.toString() ? "?" + qs : ""));
+      state.backups = (r && r.items) || r || [];
+      renderBackups();
+    } catch (e) {
+      $("#backups-tbody").innerHTML =
+        `<tr><td colspan="12" class="empty">تعذّر التحميل: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderBackups() {
+    const tbody = $("#backups-tbody");
+    if (!state.backups.length) {
+      tbody.innerHTML = `<tr><td colspan="12" class="empty">لا توجد نسخ تطابق المرشحات.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = state.backups.map(b => {
+      const sel = state.selectedBackups.has(b.id) ? "sel" : "";
+      const intgr = b.integrity || (b.verified ? "verified" : "unverified");
+      return `
+        <tr class="clickable ${sel}" data-id="${esc(b.id)}">
+          <td><input type="checkbox" class="checkbox bk-check" data-id="${esc(b.id)}"
+                ${state.selectedBackups.has(b.id) ? "checked" : ""} onclick="event.stopPropagation()"></td>
+          <td>${esc(fmtTime(b.started_at || b.created_at))}</td>
+          <td>${esc(b.policy_name || b.policy_id || "—")}</td>
+          <td>${esc(b.destination_name || b.destination_id || "—")}</td>
+          <td>${esc(b.scope || "—")}</td>
+          <td>${esc(b.kind || "—")}</td>
+          <td>${fmtBytes(b.size_bytes || b.size)}</td>
+          <td>${fmtDur(b.duration_sec)}</td>
+          <td>${statusPill(b.status)}</td>
+          <td>${statusPill(intgr)}</td>
+          <td>${esc(b.retention || "—")}</td>
+          <td>
+            <button class="btn sm ghost" onclick="event.stopPropagation();DR.verifyBackup('${esc(b.id)}')">تحقق</button>
+            <button class="btn sm ghost" onclick="event.stopPropagation();DR.restoreFrom('${esc(b.id)}')">استعادة</button>
+          </td>
+        </tr>`;
+    }).join("");
+
+    // wire up
+    $$("#backups-tbody tr.clickable").forEach(tr => {
+      tr.addEventListener("click", () => openBackupDrawer(tr.dataset.id));
+    });
+    $$("#backups-tbody .bk-check").forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const id = e.target.dataset.id;
+        if (e.target.checked) state.selectedBackups.add(id);
+        else state.selectedBackups.delete(id);
+        updateBulkButtons();
+        e.target.closest("tr").classList.toggle("sel", e.target.checked);
+      });
+    });
+    updateBulkButtons();
+  }
+
+  function updateBulkButtons() {
+    const has = state.selectedBackups.size > 0;
+    $("#bulk-verify-btn").disabled = !has;
+    $("#bulk-archive-btn").disabled = !has;
+    $("#bulk-delete-btn").disabled = !has;
+  }
+
+  function toggleAllBackups(cb) {
+    state.backups.forEach(b => {
+      if (cb.checked) state.selectedBackups.add(b.id);
+      else state.selectedBackups.delete(b.id);
+    });
+    renderBackups();
+  }
+
+  async function bulkVerify() {
+    const ids = [...state.selectedBackups];
+    if (!ids.length) return;
+    try {
+      await Promise.all(ids.map(id =>
+        apiFetch(`/api/admin/dr/backups/${encodeURIComponent(id)}/verify`, { method: "POST" })));
+      toast("بدأ التحقق", `${ids.length} نسخة`, "ok");
+      state.selectedBackups.clear();
+      loadBackups();
+    } catch (e) { toast("فشل التحقق", e.message, "err"); }
+  }
+
+  async function bulkArchive() {
+    const ids = [...state.selectedBackups];
+    if (!confirm(`أرشفة ${ids.length} نسخة؟`)) return;
+    try {
+      await apiFetch("/api/admin/dr/backups/archive", { method: "POST", body: { ids } });
+      toast("تمت الأرشفة", `${ids.length}`, "ok");
+      state.selectedBackups.clear();
+      loadBackups();
+    } catch (e) { toast("فشلت الأرشفة", e.message, "err"); }
+  }
+
+  async function bulkDelete() {
+    const ids = [...state.selectedBackups];
+    const confirm1 = prompt(`أكّد بكتابة كلمة DELETE لحذف ${ids.length} نسخة:`);
+    if (confirm1 !== "DELETE") { toast("ألغي الحذف", "", "warn"); return; }
+    try {
+      await apiFetch("/api/admin/dr/backups", { method: "DELETE", body: { ids } });
+      toast("تم الحذف", `${ids.length}`, "ok");
+      state.selectedBackups.clear();
+      loadBackups();
+    } catch (e) { toast("فشل الحذف", e.message, "err"); }
+  }
+
+  async function openBackupDrawer(id) {
+    openDrawer("تفاصيل النسخة", `<div class="empty"><span class="spinner"></span> جاري التحميل...</div>`);
+    try {
+      const d = await apiFetch(`/api/admin/dr/backups/${encodeURIComponent(id)}`);
+      const chunks = d.chunks || [];
+      openDrawer(`نسخة ${d.id}`, `
+        <div class="grid-2">
+          <div><div class="muted">الحالة</div>${statusPill(d.status)}</div>
+          <div><div class="muted">السلامة</div>${statusPill(d.integrity || (d.verified ? "verified" : "unverified"))}</div>
+          <div><div class="muted">النطاق</div>${esc(d.scope || "—")}</div>
+          <div><div class="muted">النوع</div>${esc(d.kind || "—")}</div>
+          <div><div class="muted">الحجم</div>${fmtBytes(d.size_bytes || d.size)}</div>
+          <div><div class="muted">المدة</div>${fmtDur(d.duration_sec)}</div>
+          <div><div class="muted">التشفير</div>${esc(d.encryption_mode || "—")}</div>
+          <div><div class="muted">المفتاح</div><span class="mono">${esc(d.key_ref || "—")}</span></div>
+        </div>
+        <h4 class="mt-16">القطع (${chunks.length})</h4>
+        <div class="tbl-wrap" style="max-height:280px;">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>الحجم</th><th>SHA-256</th><th>الوجهة</th></tr></thead>
+            <tbody>
+              ${chunks.length
+                ? chunks.map((c, i) => `<tr>
+                    <td>${i + 1}</td>
+                    <td>${fmtBytes(c.size)}</td>
+                    <td class="mono truncate" title="${esc(c.sha256)}">${esc((c.sha256 || "").slice(0, 16))}…</td>
+                    <td>${esc(c.destination_id || "—")}</td></tr>`).join("")
+                : `<tr><td colspan="4" class="empty">لا توجد قطع</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        <div class="row gap-8 mt-16">
+          <button class="btn primary" onclick="DR.restoreFrom('${esc(d.id)}')">استعادة من هذه النسخة</button>
+          <button class="btn" onclick="DR.verifyBackup('${esc(d.id)}')">إعادة التحقق</button>
+        </div>`);
+    } catch (e) {
+      openDrawer("خطأ", `<div class="empty">${esc(e.message)}</div>`);
+    }
+  }
+
+  async function verifyBackup(id) {
+    try {
+      const r = await apiFetch(`/api/admin/dr/backups/${encodeURIComponent(id)}/verify`, { method: "POST" });
+      toast("بدأ التحقق", r.job_id ? `Job: ${r.job_id}` : id, "ok");
+      loadJobs();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  function applyFilters() {
+    state.filters = {
+      destination_id: $("#f-dest").value,
+      policy_id: $("#f-policy").value,
+      status: $("#f-status").value,
+      integrity: $("#f-integrity").value,
+      from: $("#f-date-from").value,
+      to: $("#f-date-to").value,
+    };
+    loadBackups();
+  }
+
+  function clearFilters() {
+    ["f-dest","f-policy","f-status","f-integrity","f-date-from","f-date-to"]
+      .forEach(id => { const el = $("#" + id); if (el) el.value = ""; });
+    state.filters = {};
+    loadBackups();
+  }
+
+  function populateDestFilter() {
+    const sel = $("#f-dest");
+    if (!sel) return;
+    sel.innerHTML = `<option value="">كل الوجهات</option>` +
+      state.destinations.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Policies
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadPolicies() {
+    try {
+      const r = await apiFetch("/api/admin/dr/policies");
+      state.policies = (r && r.items) || r || [];
+      renderPolicies();
+      const sel = $("#f-policy");
+      if (sel) {
+        sel.innerHTML = `<option value="">كل السياسات</option>` +
+          state.policies.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+      }
+    } catch (e) {
+      $("#policies-tbody").innerHTML =
+        `<tr><td colspan="9" class="empty">تعذّر التحميل: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderPolicies() {
+    const tb = $("#policies-tbody");
+    if (!state.policies.length) {
+      tb.innerHTML = `<tr><td colspan="9" class="empty">لا توجد سياسات. أضف واحدة للبدء.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = state.policies.map(p => `
+      <tr>
+        <td><strong>${esc(p.name)}</strong></td>
+        <td>${statusPill(p.enabled === false ? "disabled" : "active")}</td>
+        <td class="mono">${esc(p.schedule || "—")}</td>
+        <td>${esc((p.scopes || [p.scope || "—"]).join(", "))}</td>
+        <td>${esc(p.encryption || "AES-256-GCM")}</td>
+        <td>${esc(retentionSummary(p.retention))}</td>
+        <td>${esc((p.destinations || []).map(x => x.name || x.id || x).join(", "))}</td>
+        <td>${p.last_run_at ? relTime(p.last_run_at) : "—"}</td>
+        <td>
+          <button class="btn sm" onclick="DR.editPolicy('${esc(p.id)}')">تحرير</button>
+          <button class="btn sm" onclick="DR.clonePolicy('${esc(p.id)}')">نسخ</button>
+          <button class="btn sm" onclick="DR.dryRunPolicy('${esc(p.id)}')">جرّب</button>
+          <button class="btn sm" onclick="DR.togglePolicy('${esc(p.id)}', ${!(p.enabled === false)})">${p.enabled === false ? "تفعيل" : "تعطيل"}</button>
+          <button class="btn danger sm" onclick="DR.deletePolicy('${esc(p.id)}')">حذف</button>
+        </td>
+      </tr>`).join("");
+  }
+
+  function retentionSummary(r) {
+    if (!r) return "—";
+    return [
+      r.daily ? `${r.daily}d` : null,
+      r.weekly ? `${r.weekly}w` : null,
+      r.monthly ? `${r.monthly}m` : null,
+      r.yearly ? `${r.yearly}y` : null,
+    ].filter(Boolean).join(" / ") || "—";
+  }
+
+  function openAddPolicy() { openPolicyModal(null); }
+  function editPolicy(id) {
+    const p = state.policies.find(x => x.id === id);
+    if (p) openPolicyModal(p);
+  }
+
+  function openPolicyModal(p) {
+    p = p || {};
+    const scopes = ["databases","files","audit-chain","configs","secrets","all"];
+    const dests = state.destinations;
+    const body = `
+      <div class="form-grid cols2">
+        <div class="form-row"><label>الاسم</label>
+          <input id="p-name" value="${esc(p.name || "")}" placeholder="hourly-db-incremental"></div>
+        <div class="form-row"><label>الجدول (cron)</label>
+          <input id="p-schedule" value="${esc(p.schedule || "0 * * * *")}" placeholder="0 * * * *">
+        </div>
+        <div class="form-row"><label>النطاقات</label>
+          <select id="p-scopes" multiple size="4">
+            ${scopes.map(s => `<option value="${s}" ${(p.scopes || []).includes(s) ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row"><label>نوع النسخ</label>
+          <select id="p-kind">
+            <option value="full" ${p.kind === "full" ? "selected" : ""}>كاملة</option>
+            <option value="incremental" ${p.kind === "incremental" || !p.kind ? "selected" : ""}>تزايدية</option>
+            <option value="differential" ${p.kind === "differential" ? "selected" : ""}>تفاضلية</option>
+          </select>
+        </div>
+        <div class="form-row"><label>كاملة كل (مرات)</label>
+          <input id="p-full-every" type="number" value="${esc((p.full_every) || 24)}"></div>
+        <div class="form-row"><label>التشفير</label>
+          <input id="p-encrypt" value="${esc(p.encryption || "AES-256-GCM")}"></div>
+        <div class="form-row"><label>مرجع المفتاح</label>
+          <input id="p-keyref" value="${esc(p.key_ref || "dr-primary")}"></div>
+        <div class="form-row"><label>الوجهات</label>
+          <select id="p-dests" multiple size="4">
+            ${dests.map(d => `<option value="${esc(d.id)}" ${((p.destinations || []).find(x => (x.id || x) === d.id)) ? "selected" : ""}>${esc(d.name)} (${esc(destTypeLabel(d.type))})</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <h4 class="mt-16">الاحتفاظ (GFS)</h4>
+      <div class="form-grid cols3">
+        <div class="form-row"><label>يومية</label><input id="r-daily" type="number" value="${esc(p.retention?.daily || 7)}"></div>
+        <div class="form-row"><label>أسبوعية</label><input id="r-weekly" type="number" value="${esc(p.retention?.weekly || 4)}"></div>
+        <div class="form-row"><label>شهرية</label><input id="r-monthly" type="number" value="${esc(p.retention?.monthly || 12)}"></div>
+        <div class="form-row"><label>سنوية</label><input id="r-yearly" type="number" value="${esc(p.retention?.yearly || 7)}"></div>
+      </div>
+      <h4 class="mt-16">Hooks</h4>
+      <div class="form-grid cols2">
+        <div class="form-row"><label>قبل</label><input id="p-pre" value="${esc(p.pre_hook || "")}" placeholder="/opt/helen/pre-backup.sh"></div>
+        <div class="form-row"><label>بعد</label><input id="p-post" value="${esc(p.post_hook || "")}" placeholder="/opt/helen/post-backup.sh"></div>
+      </div>`;
+    const foot = `
+      <button class="btn primary" onclick="DR.savePolicy(${p.id ? `'${esc(p.id)}'` : "null"})">حفظ</button>
+      <button class="btn" onclick="DR.closeModal()">إلغاء</button>`;
+    openModal({ title: p.id ? "تحرير سياسة" : "سياسة جديدة", body, foot, wide: true });
+  }
+
+  async function savePolicy(id) {
+    const body = {
+      name: $("#p-name").value.trim(),
+      schedule: $("#p-schedule").value.trim(),
+      scopes: $$("#p-scopes option:checked").map(o => o.value),
+      kind: $("#p-kind").value,
+      full_every: parseInt($("#p-full-every").value || "24", 10),
+      encryption: $("#p-encrypt").value.trim(),
+      key_ref: $("#p-keyref").value.trim(),
+      destinations: $$("#p-dests option:checked").map(o => ({ id: o.value, priority: 10 })),
+      retention: {
+        daily:   parseInt($("#r-daily").value || "7", 10),
+        weekly:  parseInt($("#r-weekly").value || "4", 10),
+        monthly: parseInt($("#r-monthly").value || "12", 10),
+        yearly:  parseInt($("#r-yearly").value || "7", 10),
+      },
+      pre_hook: $("#p-pre").value.trim() || null,
+      post_hook: $("#p-post").value.trim() || null,
+    };
+    if (!body.name) { toast("الاسم مطلوب", "", "warn"); return; }
+    if (!body.destinations.length) { toast("حدّد وجهة واحدة على الأقل", "", "warn"); return; }
+    try {
+      const path = id ? `/api/admin/dr/policies/${encodeURIComponent(id)}` : "/api/admin/dr/policies";
+      await apiFetch(path, { method: id ? "PUT" : "POST", body });
+      toast("تم الحفظ", body.name, "ok");
+      closeModal(); loadPolicies();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function deletePolicy(id) {
+    if (!confirm("حذف هذه السياسة؟ النسخ السابقة تبقى محفوظة.")) return;
+    try {
+      await apiFetch(`/api/admin/dr/policies/${encodeURIComponent(id)}`, { method: "DELETE" });
+      toast("تم الحذف", "", "ok"); loadPolicies();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function clonePolicy(id) {
+    const p = state.policies.find(x => x.id === id);
+    if (!p) return;
+    const cp = JSON.parse(JSON.stringify(p));
+    cp.name = (cp.name || "policy") + "-copy";
+    delete cp.id;
+    try {
+      await apiFetch("/api/admin/dr/policies", { method: "POST", body: cp });
+      toast("تم النسخ", cp.name, "ok"); loadPolicies();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function togglePolicy(id, isEnabled) {
+    try {
+      await apiFetch(`/api/admin/dr/policies/${encodeURIComponent(id)}`,
+        { method: "PUT", body: { enabled: !isEnabled } });
+      loadPolicies();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function dryRunPolicy(id) {
+    try {
+      const r = await apiFetch(`/api/admin/dr/policies/${encodeURIComponent(id)}/dry-run`,
+        { method: "POST" });
+      openModal({
+        title: "نتيجة الاختبار الجاف (Dry-run)",
+        body: `
+          <div class="form-row"><label>سيُنسخ</label><span>${(r.files || 0).toLocaleString()} ملف · ${fmtBytes(r.size || 0)}</span></div>
+          <div class="form-row"><label>المدة المُقدّرة</label><span>${fmtDur(r.estimated_duration || 0)}</span></div>
+          <div class="form-row"><label>الوجهات</label><span>${(r.destinations || []).join(", ")}</span></div>
+          <div class="form-row"><label>تحذيرات</label>
+            <pre class="mono" style="background:var(--panel-2);padding:8px;border-radius:6px;">${esc((r.warnings || []).join("\n") || "لا يوجد")}</pre>
+          </div>`,
+        foot: `<button class="btn" onclick="DR.closeModal()">إغلاق</button>`,
+        wide: true,
+      });
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Restore Wizard
+  // ─────────────────────────────────────────────────────────────────────
+  function openRestore(backupId) {
+    state.restoreState = {
+      step: 1, backup: backupId ? state.backups.find(b => b.id === backupId) : null,
+      scope: "full", target: "in-place", reason: "", confirmText: "", jobId: null,
+    };
+    if (backupId) state.restoreState.step = 2;
+    renderRestoreWizard();
+  }
+
+  function restoreFrom(backupId) { openRestore(backupId); }
+
+  function renderRestoreWizard() {
+    const s = state.restoreState;
+    const stepperHtml = `
+      <div class="stepper">
+        ${[1, 2, 3, 4, 5].map(n => `
+          <div class="step ${s.step === n ? "active" : s.step > n ? "done" : ""}">
+            <div class="n">${n}</div>
+            <div>${["النسخة","النطاق","الهدف","تأكيد","تنفيذ"][n - 1]}</div>
+          </div>`).join("")}
+      </div>`;
+
+    let body;
+    if (s.step === 1) body = stepRestore1();
+    else if (s.step === 2) body = stepRestore2();
+    else if (s.step === 3) body = stepRestore3();
+    else if (s.step === 4) body = stepRestore4();
+    else body = stepRestore5();
+
+    const foot = `
+      ${s.step > 1 && s.step < 5 ? `<button class="btn" onclick="DR.restorePrev()">السابق</button>` : ""}
+      ${s.step < 4 ? `<button class="btn primary" onclick="DR.restoreNext()">التالي</button>` : ""}
+      ${s.step === 4 ? `<button class="btn danger" id="restore-go-btn" onclick="DR.restoreExecute()" disabled>تنفيذ الاستعادة</button>` : ""}
+      ${s.step === 5 && s.jobId ? `<button class="btn danger" onclick="DR.cancelRestore()">إلغاء</button>` : ""}
+      <button class="btn ghost" onclick="DR.closeModal()">${s.step === 5 ? "إغلاق" : "إلغاء"}</button>`;
+
+    openModal({
+      title: "معالج الاستعادة",
+      body: stepperHtml + `<div>${body}</div>`,
+      foot, wide: true,
+    });
+    if (s.step === 4) wireRestoreConfirm();
+    if (s.step === 5) monitorRestoreJob();
+  }
+
+  function stepRestore1() {
+    const rows = state.backups.slice(0, 30).map(b => `
+      <tr class="clickable" onclick="DR.restorePickBackup('${esc(b.id)}')">
+        <td>${esc(fmtTime(b.started_at || b.created_at))}</td>
+        <td>${esc(b.policy_name || "—")}</td>
+        <td>${esc(b.scope || "—")}</td>
+        <td>${fmtBytes(b.size_bytes)}</td>
+        <td>${statusPill(b.status)}</td>
+      </tr>`).join("");
+    return `
+      <p class="muted">اختر النسخة المراد الاستعادة منها.</p>
+      <div class="tbl-wrap" style="max-height:340px;">
+        <table class="tbl">
+          <thead><tr><th>الوقت</th><th>السياسة</th><th>النطاق</th><th>الحجم</th><th>الحالة</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" class="empty">لا توجد نسخ</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function restorePickBackup(id) {
+    state.restoreState.backup = state.backups.find(b => b.id === id);
+    state.restoreState.step = 2;
+    renderRestoreWizard();
+  }
+
+  function stepRestore2() {
+    const b = state.restoreState.backup || {};
+    return `
+      <p class="muted">نسخة: <strong>${esc(b.id)}</strong> — ${fmtTime(b.started_at)}</p>
+      <div class="form-row">
+        <label>النطاق</label>
+        <select id="rs-scope">
+          <option value="full" ${state.restoreState.scope === "full" ? "selected" : ""}>كامل</option>
+          <option value="databases" ${state.restoreState.scope === "databases" ? "selected" : ""}>قواعد البيانات فقط</option>
+          <option value="files" ${state.restoreState.scope === "files" ? "selected" : ""}>ملفات فقط</option>
+          <option value="audit-chain" ${state.restoreState.scope === "audit-chain" ? "selected" : ""}>سلسلة التدقيق</option>
+          <option value="configs" ${state.restoreState.scope === "configs" ? "selected" : ""}>إعدادات</option>
+          <option value="point-in-time" ${state.restoreState.scope === "point-in-time" ? "selected" : ""}>نقطة زمنية محددة</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>وقت نقطة الاستعادة</label>
+        <input type="datetime-local" id="rs-pit" value="">
+        <div class="hint">يستعمل فقط لو اخترت point-in-time.</div>
+      </div>`;
+  }
+
+  function stepRestore3() {
+    return `
+      <div class="form-row">
+        <label>الهدف</label>
+        <select id="rs-target">
+          <option value="in-place" ${state.restoreState.target === "in-place" ? "selected" : ""}>في الموقع (over-write)</option>
+          <option value="new-instance" ${state.restoreState.target === "new-instance" ? "selected" : ""}>نسخة جديدة (دليل بديل)</option>
+          <option value="sandbox" ${state.restoreState.target === "sandbox" ? "selected" : ""}>بيئة اختبار (تدريب فقط)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>المسار البديل</label>
+        <input id="rs-altpath" placeholder="/srv/helen-restore" value="">
+      </div>
+      <div class="form-row" style="color:var(--warn);">
+        <label></label>
+        <span>⚠ in-place ستستبدل البيانات الحالية. تأكد من وجود نسخة احتياطية حديثة قبل المتابعة.</span>
+      </div>`;
+  }
+
+  function stepRestore4() {
+    const s = state.restoreState;
+    const b = s.backup || {};
+    return `
+      <h4>راجع وأكّد</h4>
+      <table class="tbl" style="width:100%;">
+        <tr><th>النسخة</th><td>${esc(b.id)}</td></tr>
+        <tr><th>التاريخ</th><td>${fmtTime(b.started_at)}</td></tr>
+        <tr><th>النطاق</th><td>${esc(s.scope)}</td></tr>
+        <tr><th>الهدف</th><td>${esc(s.target)}</td></tr>
+        <tr><th>المسار</th><td class="mono">${esc(s.altpath || "—")}</td></tr>
+      </table>
+      <div class="form-row mt-16">
+        <label>السبب (مطلوب)</label>
+        <input id="rs-reason" placeholder="استعادة بعد حادثة..." value="${esc(s.reason || "")}">
+      </div>
+      <div class="form-row">
+        <label>اكتب RESTORE</label>
+        <input id="rs-confirm" placeholder="RESTORE">
+      </div>
+      <div class="form-row" style="color:var(--err)">
+        <label></label>
+        <span>⚠ هذا الإجراء يُسجَّل في سلسلة التدقيق ولا يمكن التراجع عنه عند الاكتمال.</span>
+      </div>`;
+  }
+
+  function wireRestoreConfirm() {
+    const reasonEl = $("#rs-reason"), confirmEl = $("#rs-confirm"), goBtn = $("#restore-go-btn");
+    function check() {
+      goBtn.disabled = !(reasonEl.value.trim().length >= 5 && confirmEl.value === "RESTORE");
+    }
+    reasonEl.addEventListener("input", check);
+    confirmEl.addEventListener("input", check);
+  }
+
+  function restoreNext() {
+    const s = state.restoreState;
+    if (s.step === 1 && !s.backup) { toast("اختر نسخة", "", "warn"); return; }
+    if (s.step === 2) {
+      s.scope = $("#rs-scope").value;
+      s.pit = $("#rs-pit").value;
+    }
+    if (s.step === 3) {
+      s.target = $("#rs-target").value;
+      s.altpath = $("#rs-altpath").value.trim();
+    }
+    s.step = Math.min(5, s.step + 1);
+    renderRestoreWizard();
+  }
+  function restorePrev() {
+    state.restoreState.step = Math.max(1, state.restoreState.step - 1);
+    renderRestoreWizard();
+  }
+
+  async function restoreExecute() {
+    const s = state.restoreState;
+    s.reason = $("#rs-reason").value.trim();
+    s.confirmText = $("#rs-confirm").value;
+    if (s.confirmText !== "RESTORE") { toast("التأكيد غير صحيح", "اكتب RESTORE", "err"); return; }
+    try {
+      const r = await apiFetch(`/api/admin/dr/backups/${encodeURIComponent(s.backup.id)}/restore`, {
+        method: "POST",
+        body: {
+          scope: s.scope, target: s.target, alt_path: s.altpath,
+          pit: s.pit || null, reason: s.reason, confirm: "RESTORE",
+        },
+      });
+      s.jobId = r.job_id || r.id;
+      state.activeRestoreJob = s.jobId;
+      s.step = 5;
+      toast("بدأت الاستعادة", `Job: ${s.jobId}`, "ok");
+      renderRestoreWizard();
+      ensureRealtime();
+    } catch (e) { toast("فشل البدء", e.message, "err"); }
+  }
+
+  function stepRestore5() {
+    const s = state.restoreState;
+    return `
+      <h4>تنفيذ الاستعادة</h4>
+      <div class="row between">
+        <span>المعرّف: <span class="mono">${esc(s.jobId || "—")}</span></span>
+        <span id="rs-status-pill">${statusPill("running")}</span>
+      </div>
+      <div class="progress mt-12"><div class="bar" id="rs-progress-bar" style="width:0%"></div></div>
+      <div class="row between"><span id="rs-progress-pct">0%</span><span id="rs-eta">ETA: —</span></div>
+      <h4 class="mt-16">القطع المُستعادة</h4>
+      <div class="tbl-wrap" style="max-height:240px;">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>SHA-256</th><th>الحجم</th><th>الحالة</th></tr></thead>
+          <tbody id="rs-chunks-tbody"><tr><td colspan="4" class="empty">في انتظار...</td></tr></tbody>
+        </table>
+      </div>`;
+  }
+
+  async function monitorRestoreJob() {
+    const id = state.restoreState.jobId;
+    if (!id) return;
+    try {
+      const r = await apiFetch(`/api/admin/dr/jobs/${encodeURIComponent(id)}`);
+      const pct = Math.round((r.progress || 0) * 100);
+      $("#rs-progress-bar") && ($("#rs-progress-bar").style.width = pct + "%");
+      $("#rs-progress-pct") && ($("#rs-progress-pct").textContent = pct + "%");
+      $("#rs-eta") && ($("#rs-eta").textContent = "ETA: " + (r.eta_sec ? fmtDur(r.eta_sec) : "—"));
+      $("#rs-status-pill") && ($("#rs-status-pill").innerHTML = statusPill(r.status));
+      const chunks = r.chunks || [];
+      if (chunks.length && $("#rs-chunks-tbody")) {
+        $("#rs-chunks-tbody").innerHTML = chunks.map((c, i) => `
+          <tr><td>${i + 1}</td>
+            <td class="mono truncate">${esc((c.sha256 || "").slice(0, 16))}…</td>
+            <td>${fmtBytes(c.size)}</td>
+            <td>${statusPill(c.status)}</td></tr>`).join("");
+      }
+      if (r.status === "success" || r.status === "failed") {
+        state.activeRestoreJob = null;
+        toast(r.status === "success" ? "اكتملت الاستعادة" : "فشلت الاستعادة",
+          id, r.status === "success" ? "ok" : "err");
+        return;
+      }
+      // poll fallback
+      if (!state.ws || state.ws.readyState !== 1) {
+        setTimeout(monitorRestoreJob, POLL_MS);
+      }
+    } catch (e) {
+      console.warn("monitor:", e.message);
+      setTimeout(monitorRestoreJob, POLL_MS * 2);
+    }
+  }
+
+  async function cancelRestore() {
+    const id = state.restoreState.jobId;
+    if (!id || !confirm("إلغاء الاستعادة الجارية؟")) return;
+    try {
+      await apiFetch(`/api/admin/dr/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+      toast("أُرسل أمر الإلغاء", id, "warn");
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Jobs
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadJobs() {
+    try {
+      const r = await apiFetch("/api/admin/dr/jobs");
+      state.jobs = (r && r.items) || r || [];
+      renderJobs();
+    } catch (e) { /* silent */ }
+  }
+
+  function renderJobs() {
+    const tb = $("#jobs-tbody");
+    if (!state.jobs.length) {
+      tb.innerHTML = `<tr><td colspan="7" class="empty">لا توجد مهام نشطة</td></tr>`;
+      return;
+    }
+    tb.innerHTML = state.jobs.map(j => `
+      <tr>
+        <td class="mono">${esc(j.id)}</td>
+        <td>${esc(j.type || "—")}</td>
+        <td>${statusPill(j.status)}</td>
+        <td>
+          <div class="progress" style="margin:0;"><div class="bar" style="width:${Math.round((j.progress || 0) * 100)}%"></div></div>
+          <span class="muted">${Math.round((j.progress || 0) * 100)}% · ETA ${j.eta_sec ? fmtDur(j.eta_sec) : "—"}</span>
+        </td>
+        <td>${esc(j.destination_name || j.destination_id || "—")}</td>
+        <td>${relTime(j.started_at)}</td>
+        <td>
+          ${(j.status === "running" || j.status === "pending")
+            ? `<button class="btn danger sm" onclick="DR.cancelJob('${esc(j.id)}')">إلغاء</button>`
+            : `<span class="muted">—</span>`}
+        </td>
+      </tr>`).join("");
+  }
+
+  async function cancelJob(id) {
+    if (!confirm("إلغاء المهمة؟")) return;
+    try {
+      await apiFetch(`/api/admin/dr/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+      toast("أُرسل أمر الإلغاء", id, "warn"); loadJobs();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Drills
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadDrills() {
+    try {
+      const r = await apiFetch("/api/admin/dr/drills");
+      state.drills = (r && r.items) || r || [];
+      renderDrills();
+    } catch (e) {
+      $("#drills-tbody").innerHTML =
+        `<tr><td colspan="8" class="empty">تعذّر التحميل: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderDrills() {
+    const tb = $("#drills-tbody");
+    const last = state.drills[0];
+    if (last) {
+      $("#last-drill").innerHTML = `
+        <div class="grid-2">
+          <div><div class="muted">التاريخ</div>${fmtTime(last.executed_at)}</div>
+          <div><div class="muted">النتيجة</div>${statusPill(last.outcome === "pass" ? "success" : "failed")}</div>
+          <div><div class="muted">RPO المُقاس</div>${fmtDur(last.measured_rpo)}</div>
+          <div><div class="muted">RTO المُقاس</div>${fmtDur(last.measured_rto)}</div>
+        </div>
+        <div class="mt-12">
+          <a href="#" onclick="DR.openDrillReport('${esc(last.id)}');return false;">عرض التقرير الكامل</a>
+        </div>`;
+    } else {
+      $("#last-drill").innerHTML = `<div class="empty">لم يُجرَ أي تدريب بعد.</div>`;
+    }
+    if (!state.drills.length) {
+      tb.innerHTML = `<tr><td colspan="8" class="empty">لا توجد تدريبات سابقة</td></tr>`;
+      return;
+    }
+    tb.innerHTML = state.drills.map(d => `
+      <tr>
+        <td>${fmtTime(d.executed_at)}</td>
+        <td>${statusPill(d.outcome === "pass" ? "success" : "failed")}</td>
+        <td>${fmtDur(d.measured_rpo)}</td>
+        <td>${fmtDur(d.measured_rto)}</td>
+        <td class="mono">${esc((d.backup_id || "").slice(0, 12))}…</td>
+        <td>${esc(d.initiator || "—")}</td>
+        <td>${fmtDur(d.duration_sec)}</td>
+        <td><button class="btn sm" onclick="DR.openDrillReport('${esc(d.id)}')">PDF</button></td>
+      </tr>`).join("");
+  }
+
+  async function runDrillNow() {
+    if (!confirm("تشغيل تدريب الآن؟ سيُجرى استعادة اختبارية إلى sandbox.")) return;
+    try {
+      const r = await apiFetch("/api/admin/dr/test-restore", {
+        method: "POST",
+        body: { mode: "drill", target: "sandbox" }
+      });
+      toast("بدأ التدريب", r.job_id || "", "ok");
+      loadJobs();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function scheduleDrills() {
+    const cadence = $("#drill-cadence").value, days = $("#drill-days").value;
+    try {
+      await apiFetch("/api/admin/dr/drills/schedule",
+        { method: "POST", body: { cadence, days: days.split(",").map(s => s.trim()) } });
+      toast("تم الحفظ", cadence, "ok");
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  function openDrillReport(drillId) {
+    const url = `${API_BASE}/api/admin/dr/drills${drillId ? "/" + encodeURIComponent(drillId) : ""}/report?format=pdf&token=${encodeURIComponent(token())}`;
+    window.open(url, "_blank", "noopener");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Integrity verifier
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadVerifier() {
+    try {
+      const queue = await apiFetch("/api/admin/dr/verify/queue").catch(() => ({ items: [] }));
+      const alerts = await apiFetch("/api/admin/dr/verify/alerts").catch(() => ({ items: [] }));
+      renderVerifyQueue(queue.items || queue || []);
+      renderIntegrityAlerts(alerts.items || alerts || []);
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  function renderVerifyQueue(items) {
+    const wrap = $("#verify-queue");
+    if (!items.length) { wrap.innerHTML = `<div class="empty">لا توجد عمليات تحقق نشطة</div>`; return; }
+    wrap.innerHTML = items.map(j => `
+      <div class="row between" style="padding:8px;border-bottom:1px solid var(--border-soft);">
+        <div>
+          <div class="mono">${esc(j.id)}</div>
+          <div class="muted">${esc(j.target || "—")} · ${esc(j.algorithm || "sha256")}</div>
+        </div>
+        <div style="min-width:140px;">
+          <div class="progress" style="margin:0;"><div class="bar" style="width:${Math.round((j.progress || 0) * 100)}%"></div></div>
+          <div class="muted">${Math.round((j.progress || 0) * 100)}%</div>
+        </div>
+      </div>`).join("");
+  }
+
+  function renderIntegrityAlerts(items) {
+    const tb = $("#integrity-alerts-tbody");
+    if (!items.length) {
+      tb.innerHTML = `<tr><td colspan="6" class="empty">لا توجد تحذيرات</td></tr>`;
+      return;
+    }
+    tb.innerHTML = items.map(a => `
+      <tr>
+        <td>${fmtTime(a.detected_at)}</td>
+        <td class="mono truncate">${esc(a.backup_id)}</td>
+        <td>${esc(a.destination_name || a.destination_id || "—")}</td>
+        <td>${esc(a.reason || "—")}</td>
+        <td>${statusPill(a.severity === "high" ? "failed" : "warn")}</td>
+        <td>
+          <button class="btn sm" onclick="DR.verifyBackup('${esc(a.backup_id)}')">إعادة التحقق</button>
+        </td>
+      </tr>`).join("");
+  }
+
+  async function saveVerifySchedule() {
+    try {
+      await apiFetch("/api/admin/dr/verify/schedule",
+        { method: "POST", body: { cron: $("#verify-cron").value.trim() } });
+      toast("تم الحفظ", "", "ok");
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function runFullVerify() {
+    if (!confirm("بدء تحقق شامل من جميع النسخ؟ قد يستغرق ساعات.")) return;
+    try {
+      const r = await apiFetch("/api/admin/dr/verify/run-full", { method: "POST" });
+      toast("بدأ التحقق الشامل", r.job_id || "", "ok"); loadJobs();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Custody chain
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadCustody() {
+    const q = ($("#custody-search").value || "").trim();
+    try {
+      const r = await apiFetch("/api/admin/dr/custody" + (q ? "?q=" + encodeURIComponent(q) : ""));
+      const items = (r && r.items) || r || [];
+      const tb = $("#custody-tbody");
+      if (!items.length) {
+        tb.innerHTML = `<tr><td colspan="6" class="empty">لا توجد بيانات</td></tr>`;
+        return;
+      }
+      tb.innerHTML = items.map(c => `
+        <tr>
+          <td class="mono">${esc((c.backup_id || "").slice(0, 16))}…</td>
+          <td>${esc(c.initiated_by || "—")}</td>
+          <td>${esc(c.verified_by || "—")}</td>
+          <td>${esc(c.restored_by || "—")}</td>
+          <td>${(c.audit_ids || []).map(id =>
+            `<a href="/admin/#siem_audit/${encodeURIComponent(id)}" class="mono">${esc(id.slice(0, 8))}</a>`).join(", ")}</td>
+          <td><button class="btn sm" onclick="DR.openBackupDrawer('${esc(c.backup_id)}')">تفاصيل</button></td>
+        </tr>`).join("");
+    } catch (e) {
+      $("#custody-tbody").innerHTML =
+        `<tr><td colspan="6" class="empty">تعذّر التحميل: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Encryption keys
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadKeys() {
+    try {
+      const r = await apiFetch("/api/admin/dr/keys");
+      state.keys = (r && r.items) || r || [];
+      renderKeys();
+    } catch (e) {
+      $("#keys-tbody").innerHTML =
+        `<tr><td colspan="9" class="empty">تعذّر التحميل: ${esc(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderKeys() {
+    const tb = $("#keys-tbody");
+    if (!state.keys.length) {
+      tb.innerHTML = `<tr><td colspan="9" class="empty">لا توجد مفاتيح</td></tr>`;
+      return;
+    }
+    tb.innerHTML = state.keys.map(k => `
+      <tr>
+        <td class="mono">${esc(k.id)}</td>
+        <td>${esc(k.name)}</td>
+        <td>${esc(k.kind || "file")}</td>
+        <td>${esc(k.algorithm || "AES-256-GCM")}</td>
+        <td>${esc(k.owner || "—")}</td>
+        <td>${statusPill(k.status || "active")}</td>
+        <td>${fmtTime(k.created_at)}</td>
+        <td>${k.rotation_days ? `كل ${k.rotation_days}d` : "يدوي"}</td>
+        <td>
+          <button class="btn sm" onclick="DR.rotateKey('${esc(k.id)}')">دوران</button>
+          <button class="btn sm" onclick="DR.exportPublicKey('${esc(k.id)}')">تصدير</button>
+        </td>
+      </tr>`).join("");
+  }
+
+  async function rotateKey(id) {
+    if (!confirm("دوران المفتاح يقوم بإعادة تشفير جميع النسخ المعتمدة عليه. متابعة؟")) return;
+    try {
+      const r = await apiFetch(`/api/admin/dr/keys/${encodeURIComponent(id)}/rotate`,
+        { method: "POST", body: { dry_run: false } });
+      toast("بدأ الدوران", r.job_id || "", "ok"); loadJobs();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  async function exportPublicKey(id) {
+    try {
+      const url = `${API_BASE}/api/admin/dr/keys${id ? "/" + encodeURIComponent(id) : ""}/export-public?token=${encodeURIComponent(token())}`;
+      window.open(url, "_blank", "noopener");
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  function openAddKey() {
+    const body = `
+      <div class="form-row"><label>الاسم</label><input id="k-name" placeholder="dr-2026-q2"></div>
+      <div class="form-row"><label>النوع</label>
+        <select id="k-kind">
+          <option value="file">ملف محلي</option>
+          <option value="hsm">HSM (PKCS#11)</option>
+          <option value="yubikey">Yubikey (PIV)</option>
+        </select>
+      </div>
+      <div class="form-row"><label>الخوارزمية</label>
+        <select id="k-alg">
+          <option value="AES-256-GCM">AES-256-GCM</option>
+          <option value="AES-256-CBC">AES-256-CBC</option>
+          <option value="ChaCha20-Poly1305">ChaCha20-Poly1305</option>
+        </select>
+      </div>
+      <div class="form-row"><label>دوران تلقائي (أيام)</label><input id="k-rot" type="number" value="90"></div>`;
+    const foot = `
+      <button class="btn primary" onclick="DR.saveKey()">إنشاء</button>
+      <button class="btn ghost" onclick="DR.closeModal()">إلغاء</button>`;
+    openModal({ title: "مفتاح تشفير جديد", body, foot });
+  }
+
+  async function saveKey() {
+    const body = {
+      name: $("#k-name").value.trim(),
+      kind: $("#k-kind").value,
+      algorithm: $("#k-alg").value,
+      rotation_days: parseInt($("#k-rot").value, 10) || null,
+    };
+    if (!body.name) { toast("الاسم مطلوب", "", "warn"); return; }
+    try {
+      await apiFetch("/api/admin/dr/keys", { method: "POST", body });
+      toast("تم الإنشاء", body.name, "ok"); closeModal(); loadKeys();
+    } catch (e) { toast("فشل", e.message, "err"); }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Reports
+  // ─────────────────────────────────────────────────────────────────────
+  function openReports() {
+    const body = `
+      <p class="muted">تقارير وضع DR وامتثاله. اختر الصيغة والإطار.</p>
+      <div class="form-row">
+        <label>الصيغة</label>
+        <select id="rp-fmt">
+          <option value="pdf">PDF</option>
+          <option value="csv">CSV</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>إطار الامتثال</label>
+        <select id="rp-fw">
+          <option value="">عام (DR posture)</option>
+          <option value="iso22301">ISO 22301 (BCM)</option>
+          <option value="soc2-cc9">SOC 2 CC9</option>
+          <option value="hipaa">HIPAA Contingency Plan §164.308(a)(7)</option>
+          <option value="nist800-34">NIST SP 800-34</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>الفترة</label>
+        <select id="rp-period">
+          <option value="30d">آخر 30 يوم</option>
+          <option value="90d" selected>آخر 90 يوم</option>
+          <option value="ytd">منذ بداية السنة</option>
+          <option value="1y">آخر 12 شهر</option>
+        </select>
+      </div>`;
+    const foot = `
+      <button class="btn primary" onclick="DR.downloadReport()">تنزيل</button>
+      <button class="btn ghost" onclick="DR.closeModal()">إغلاق</button>`;
+    openModal({ title: "تقارير DR والامتثال", body, foot });
+  }
+
+  function downloadReport() {
+    const fmt = $("#rp-fmt").value, fw = $("#rp-fw").value, period = $("#rp-period").value;
+    const url = `${API_BASE}/api/admin/dr/reports?format=${fmt}&framework=${fw}&period=${period}&token=${encodeURIComponent(token())}`;
+    window.open(url, "_blank", "noopener");
+    closeModal();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Charts
+  // ─────────────────────────────────────────────────────────────────────
+  async function loadCharts() {
+    try {
+      const m = await apiFetch("/api/admin/dr/metrics/charts").catch(() => null);
+      const data = m || synthesizeChartData();
+      drawCharts(data);
+    } catch (e) {
+      console.warn("charts:", e);
+      drawCharts(synthesizeChartData());
+    }
+  }
+
+  function synthesizeChartData() {
+    const labels = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      labels.push(d.toISOString().slice(5, 10));
+    }
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+    return {
+      labels,
+      success_rate: labels.map(() => Math.round(rand(85, 100))),
+      backup_size_gb: labels.map(() => +rand(2, 8).toFixed(1)),
+      rpo_min: labels.map(() => Math.round(rand(20, 120))),
+      rto_results: labels.filter((_, i) => i % 5 === 0).map(() => Math.round(rand(1800, 9000))),
+      rto_labels: labels.filter((_, i) => i % 5 === 0),
+    };
+  }
+
+  function drawCharts(d) {
+    if (!window.Chart) {
+      $$(".chart-box").forEach(b => b.innerHTML = `<div class="empty">Chart.js غير متوفر</div>`);
+      return;
+    }
+    const common = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#a0a8b0" } } },
+      scales: {
+        x: { ticks: { color: "#a0a8b0" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { ticks: { color: "#a0a8b0" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true },
+      },
+    };
+    destroyCharts();
+    state.charts.success = new Chart($("#chart-success"), {
+      type: "line",
+      data: { labels: d.labels,
+        datasets: [{ label: "نسبة النجاح (%)", data: d.success_rate,
+          borderColor: "#4ade80", backgroundColor: "rgba(74,222,128,0.15)", tension: 0.3, fill: true }] },
+      options: common,
+    });
+    state.charts.size = new Chart($("#chart-size"), {
+      type: "bar",
+      data: { labels: d.labels,
+        datasets: [{ label: "GB", data: d.backup_size_gb,
+          backgroundColor: "rgba(0,212,255,0.4)", borderColor: "#00d4ff", borderWidth: 1 }] },
+      options: common,
+    });
+    state.charts.rpo = new Chart($("#chart-rpo"), {
+      type: "line",
+      data: { labels: d.labels,
+        datasets: [{ label: "RPO (دقائق)", data: d.rpo_min,
+          borderColor: "#facc15", backgroundColor: "rgba(250,204,21,0.15)", tension: 0.25, fill: true }] },
+      options: common,
+    });
+    state.charts.rto = new Chart($("#chart-rto"), {
+      type: "bar",
+      data: { labels: d.rto_labels || d.labels,
+        datasets: [{ label: "RTO المُقاس (ثوانٍ)", data: d.rto_results,
+          backgroundColor: "rgba(255,71,87,0.4)", borderColor: "#ff4757", borderWidth: 1 }] },
+      options: common,
+    });
+  }
+
+  function destroyCharts() {
+    Object.values(state.charts).forEach(c => { try { c && c.destroy(); } catch {} });
+    state.charts = {};
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Realtime: WS + poll fallback
+  // ─────────────────────────────────────────────────────────────────────
+  function ensureRealtime() {
+    if (state.ws && state.ws.readyState === 1) return;
+    try {
+      const wsUrl = (API_BASE.startsWith("https") ? "wss" : "ws") + "://"
+        + API_BASE.replace(/^https?:\/\//, "") + WS_PATH + "?token=" + encodeURIComponent(token());
+      const ws = new WebSocket(wsUrl);
+      state.ws = ws;
+      ws.onopen = () => {
+        $("#dr-conn-status").innerHTML = `<span class="dot ok"></span>WS متصل`;
+        $("#dr-conn-status").className = "pill ok";
+        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          handleRealtimeEvent(msg);
+        } catch {}
+      };
+      ws.onclose = () => {
+        state.ws = null;
+        $("#dr-conn-status").innerHTML = `<span class="dot warn"></span>poll`;
+        $("#dr-conn-status").className = "pill warn";
+        startPolling();
+        setTimeout(ensureRealtime, 5000);
+      };
+      ws.onerror = () => { try { ws.close(); } catch {} };
+    } catch (e) {
+      console.warn("WS:", e);
+      startPolling();
+    }
+  }
+
+  function startPolling() {
+    if (state.pollTimer) return;
+    state.pollTimer = setInterval(() => {
+      if (state.activeRestoreJob) monitorRestoreJob();
+      loadJobs();
+    }, POLL_MS);
+  }
+
+  function handleRealtimeEvent(msg) {
+    if (!msg || !msg.event) return;
+    switch (msg.event) {
+      case "job.update":
+      case "job.progress":
+        loadJobs();
+        if (state.activeRestoreJob && msg.id === state.activeRestoreJob) monitorRestoreJob();
+        break;
+      case "backup.completed":
+      case "backup.failed":
+        toast(msg.event === "backup.completed" ? "اكتملت نسخة" : "فشلت نسخة",
+          msg.id || "", msg.event === "backup.completed" ? "ok" : "err");
+        loadBackups(); loadRpoRto();
+        break;
+      case "destination.changed":
+        loadDestinations(); break;
+      case "integrity.alert":
+        toast("تحذير سلامة", msg.message || "", "warn");
+        loadVerifier(); break;
+      case "drill.completed":
+        loadDrills(); loadRpoRto(); break;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Tabs wiring
+  // ─────────────────────────────────────────────────────────────────────
+  function wireTabs() {
+    $$(".dr-tab").forEach(t => {
+      t.addEventListener("click", () => {
+        const name = t.dataset.tab;
+        $$(".dr-tab").forEach(x => x.classList.toggle("active", x === t));
+        $$(".dr-pane").forEach(p =>
+          p.classList.toggle("active", p.dataset.pane === name));
+        loadTabData(name);
+      });
+    });
+  }
+
+  function loadTabData(name) {
+    if (name === "destinations") { loadDestinations(); loadJobs(); }
+    else if (name === "backups")  loadBackups();
+    else if (name === "policies") loadPolicies();
+    else if (name === "drills")   loadDrills();
+    else if (name === "verifier") loadVerifier();
+    else if (name === "custody")  loadCustody();
+    else if (name === "keys")     loadKeys();
+    else if (name === "charts")   loadCharts();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Refresh all
+  // ─────────────────────────────────────────────────────────────────────
+  async function refreshAll() {
+    await Promise.all([
+      loadRpoRto(),
+      loadDestinations(),
+      loadJobs(),
+      loadPolicies(),
+    ]);
+    const active = $(".dr-tab.active");
+    if (active) loadTabData(active.dataset.tab);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Boot
+  // ─────────────────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    wireTabs();
+    refreshAll();
+    ensureRealtime();
+    setInterval(loadRpoRto, 30_000);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Public API (window.DR)
+  // ─────────────────────────────────────────────────────────────────────
+  window.DR = {
+    // top toolbar
+    refreshAll, openReports, openRestore,
+    // modal/drawer
+    closeModal, closeDrawer, openBackupDrawer,
+    // destinations
+    testDestination, editDestination, forceBackup, retireDestination,
+    openAddDestination, saveDestination,
+    _toggleDestFields: (f) => _toggleDestFields(f),
+    // backups
+    applyFilters, clearFilters, toggleAllBackups,
+    bulkVerify, bulkArchive, bulkDelete,
+    verifyBackup, restoreFrom,
+    // policies
+    openAddPolicy, editPolicy, savePolicy, deletePolicy, clonePolicy,
+    togglePolicy, dryRunPolicy,
+    // restore wizard
+    restoreNext, restorePrev, restoreExecute, cancelRestore, restorePickBackup,
+    // jobs
+    cancelJob,
+    // drills
+    runDrillNow, scheduleDrills, openDrillReport,
+    // verifier
+    saveVerifySchedule, runFullVerify,
+    // custody
+    loadCustody,
+    // keys
+    rotateKey, exportPublicKey, openAddKey, saveKey,
+    // reports
+    downloadReport,
+  };
+
+})();
+</script>
+</body>
+</html>

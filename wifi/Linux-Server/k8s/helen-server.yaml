@@ -1,0 +1,161 @@
+---
+# Helen-Server on Kubernetes — minimal but production-shaped.
+# Deploy:
+#   kubectl apply -f k8s/helen-server.yaml
+#
+# Notes:
+#   - StatefulSet (not Deployment) so each replica owns a stable
+#     PersistentVolumeClaim for its SQLite DB + data dir.
+#   - Headless Service + regular Service. Socket.IO needs sticky
+#     affinity — Istio or the ingress layer enforces it; inside-cluster
+#     clients can hit the headless service for DNS-per-pod.
+#   - Scale out by bumping `replicas`. The node registry + consistent
+#     hash in Helen's control plane handles room-to-pod placement.
+apiVersion: v1
+kind: Namespace
+metadata: { name: helen }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: helen-server-config
+  namespace: helen
+data:
+  PORT: "3000"
+  HELEN_HOST: "0.0.0.0"
+  HELEN_HTTPS_DISABLED: "1"         # TLS terminated at ingress
+  COMMCLIENT_DATA_DIR: "/var/lib/helen"
+  COMMCLIENT_LOG_DIR: "/var/log/helen"
+  UVICORN_BACKLOG: "8192"
+  RATE_LIMIT_GLOBAL_ENABLED: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helen-server-headless
+  namespace: helen
+spec:
+  clusterIP: None
+  selector: { app: helen-server }
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helen-server
+  namespace: helen
+  annotations:
+    # Session affinity — socket.io benefits from sticky routing.
+    service.beta.kubernetes.io/sessionAffinity: ClientIP
+spec:
+  type: ClusterIP
+  selector: { app: helen-server }
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+    - name: discovery
+      port: 41234
+      protocol: UDP
+      targetPort: 41234
+    - name: mdns
+      port: 5353
+      protocol: UDP
+      targetPort: 5353
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: helen-server
+  namespace: helen
+spec:
+  serviceName: helen-server-headless
+  replicas: 1
+  selector: { matchLabels: { app: helen-server } }
+  template:
+    metadata:
+      labels: { app: helen-server }
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: helen-server
+          image: helen-server:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: helen-server-config }
+          ports:
+            - { containerPort: 3000, name: http }
+            - { containerPort: 41234, name: discovery, protocol: UDP }
+            - { containerPort: 5353, name: mdns, protocol: UDP }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "500m",  memory: "512Mi" }
+            limits:   { cpu: "2000m", memory: "2Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/helen }
+            - { name: logs, mountPath: /var/log/helen }
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]   # drain sockets
+      volumes:
+        - name: logs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 20Gi } }
+---
+# Optional: PodDisruptionBudget so at least one pod stays up during
+# voluntary disruption (node drain, rolling update).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: helen-server-pdb
+  namespace: helen
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: helen-server } }
+---
+# Horizontal Pod Autoscaler — scale on CPU pressure
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: helen-server-hpa
+  namespace: helen
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: helen-server
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300    # 5 min cool-off

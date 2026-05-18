@@ -1,0 +1,34 @@
+apiVersion: v2
+name: helen
+description: |
+  Helen / CommClient — 100% LAN-only enterprise communications platform.
+
+  This Helm chart deploys the full Helen stack on Kubernetes:
+    - helen-server (FastAPI + Socket.IO)
+    - helen-router (FastAPI mesh + reverse-proxy)
+    - helen-rendezvous (NAT-traversal coordinator, cluster-aware)
+    - postgres / redis (optional bundled)
+    - bundled TURN server (optional)
+
+  Designed for air-gapped, on-prem deployment; no public cloud egress required.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - helen
+  - communications
+  - chat
+  - calls
+  - lan
+  - on-prem
+  - enterprise
+home: https://helen.lan
+sources:
+  - https://helen.lan/sources
+maintainers:
+  - name: Helen Operations Team
+    email: ops@helen.lan
+icon: https://helen.lan/icon.png
+annotations:
+  category: Communications
+  licenses: Apache-2.0

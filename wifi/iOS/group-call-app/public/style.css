@@ -1,0 +1,126 @@
+/* style.css — call-screen layout. Dark, minimal, mobile-first.
+   The grid tile sizing is handled by `updateGridLayout()` in JS,
+   which sets `grid-template-columns: repeat(N, 1fr)`. We only need
+   to make sure each row stretches equally and tiles fill cells. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+    margin: 0; padding: 0;
+    height: 100dvh;
+    background: #000;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#stage {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────── */
+.bar {
+    flex: 0 0 auto;
+    padding: max(env(safe-area-inset-top), 14px) 16px 10px;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0));
+    z-index: 4;
+}
+.bar .title { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.bar .title strong { font-size: 16px; font-weight: 600; line-height: 1.1; }
+.bar .title .meta { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+#duration { font-variant-numeric: tabular-nums; }
+.pill {
+    padding: 4px 10px; font-size: 11px;
+    background: rgba(255,255,255,0.14);
+    border-radius: 999px;
+    text-transform: lowercase;
+    letter-spacing: 0.4px;
+}
+
+/* ── Grid ───────────────────────────────────────────────────────── */
+#videoGrid {
+    flex: 1 1 auto;
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    min-height: 0;
+    grid-auto-rows: 1fr;
+    grid-template-columns: 1fr;          /* JS overrides per N */
+}
+
+.tile {
+    position: relative;
+    background:
+        linear-gradient(135deg, #1f2937, #0b0f17);
+    border-radius: 14px;
+    overflow: hidden;
+    min-width: 0; min-height: 0;
+    animation: tileIn 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes tileIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+.tile video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #000;
+}
+.tile.is-local video {
+    /* Mirror the local camera so the user reads themselves naturally;
+       remote peers see the un-mirrored frame. */
+    transform: scaleX(-1);
+}
+.tile.is-local {
+    outline: 2px solid rgba(255,255,255,0.55);
+    outline-offset: -2px;
+}
+.tile.cam-off video { visibility: hidden; }
+
+.tile .strip {
+    position: absolute;
+    left: 8px; right: 8px; bottom: 8px;
+    padding: 4px 10px;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 999px;
+    max-width: calc(100% - 16px);
+    font-size: 12px;
+    z-index: 2;
+}
+.tile .strip .name {
+    display: block;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Controls ───────────────────────────────────────────────────── */
+.controls {
+    flex: 0 0 auto;
+    padding: 10px 14px max(env(safe-area-inset-bottom), 16px);
+    display: flex; align-items: center; justify-content: center;
+    gap: 14px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.6), rgba(0,0,0,0));
+    z-index: 4;
+}
+.ctrl {
+    width: 56px; height: 56px;
+    border: 0; border-radius: 50%;
+    background: rgba(255,255,255,0.16);
+    color: #fff;
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 0.12s ease, background 0.18s ease;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+.ctrl:active { transform: scale(0.92); }
+.ctrl.is-active { background: #fff; color: #111; }
+.ctrl.is-end { background: #ff3b30; }
+.ctrl svg { width: 22px; height: 22px; }

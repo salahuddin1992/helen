@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen — Security</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+nav.tabs { display:flex; gap:4px; padding: 0 20px;
+           border-bottom:1px solid var(--line); }
+nav.tabs button { background:transparent; border:none; color:var(--muted);
+                  padding:12px 16px; cursor:pointer; font-size:13px;
+                  border-bottom:2px solid transparent; }
+nav.tabs button.active { color:var(--fg); border-bottom-color:var(--accent); }
+.container { padding:20px; }
+.card { background:var(--panel); border:1px solid var(--line);
+        border-radius:10px; padding:16px; margin-bottom:14px; }
+.card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.6px;
+           color:var(--muted); margin:0 0 10px 0; }
+table { width:100%; border-collapse: collapse; font-size:13px; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+         vertical-align:top; }
+th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+button { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+         padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; }
+button.primary { background:var(--accent); color:#0b0d10; border:none; }
+button.danger { color:var(--bad); border-color:rgba(248,113,113,.4); }
+input, select { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+                padding:6px 8px; border-radius:6px; font-size:12px; }
+.form-row { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; align-items:end; }
+.form-row label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); }
+.sev.critical, .sev.high { color:var(--bad); }
+.sev.warning { color:var(--warn); }
+.sev.info    { color:var(--accent); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+.stream { font-family: ui-monospace, monospace; font-size:11px; color:var(--muted);
+          white-space:pre; max-height:300px; overflow:auto; line-height:1.5; }
+.grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:14px; }
+.stat { background:var(--panel2); border-radius:8px; padding:12px; }
+.stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; }
+.stat .v { font-size:22px; font-weight:600; margin-top:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Security &mdash; Helen</h1>
+  <div><button id="scanNow">Scan deps now</button></div>
+</header>
+<nav class="tabs">
+  <button data-tab="waf"        class="active">WAF</button>
+  <button data-tab="ratelimit">Rate Limits</button>
+  <button data-tab="ids">IDS</button>
+  <button data-tab="blocks">Blocks</button>
+  <button data-tab="advisories">Advisories</button>
+  <button data-tab="rotation">Rotation</button>
+</nav>
+
+<div class="container">
+
+  <section id="tab-waf" class="tab-panel active">
+    <div class="card">
+      <h2>WAF Modes</h2>
+      <table id="waf_modes"></table>
+    </div>
+    <div class="card">
+      <h2>Hit Counters</h2>
+      <table id="waf_stats"></table>
+    </div>
+  </section>
+
+  <section id="tab-ratelimit" class="tab-panel">
+    <div class="card">
+      <h2>Rate Limit Configuration</h2>
+      <pre id="rl_cfg" style="font-family:ui-monospace,monospace;font-size:12px"></pre>
+    </div>
+  </section>
+
+  <section id="tab-ids" class="tab-panel">
+    <div class="grid" id="ids_stats"></div>
+    <div class="card">
+      <h2>Live Security Events</h2>
+      <div class="stream" id="event_stream"></div>
+    </div>
+    <div class="card">
+      <h2>Recent Login Attempts</h2>
+      <table id="login_attempts"><thead>
+        <tr><th>When</th><th>User</th><th>IP</th><th>Success</th><th>UA</th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-blocks" class="tab-panel">
+    <div class="card">
+      <h2>Add Block</h2>
+      <form id="block_form" class="form-row">
+        <label>IP / CIDR <input name="ip_cidr" required /></label>
+        <label>Reason <input name="reason" /></label>
+        <label>Duration (min, blank = perma) <input name="duration_minutes" type="number" /></label>
+        <label>&nbsp;<button class="primary" id="add_block_btn" type="button">Block</button></label>
+        <label></label>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Active Blocks</h2>
+      <table id="blocks_tbl"><thead>
+        <tr><th>IP/CIDR</th><th>Reason</th><th>Blocked</th><th>Expires</th><th>By</th><th></th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-advisories" class="tab-panel">
+    <div class="card">
+      <h2>Open Advisories</h2>
+      <table id="advisories_tbl"><thead>
+        <tr><th>Pkg</th><th>Version</th><th>CVE</th><th>Sev</th><th>Summary</th>
+            <th>Fixed in</th><th>Found</th><th></th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-rotation" class="tab-panel">
+    <div class="card">
+      <h2>Rotation Policies</h2>
+      <table id="policies_tbl"><thead>
+        <tr><th>Kind</th><th>Interval (h)</th><th>Grace (m)</th><th>Last Rotated</th><th></th></tr>
+      </thead><tbody></tbody></table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API = '/api/admin/security';
+
+async function fetchJSON(p, opts) {
+  const r = await fetch(p, {
+    headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json' },
+    ...opts
+  });
+  if (!r.ok) throw new Error(r.status + ' ' + await r.text());
+  if (r.headers.get('content-type','').includes('application/json'))
+    return r.json();
+  return r.text();
+}
+
+document.querySelectorAll('nav.tabs button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('tab-'+b.dataset.tab).classList.add('active');
+    loadTab(b.dataset.tab);
+  });
+});
+
+async function loadWAF() {
+  const s = await fetchJSON(API + '/waf/stats');
+  if (!s.enabled) {
+    document.getElementById('waf_modes').innerHTML = '<tr><td>WAF not enabled.</td></tr>';
+    return;
+  }
+  document.getElementById('waf_modes').innerHTML =
+    '<thead><tr><th>Category</th><th>Mode</th></tr></thead><tbody>' +
+    Object.entries(s.modes).map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') +
+    '</tbody>';
+  document.getElementById('waf_stats').innerHTML =
+    '<thead><tr><th>Pattern</th><th>Count</th></tr></thead><tbody>' +
+    Object.entries(s.stats).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+      `<tr><td>${k}</td><td>${v}</td></tr>`).join('') +
+    (Object.keys(s.stats).length===0 ? '<tr><td colspan="2" style="color:#8b96a3">No hits yet.</td></tr>' : '') +
+    '</tbody>';
+}
+
+async function loadRL() {
+  const cfg = await fetchJSON(API + '/rate-limit/config');
+  document.getElementById('rl_cfg').textContent = JSON.stringify(cfg, null, 2);
+}
+
+async function loadIDS() {
+  const events = await fetchJSON(API + '/events?limit=80');
+  const stats = {info:0, warning:0, high:0, critical:0};
+  events.forEach(e => { stats[e.severity] = (stats[e.severity]||0)+1; });
+  document.getElementById('ids_stats').innerHTML = Object.entries(stats).map(([k,v])=>
+    `<div class="stat"><div class="l">${k}</div><div class="v sev ${k}">${v}</div></div>`
+  ).join('');
+  document.getElementById('event_stream').textContent = events.map(e =>
+    `[${new Date(e.created_at).toISOString().slice(11,19)}] ${e.severity.toUpperCase()} ${e.kind} ip=${e.ip||'-'} ${JSON.stringify(e.payload)}`
+  ).join('\n');
+  const logs = await fetchJSON(API + '/login-attempts?limit=80');
+  document.querySelector('#login_attempts tbody').innerHTML = logs.map(l =>
+    `<tr><td>${new Date(l.attempted_at).toLocaleString()}</td>
+         <td>${l.username}</td><td>${l.ip}</td>
+         <td>${l.success ? 'yes' : '<span style="color:#f87171">NO</span>'}</td>
+         <td style="color:#8b96a3">${(l.user_agent||'').slice(0,80)}</td></tr>`
+  ).join('');
+}
+
+async function loadBlocks() {
+  const list = await fetchJSON(API + '/blocks');
+  document.querySelector('#blocks_tbl tbody').innerHTML = list.map(b =>
+    `<tr><td>${b.ip_cidr}</td><td>${b.reason||'-'}</td>
+         <td>${new Date(b.blocked_at).toLocaleString()}</td>
+         <td>${b.expires_at ? new Date(b.expires_at).toLocaleString() : '<span style="color:#f87171">permanent</span>'}</td>
+         <td>${b.blocked_by||'-'}</td>
+         <td><button class="danger" onclick="unblock('${b.id}')">Unblock</button></td></tr>`
+  ).join('') || '<tr><td colspan="6" style="color:#8b96a3">No active blocks.</td></tr>';
+}
+async function unblock(id) {
+  if (!confirm('Unblock?')) return;
+  await fetchJSON(API+'/blocks/'+id, {method:'DELETE'});
+  loadBlocks();
+}
+document.getElementById('add_block_btn').addEventListener('click', async () => {
+  const f = document.getElementById('block_form');
+  const body = {};
+  new FormData(f).forEach((v,k)=>body[k]=v);
+  if (body.duration_minutes) body.duration_minutes = parseInt(body.duration_minutes);
+  else delete body.duration_minutes;
+  try { await fetchJSON(API+'/blocks', {method:'POST', body:JSON.stringify(body)});
+        f.reset(); loadBlocks(); }
+  catch (e) { alert(e.message); }
+});
+
+async function loadAdvisories() {
+  const list = await fetchJSON(API + '/advisories?acknowledged=false');
+  document.querySelector('#advisories_tbl tbody').innerHTML = list.map(a =>
+    `<tr>
+       <td>${a.package}</td><td>${a.version}</td>
+       <td><span class="sev ${a.severity}">${a.cve||'-'}</span></td>
+       <td class="sev ${a.severity}">${a.severity}</td>
+       <td>${(a.summary||'').slice(0,160)}</td>
+       <td>${a.fixed_in||'-'}</td>
+       <td>${new Date(a.discovered_at).toLocaleDateString()}</td>
+       <td><button onclick="ack('${a.id}')">Ack</button></td>
+     </tr>`
+  ).join('') || '<tr><td colspan="8" style="color:#8b96a3">No open advisories.</td></tr>';
+}
+async function ack(id) {
+  await fetchJSON(API+'/advisories/'+id+'/acknowledge', {method:'POST'});
+  loadAdvisories();
+}
+document.getElementById('scanNow').addEventListener('click', async () => {
+  try { const r = await fetchJSON(API + '/advisories/scan-now', {method:'POST'});
+        alert('Scan done. New advisories: ' + r.new_advisories); loadAdvisories(); }
+  catch (e) { alert(e.message); }
+});
+
+async function loadRotation() {
+  const list = await fetchJSON(API + '/rotate/policies');
+  document.querySelector('#policies_tbl tbody').innerHTML = list.map(p =>
+    `<tr><td>${p.kind}</td><td>${p.interval_hours}</td>
+         <td>${p.grace_minutes}</td>
+         <td>${p.last_rotated_at ? new Date(p.last_rotated_at).toLocaleString() : '<span style="color:#8b96a3">never</span>'}</td>
+         <td><button class="primary" onclick="rotate('${p.kind}')">Rotate now</button></td></tr>`
+  ).join('');
+}
+async function rotate(kind) {
+  if (!confirm('Rotate ' + kind + '?')) return;
+  try { const r = await fetchJSON(API+'/rotate/'+kind, {method:'POST'});
+        alert('Rotated: ' + JSON.stringify(r, null, 2)); loadRotation(); }
+  catch (e) { alert(e.message); }
+}
+
+async function loadTab(name) {
+  try {
+    if (name === 'waf') return await loadWAF();
+    if (name === 'ratelimit') return await loadRL();
+    if (name === 'ids') return await loadIDS();
+    if (name === 'blocks') return await loadBlocks();
+    if (name === 'advisories') return await loadAdvisories();
+    if (name === 'rotation') return await loadRotation();
+  } catch (e) { console.error(e); }
+}
+
+loadTab('waf');
+setInterval(() => {
+  const active = document.querySelector('nav.tabs button.active');
+  if (active) loadTab(active.dataset.tab);
+}, 5000);
+</script>
+</body>
+</html>

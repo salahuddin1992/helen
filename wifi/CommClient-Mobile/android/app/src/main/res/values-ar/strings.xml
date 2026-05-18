@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">هيلين</string>
+    <string name="title_activity_main">هيلين</string>
+
+    <!-- App Shortcuts (long-press launcher icon) -->
+    <string name="shortcut_new_chat_short">محادثة جديدة</string>
+    <string name="shortcut_new_chat_long">ابدأ محادثة جديدة</string>
+    <string name="shortcut_search_short">بحث</string>
+    <string name="shortcut_search_long">ابحث عن جهة اتصال</string>
+    <string name="shortcut_call_short">اتصال</string>
+    <string name="shortcut_call_long">ابدأ مكالمة Helen</string>
+    <string name="shortcut_recents_short">المكالمات الأخيرة</string>
+    <string name="shortcut_recents_long">عرض المكالمات الأخيرة</string>
+</resources>

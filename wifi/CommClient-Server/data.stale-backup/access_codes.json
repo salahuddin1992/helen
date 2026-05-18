@@ -1,0 +1,19 @@
+{
+  "codes": {
+    "5JJHHSVS": {
+      "code": "5JJHHSVS",
+      "owner_user_id": "5d95ab4e92c8443e8b8a835b4a4ee00e",
+      "kind": "invite",
+      "note": "extended via vault",
+      "max_uses": 5,
+      "uses_remaining": 5,
+      "used_count": 0,
+      "target_channel_id": null,
+      "created_at": 1776984236.7292972,
+      "expires_at": 1776991436.7292972,
+      "revoked": true,
+      "_admin_revoked_by": "vault@127.0.0.1",
+      "_admin_revoked_at": 1777080049.7029314
+    }
+  }
+}

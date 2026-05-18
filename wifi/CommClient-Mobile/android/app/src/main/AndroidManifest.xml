@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ============================================================
+         Network — INTERNET is required for any HTTP traffic.
+         ACCESS_NETWORK_STATE lets us read connection type (wifi vs
+         cellular) so the renderer can pick a screen-share preset.
+         ACCESS_WIFI_STATE + CHANGE_WIFI_MULTICAST_STATE allow the
+         mDNS discovery flow to receive multicast on Android 8+.
+         ============================================================ -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- ============================================================
+         Calls — RECORD_AUDIO + CAMERA for WebRTC, MODIFY_AUDIO_SETTINGS
+         to switch between speaker/earpiece, BLUETOOTH_CONNECT for
+         BT headset routing on Android 12+.
+         ============================================================ -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"
+        tools:ignore="CoarseFineLocation" />
+
+    <!-- ============================================================
+         Foreground service for active calls — keeps the call alive
+         when the user backgrounds the app. mediaProjection variant
+         is for screen-share. dataSync covers file transfers.
+         ============================================================ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Notifications (Android 13+ requires runtime grant) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- File transfers / media gallery -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- Vibration for incoming-call ringer -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Wake lock so screen stays on during a call -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Telecom — self-managed ConnectionService. Lets Helen calls show
+         up in the system audio focus, Bluetooth headset controls, the
+         OS-rendered incoming call UI, Android Auto, and Wear OS. We
+         don't replace the dialer; just register a phone account that
+         the framework knows about. API 26+. -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+
+    <!-- Hardware capability declarations (so Play Store filters
+         out devices that genuinely cannot run the call features) -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.camera"     android:required="false" />
+    <uses-feature android:name="android.hardware.wifi"       android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link: helen://invite/<code>      — share-code redemption
+                 Deep link: helen://call/<accept|decline> — incoming-call buttons
+                 Deep link: helen://telecom/<event>    — Telecom Connection events
+                 Deep link: helen://shortcut/<action>  — App Shortcuts launcher -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="helen" />
+            </intent-filter>
+
+            <!-- Static App Shortcuts (long-press launcher icon) — referenced
+                 by res/xml/shortcuts.xml. Available API 25+. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+
+        <!-- ============================================================
+             Active-call foreground service. Started by HelenCallPlugin
+             when WebRTC enters a call; persistent notification + wake
+             lock + multicast lock keep the call alive across app
+             backgrounding. Foreground-service type union must match
+             the FOREGROUND_SERVICE_* permissions declared above.
+             ============================================================ -->
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera|mediaProjection|dataSync" />
+
+        <!-- ============================================================
+             Incoming-call notification action handler. Receives Accept /
+             Decline broadcasts from the heads-up notification posted by
+             HelenCallPlugin.notifyIncomingCall(...).
+             ============================================================ -->
+        <receiver
+            android:name=".IncomingCallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.helen.mobile.CALL_ACCEPT" />
+                <action android:name="com.helen.mobile.CALL_DECLINE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ============================================================
+             Self-managed Telecom ConnectionService (API 26+). Tells the
+             OS about Helen calls so they participate in audio focus,
+             Bluetooth controls, hold-on-GSM-collision, Android Auto and
+             Wear OS routing. Self-managed = doesn't replace the dialer.
+             ============================================================ -->
+        <service
+            android:name=".HelenConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

@@ -1,0 +1,86 @@
+[
+  {
+    "plan": {
+      "code": "free",
+      "name": "Free",
+      "max_users": 10,
+      "max_storage_gb": 5,
+      "max_calls_per_day": 50,
+      "features": [
+        "calls",
+        "messages"
+      ],
+      "price_cents": 0
+    }
+  },
+  {
+    "plan": {
+      "code": "pro",
+      "name": "Pro",
+      "max_users": 100,
+      "max_storage_gb": 100,
+      "max_calls_per_day": 1000,
+      "features": [
+        "calls",
+        "messages",
+        "e2ee",
+        "webhooks",
+        "plugins"
+      ],
+      "price_cents": 0
+    }
+  },
+  {
+    "plan": {
+      "code": "enterprise",
+      "name": "Enterprise",
+      "max_users": 10000,
+      "max_storage_gb": 10000,
+      "max_calls_per_day": 100000,
+      "features": [
+        "calls",
+        "messages",
+        "e2ee",
+        "webhooks",
+        "plugins",
+        "federation",
+        "bridges",
+        "dr",
+        "ai",
+        "compliance",
+        "zero_trust"
+      ],
+      "price_cents": 0
+    }
+  },
+  {
+    "license": {
+      "key": "7NZNEJ4Z-PINA7DHG-FR3PVOTR-BFYZF1W",
+      "tenant_slug": "acme",
+      "plan": "enterprise",
+      "seats": 500,
+      "features": [
+        "all"
+      ],
+      "issued_at": "2026-05-13T02:08:25.335151+00:00",
+      "expires_at": "2027-05-13T02:08:25.335151+00:00",
+      "status": "active"
+    }
+  },
+  {
+    "license": {
+      "key": "EDIN0JCC-NKRPN9HF-MNHXEFAG-ZQCFUB",
+      "tenant_slug": "umbrella",
+      "plan": "pro",
+      "seats": 50,
+      "features": [
+        "calls",
+        "e2ee",
+        "plugins"
+      ],
+      "issued_at": "2026-05-13T02:08:25.335176+00:00",
+      "expires_at": "2026-08-11T02:08:25.335176+00:00",
+      "status": "active"
+    }
+  }
+]

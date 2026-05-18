@@ -1,0 +1,13 @@
+[Unit]
+Description=Helen Server — nightly backup trigger
+
+[Timer]
+# every day at 03:15 local time, with randomized delay up to 15m
+# so multi-node fleets don't hammer the same filesystem simultaneously
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=helen-server-backup.service
+
+[Install]
+WantedBy=timers.target

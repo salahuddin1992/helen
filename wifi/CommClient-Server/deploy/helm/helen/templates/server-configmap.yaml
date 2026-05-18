@@ -1,0 +1,28 @@
+{{- if .Values.server.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helen.server.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helen.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+data:
+  helen-server.yaml: |
+    server:
+      port: 3000
+      lan_only: {{ .Values.global.airgap }}
+    database:
+      url_env: DATABASE_URL
+    redis:
+      url_env: REDIS_URL
+    jwt:
+      secret_env: JWT_SECRET
+      session_lifetime_hours: {{ .Values.auth.sessionLifetimeHours }}
+      refresh_token_lifetime_days: {{ .Values.auth.refreshTokenLifetimeDays }}
+    audit:
+      chain_enabled: true
+    observability:
+      metrics_enabled: true
+      crash_reporter: local
+{{- end }}

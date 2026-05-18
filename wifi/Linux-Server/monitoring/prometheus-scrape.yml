@@ -1,0 +1,54 @@
+# Prometheus scrape config fragment — drop into your existing
+# prometheus.yml under `scrape_configs`.
+#
+# Helen-Server exposes admin endpoints (not a /metrics endpoint today)
+# so we scrape its control-plane status via the JSON-to-metrics
+# exporter pattern using Prometheus' http_sd_configs + a small
+# `helen-prom-bridge` sidecar, OR the simpler textfile collector
+# approach (see monitoring/textfile-collector.sh).
+#
+# For production, prefer the sidecar. For small LANs, textfile suffices.
+
+  - job_name: helen-server-control-plane
+    scrape_interval: 10s
+    metrics_path: /metrics               # served by the sidecar on :9100
+    static_configs:
+      - targets:
+          - 127.0.0.1:9100
+        labels:
+          service: helen-server
+          env: lan
+
+  - job_name: helen-server-health
+    scrape_interval: 5s
+    metrics_path: /api/health
+    static_configs:
+      - targets:
+          - 127.0.0.1:3000
+        labels:
+          service: helen-server
+    # /api/health returns JSON, not prom format — add a conversion
+    # sidecar (example: https://github.com/prometheus-community/json_exporter)
+
+# Alert rules example (save to alerts.yml and include from prometheus.yml)
+# groups:
+#   - name: helen-server
+#     rules:
+#       - alert: HelenServerDown
+#         expr: up{service="helen-server"} == 0
+#         for: 30s
+#         labels: { severity: critical }
+#         annotations:
+#           summary: "Helen-Server {{ $labels.instance }} is down"
+#
+#       - alert: HelenServerEmergency
+#         expr: helen_control_plane_phase{phase="emergency"} == 1
+#         for: 60s
+#         labels: { severity: warning }
+#         annotations:
+#           summary: "Control plane in emergency phase"
+#
+#       - alert: HelenServerHighCpu
+#         expr: helen_control_plane_cpu_p95 > 85
+#         for: 120s
+#         labels: { severity: warning }

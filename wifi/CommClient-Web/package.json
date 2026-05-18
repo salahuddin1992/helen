@@ -1,0 +1,11 @@
+{
+  "name": "commclient-web",
+  "version": "1.0.0",
+  "description": "Helen Web — installable PWA, runs in any modern browser, connects to any Helen-Server.",
+  "private": true,
+  "scripts": {
+    "build": "node build-pwa.mjs",
+    "serve": "npx --yes serve -p 8080 dist",
+    "preview": "npm run build && npm run serve"
+  }
+}

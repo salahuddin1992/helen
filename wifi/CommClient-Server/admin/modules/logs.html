@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Helen — Live Logs</title>
+<style>
+  :root{
+    --bg:#0a1020;--panel:#111a2e;--panel2:#152038;--line:#223155;--line2:#2d3f66;
+    --ink:#e6edf8;--muted:#8ea2c5;--muted2:#6a7fa0;
+    --accent:#4cc2ff;--accent2:#7c5cff;--accent3:#39e6b4;
+    --ok:#2ecc71;--warn:#f5a524;--err:#ff5c7a;--chip:#1f2a44;
+    --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:13px}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  h1{margin:0 0 12px 0;font-size:20px;letter-spacing:.3px}
+  h1 .tag{display:inline-block;margin-inline-start:8px;padding:2px 10px;
+    border:1px solid var(--line);border-radius:999px;font-size:11px;
+    background:#081126;color:var(--accent);letter-spacing:.4px;vertical-align:middle}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .btn{
+    background:#1b2945;color:var(--ink);border:1px solid var(--line);
+    padding:7px 12px;border-radius:9px;cursor:pointer;font-size:12px;
+    display:inline-flex;align-items:center;gap:6px;transition:.15s;white-space:nowrap;font-family:inherit
+  }
+  .btn:hover:not(:disabled){background:#233561;border-color:var(--line2)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);color:#081224;border-color:transparent;font-weight:600}
+  .btn.warn{background:#3a2a15;border-color:#5c3a18;color:#f5cf85}
+  .btn.danger{background:#3a1726;border-color:#5c2237;color:#ffb3c2}
+  input.in,select.in{
+    background:#0c1630;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 10px;font-family:var(--mono);font-size:12px;
+  }
+  input.in:focus,select.in:focus{outline:none;border-color:var(--accent)}
+  label.lab{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+    display:flex;flex-direction:column;gap:3px}
+  .stream{
+    background:#020610;border:1px solid var(--line);border-radius:12px;
+    padding:10px;font-family:var(--mono);font-size:12px;line-height:1.5;
+    height:65vh;overflow:auto;color:#cbd9f1
+  }
+  .line{padding:2px 6px;border-radius:5px;white-space:pre-wrap;word-break:break-word;display:flex;gap:8px;align-items:flex-start}
+  .line:hover{background:#0a1424}
+  .line .lvl{flex:none;padding:1px 6px;border-radius:5px;font-weight:600;font-size:10px;letter-spacing:.4px;min-width:60px;text-align:center}
+  .line .ts{flex:none;color:var(--muted2);font-size:11px}
+  .line .lg{flex:none;color:var(--accent);font-size:11px}
+  .line .msg{flex:1;min-width:0}
+  .line.DEBUG .lvl{background:#1a2645;color:#8aa7d1}
+  .line.INFO  .lvl{background:#143d2c;color:#8de0b0}
+  .line.WARNING .lvl,.line.WARN .lvl{background:#3a2912;color:#f5cf85}
+  .line.ERROR .lvl{background:#3a1622;color:#ffa3b8}
+  .line.CRITICAL .lvl,.line.FATAL .lvl{background:#5b1c2d;color:#ffd1da}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:#1b2945;
+    color:var(--muted);font-size:11px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);background:#102a1b;border-color:#1f4b33}
+  .pill.err{color:var(--err);background:#2a1118;border-color:#5c2237}
+  .pill.warn{color:var(--warn)}
+  .grow{flex:1}
+  .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;align-items:end}
+  .row > label{grid-column:span 2}
+  .row > label.wide{grid-column:span 3}
+  @media (max-width:900px){.row > label,.row > label.wide{grid-column:span 6}}
+  mark{background:#3d2f0a;color:#ffe082;padding:0 2px;border-radius:3px}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-inline-end:6px}
+  .status-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .status-dot.err{background:var(--err)}
+  .status-dot.warn{background:var(--warn)}
+  .stat{font-family:var(--mono);font-size:14px;color:var(--accent)}
+  .sparkline{width:100%;height:36px;display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Live Logs <span class="tag">MODULE E</span>
+  <span class="pill" id="connPill"><span class="status-dot" id="connDot"></span><span id="connText">disconnected</span></span>
+  <span class="pill" id="rateP"><span class="stat" id="lineRate">0</span>/s</span>
+</h1>
+
+<div class="card">
+  <div class="row">
+    <label class="lab">Level
+      <select class="in" id="fLevel">
+        <option value="">(any)</option>
+        <option>DEBUG</option><option>INFO</option><option>WARNING</option>
+        <option>ERROR</option><option>CRITICAL</option>
+      </select>
+    </label>
+    <label class="lab wide">Logger
+      <select class="in" id="fLogger"><option value="">(any)</option></select>
+    </label>
+    <label class="lab wide">Regex search
+      <input class="in" id="fPattern" placeholder="e.g. error|timeout" />
+    </label>
+    <label class="lab">Since (epoch)
+      <input class="in" id="fSince" type="number" step="1" placeholder="optional" />
+    </label>
+    <label class="lab">Limit
+      <input class="in" id="fLimit" type="number" value="500" min="50" max="5000" />
+    </label>
+  </div>
+  <div class="toolbar" style="margin-top:10px">
+    <button class="btn primary" id="btnApply">Apply filters</button>
+    <button class="btn" id="btnPause">Pause</button>
+    <button class="btn" id="btnClear">Clear</button>
+    <button class="btn" id="btnAutoScroll">Auto-scroll: ON</button>
+    <button class="btn" id="btnExportJson">Export JSON</button>
+    <button class="btn" id="btnExportCsv">Export CSV</button>
+    <span class="grow"></span>
+    <span class="pill"><span id="bufCount">0</span> lines buffered</span>
+    <canvas id="spark" class="sparkline" width="160" height="36" style="width:160px"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="stream" id="stream"></div>
+</div>
+
+<script>
+// ── State ───────────────────────────────────────────────
+const state = {
+  ws: null,
+  paused: false,
+  autoScroll: true,
+  buffer: [],          // last 5000 records shown
+  rateBuckets: new Array(60).fill(0), // last 60 seconds
+  rateIdx: 0,
+  rateLastTick: Math.floor(Date.now()/1000),
+};
+
+function getToken(){
+  // Admin SPA stashes the JWT under helen.token. Fall back to sessionStorage.
+  try { return JSON.parse(localStorage.getItem("helen.auth"))?.access_token
+              || localStorage.getItem("helen.token")
+              || sessionStorage.getItem("helen.token") || ""; }
+  catch(_) { return ""; }
+}
+
+function api(p){ const base = localStorage.getItem("helen.base") || ""; return base + p; }
+
+// ── DOM helpers ─────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const stream = $("stream");
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+let _patForHighlight = null;
+function highlight(s){
+  s = escapeHtml(s);
+  if (_patForHighlight){
+    try { s = s.replace(_patForHighlight, m => `<mark>${m}</mark>`); } catch(_) {}
+  }
+  return s;
+}
+
+function renderLine(r){
+  const lvl = (r.level || "INFO").toUpperCase();
+  const ts  = r.timestamp || "";
+  const lg  = r.logger || "";
+  const msg = r.message ?? r._raw ?? "";
+  const extras = {...r};
+  ["_raw","_source","level","timestamp","logger","message","event"].forEach(k => delete extras[k]);
+  const extraStr = Object.keys(extras).length
+    ? " " + Object.entries(extras).map(([k,v]) =>
+        `<span style="color:var(--muted)">${escapeHtml(k)}=</span>${highlight(typeof v==="string"?v:JSON.stringify(v))}`
+      ).join(" ")
+    : "";
+  const el = document.createElement("div");
+  el.className = `line ${lvl}`;
+  el.innerHTML =
+    `<span class="lvl">${escapeHtml(lvl)}</span>` +
+    `<span class="ts">${escapeHtml(ts)}</span>` +
+    (lg ? `<span class="lg">${escapeHtml(lg)}</span>` : "") +
+    `<span class="msg">${highlight(msg)}${extraStr}</span>`;
+  return el;
+}
+
+function append(r){
+  if (state.paused) return;
+  state.buffer.push(r);
+  if (state.buffer.length > 5000){
+    state.buffer.shift();
+    if (stream.firstChild) stream.removeChild(stream.firstChild);
+  }
+  const el = renderLine(r);
+  stream.appendChild(el);
+  if (state.autoScroll) stream.scrollTop = stream.scrollHeight;
+  $("bufCount").textContent = state.buffer.length;
+  bumpRate();
+}
+
+function bumpRate(){
+  const now = Math.floor(Date.now()/1000);
+  while (state.rateLastTick < now){
+    state.rateLastTick++;
+    state.rateIdx = (state.rateIdx + 1) % state.rateBuckets.length;
+    state.rateBuckets[state.rateIdx] = 0;
+  }
+  state.rateBuckets[state.rateIdx]++;
+}
+
+setInterval(() => {
+  const total = state.rateBuckets.reduce((a,b)=>a+b,0);
+  const rate = (total / 60).toFixed(1);
+  $("lineRate").textContent = rate;
+  drawSpark();
+}, 1000);
+
+function drawSpark(){
+  const c = $("spark");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  const max = Math.max(1, ...state.rateBuckets);
+  ctx.strokeStyle = "#4cc2ff"; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i=0;i<state.rateBuckets.length;i++){
+    const idx = (state.rateIdx + 1 + i) % state.rateBuckets.length;
+    const x = (i / (state.rateBuckets.length-1)) * c.width;
+    const y = c.height - (state.rateBuckets[idx]/max) * (c.height-2) - 1;
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+
+// ── REST + WebSocket ────────────────────────────────────
+async function loadInventory(){
+  const r = await fetch(api("/api/admin/logs/list"), {
+    headers: { Authorization: "Bearer " + getToken() }
+  });
+  if (!r.ok) return;
+  const j = await r.json();
+  const sel = $("fLogger");
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">(any)</option>' +
+    (j.loggers || []).map(l => `<option>${escapeHtml(l)}</option>`).join("");
+  if (cur) sel.value = cur;
+}
+
+function buildFilters(){
+  const pat = $("fPattern").value.trim();
+  _patForHighlight = pat ? new RegExp(pat, "gi") : null;
+  return {
+    level: $("fLevel").value || null,
+    logger: $("fLogger").value || null,
+    pattern: pat || null,
+    since: $("fSince").value ? Number($("fSince").value) : null,
+    until: null,
+  };
+}
+
+function setConn(state_, text){
+  const dot = $("connDot");
+  dot.className = "status-dot " + state_;
+  $("connText").textContent = text;
+}
+
+function connect(){
+  const tok = getToken();
+  if (!tok){ setConn("err", "no token"); return; }
+  const base = (localStorage.getItem("helen.base") || location.origin)
+                  .replace(/^http/, "ws");
+  const url = `${base}/api/admin/logs/stream?token=${encodeURIComponent(tok)}`;
+  setConn("warn", "connecting…");
+  const ws = new WebSocket(url);
+  state.ws = ws;
+  ws.onopen = () => {
+    setConn("ok", "live");
+    ws.send(JSON.stringify({type:"filters", ...buildFilters()}));
+  };
+  ws.onclose = () => {
+    setConn("err", "disconnected");
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => setConn("err", "error");
+  ws.onmessage = (ev) => {
+    let frame;
+    try { frame = JSON.parse(ev.data); } catch(_) { return; }
+    if (frame.type === "hello"){
+      stream.innerHTML = "";
+      state.buffer = [];
+      (frame.buffer || []).forEach(append);
+    } else if (frame.type === "line"){
+      append(frame.record);
+    }
+  };
+  setInterval(() => { try { ws.send(JSON.stringify({type:"ping"})); } catch(_){} }, 25000);
+}
+
+// ── UI wiring ───────────────────────────────────────────
+$("btnPause").onclick = () => {
+  state.paused = !state.paused;
+  $("btnPause").textContent = state.paused ? "Resume" : "Pause";
+  $("btnPause").classList.toggle("warn", state.paused);
+};
+$("btnClear").onclick = () => { stream.innerHTML = ""; state.buffer = []; $("bufCount").textContent = 0; };
+$("btnAutoScroll").onclick = () => {
+  state.autoScroll = !state.autoScroll;
+  $("btnAutoScroll").textContent = "Auto-scroll: " + (state.autoScroll ? "ON" : "OFF");
+};
+$("btnApply").onclick = async () => {
+  const f = buildFilters();
+  if (state.ws && state.ws.readyState === 1){
+    state.ws.send(JSON.stringify({type:"filters", ...f}));
+  }
+  // Refresh the visible window from /tail
+  const qs = new URLSearchParams();
+  if (f.level) qs.set("level", f.level);
+  if (f.logger) qs.set("logger", f.logger);
+  if (f.pattern) qs.set("pattern", f.pattern);
+  if (f.since)   qs.set("since", f.since);
+  qs.set("limit", $("fLimit").value || "500");
+  const r = await fetch(api("/api/admin/logs/tail?") + qs.toString(), {
+    headers: { Authorization: "Bearer " + getToken() }
+  });
+  if (r.ok){
+    const j = await r.json();
+    stream.innerHTML = "";
+    state.buffer = [];
+    (j.records || []).forEach(append);
+  }
+};
+$("btnExportJson").onclick = () => {
+  const blob = new Blob([JSON.stringify(state.buffer, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `helen-logs-${Date.now()}.json`;
+  a.click();
+};
+$("btnExportCsv").onclick = () => {
+  const rows = [["timestamp","level","logger","message"]];
+  state.buffer.forEach(r => rows.push([
+    r.timestamp || "", r.level || "", r.logger || "",
+    (r.message ?? r._raw ?? "").replace(/\n/g, "\\n")
+  ]));
+  const csv = rows.map(r => r.map(c =>
+    `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `helen-logs-${Date.now()}.csv`;
+  a.click();
+};
+
+(async function init(){
+  await loadInventory();
+  connect();
+})();
+</script>
+</body>
+</html>

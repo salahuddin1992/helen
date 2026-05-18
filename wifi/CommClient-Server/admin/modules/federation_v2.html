@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helen &mdash; Federation v2</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root {
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1b2129; --line:#242b34;
+  --fg:#e6edf3; --muted:#8b96a3; --accent:#5ac8fa; --good:#4ade80;
+  --warn:#facc15; --bad:#f87171; --pri:#a78bfa;
+}
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",system-ui,sans-serif;
+       background:var(--bg); color:var(--fg); }
+header { padding:14px 20px; border-bottom:1px solid var(--line);
+         display:flex; justify-content:space-between; align-items:center; }
+header h1 { font-size:18px; margin:0; }
+.container { padding:20px; display:grid; grid-template-columns:1fr 1fr;
+             gap:16px; }
+.full { grid-column:1/-1; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+        padding:16px; }
+.card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+           color:var(--muted); margin:0 0 12px 0; }
+.badge { display:inline-block; padding:3px 8px; border-radius:6px;
+         font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.badge.active { background:rgba(74,222,128,.15); color:var(--good); }
+.badge.suspended { background:rgba(250,204,21,.18); color:var(--warn); }
+.badge.banned { background:rgba(248,113,113,.18); color:var(--bad); }
+.badge.pending { background:rgba(90,200,250,.18); color:var(--accent); }
+.badge.trusted { background:rgba(167,139,250,.18); color:var(--pri); }
+.badge.peer { background:rgba(90,200,250,.18); color:var(--accent); }
+.badge.restricted { background:rgba(250,204,21,.18); color:var(--warn); }
+.row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr;
+       padding:8px 10px; border-bottom:1px solid var(--line); align-items:center;
+       font-size:12px; }
+.row.head { color:var(--muted); font-weight:600; font-size:11px;
+            text-transform:uppercase; letter-spacing:.5px; }
+.row:last-child { border-bottom:none; }
+.btn { background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+       padding:6px 10px; border-radius:6px; font-size:11px; cursor:pointer; margin-right:4px; }
+.btn:hover { background:var(--line); }
+.btn.bad { color:var(--bad); border-color:rgba(248,113,113,.4); }
+.btn.good { color:var(--good); border-color:rgba(74,222,128,.4); }
+input, select { background:var(--panel2); border:1px solid var(--line);
+                color:var(--fg); padding:7px 10px; border-radius:6px; font-size:12px; }
+canvas { background:var(--panel2); width:100%; height:440px; border-radius:8px; }
+.log { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px;
+       max-height:260px; overflow-y:auto; line-height:1.55; }
+.log .ev { padding:4px 0; border-bottom:1px dashed var(--line); color:var(--muted); }
+.log .ev .k { color:var(--accent); }
+.log .ev .reject { color:var(--bad); }
+form.inline { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Federation v2 &mdash; Mesh</h1>
+  <div>
+    <span id="my_id" class="badge peer">(loading)</span>
+    <button class="btn" id="refresh">Refresh</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card full">
+    <h2>Servers</h2>
+    <div class="row head">
+      <div>Server ID</div><div>Status</div><div>Trust</div><div>Score</div><div></div>
+    </div>
+    <div id="servers"></div>
+    <form class="inline" id="handshake_form">
+      <input name="domain" placeholder="server.example.org" required style="flex:1;">
+      <button class="btn good" type="submit">Begin Handshake</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Trust Graph</h2>
+    <canvas id="graph" width="600" height="440"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Channel Shares</h2>
+    <div id="channels"></div>
+    <form class="inline" id="share_form">
+      <input name="channel_id" placeholder="channel_id" required>
+      <input name="with_server" placeholder="server.example" required>
+      <select name="policy">
+        <option value="public">public</option>
+        <option value="invite_only">invite_only</option>
+        <option value="restricted">restricted</option>
+      </select>
+      <button class="btn good" type="submit">Share</button>
+    </form>
+  </div>
+
+  <div class="card full">
+    <h2>Event Log</h2>
+    <div id="events" class="log"></div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('helen_admin_token') || '';
+const API   = '/api/admin/federation/v2';
+
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+}
+
+async function jget(p) {
+  const r = await fetch(p, { headers: authHeaders() });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+async function jpost(p, body) {
+  const r = await fetch(p, { method:'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+async function jdel(p) {
+  const r = await fetch(p, { method:'DELETE', headers: authHeaders() });
+  if (!r.ok) throw new Error(p + ' → ' + r.status);
+  return r.json();
+}
+
+async function loadServers() {
+  const rows = await jget(API + '/servers');
+  const el = document.getElementById('servers');
+  el.innerHTML = '';
+  for (const s of rows) {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `
+      <div><b>${s.server_id}</b><br><span style="color:var(--muted);font-size:11px;">${s.advertise_url}</span></div>
+      <div><span class="badge ${s.status}">${s.status}</span></div>
+      <div><span class="badge ${s.trust_level}">${s.trust_level}</span></div>
+      <div>${(s.trust_score*100).toFixed(0)}%</div>
+      <div>
+        <button class="btn" data-act="trust" data-id="${s.server_id}">Trust</button>
+        <button class="btn" data-act="suspend" data-id="${s.id}">Suspend</button>
+        <button class="btn bad" data-act="defed" data-id="${s.id}">Defederate</button>
+      </div>`;
+    el.appendChild(div);
+  }
+  el.querySelectorAll('button[data-act]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const a = b.dataset.act, id = b.dataset.id;
+      try {
+        if (a === 'trust') {
+          await jpost(API+'/servers/trust', { server_id:id, trust_level:'trusted', scope:'trusted' });
+        } else if (a === 'suspend') {
+          await jpost(API+`/servers/${id}/suspend`, {});
+        } else if (a === 'defed') {
+          if (!confirm('Defederate this server?')) return;
+          await jdel(API+`/servers/${id}`);
+        }
+        await refresh();
+      } catch(e) { alert(e); }
+    });
+  });
+}
+
+async function loadChannels() {
+  const rows = await jget(API + '/channels');
+  const el = document.getElementById('channels');
+  el.innerHTML = '';
+  for (const c of rows) {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.style.gridTemplateColumns = '2fr 2fr 1fr 1fr';
+    div.innerHTML = `
+      <div>${c.federation_address}</div>
+      <div style="color:var(--muted);">${(c.shared_with||[]).join(', ')||'(none)'}</div>
+      <div><span class="badge peer">${c.policy}</span></div>
+      <div>v${c.state_version}</div>`;
+    el.appendChild(div);
+  }
+}
+
+async function loadEvents() {
+  const rows = await jget(API + '/events?limit=100');
+  const el = document.getElementById('events');
+  el.innerHTML = rows.map(e => `
+    <div class="ev">
+      <span class="k">${e.kind}</span>
+      <span>${e.origin_server}</span>
+      <span>d=${e.depth}</span>
+      ${e.channel ? `<span>${e.channel}</span>` : ''}
+      ${e.rejected ? `<span class="reject">REJECTED:${e.rejection_reason||''}</span>` : ''}
+      <span style="float:right">${new Date(e.created_at).toLocaleTimeString()}</span>
+    </div>`).join('') || '(no events)';
+}
+
+async function loadGraph() {
+  const data = await jget(API + '/trust-graph');
+  const c = document.getElementById('graph');
+  const ctx = c.getContext('2d');
+  c.width = c.clientWidth * devicePixelRatio;
+  c.height = c.clientHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  ctx.clearRect(0, 0, c.width, c.height);
+
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const w = c.clientWidth, h = c.clientHeight;
+  const r = Math.min(w, h) / 2 - 40;
+  const cx = w / 2, cy = h / 2;
+  const positions = {};
+  nodes.forEach((n, i) => {
+    const a = (i / Math.max(1, nodes.length)) * Math.PI * 2;
+    positions[n.server_id] = { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+  });
+  ctx.strokeStyle = '#5ac8fa55';
+  ctx.lineWidth = 1;
+  edges.forEach(e => {
+    const a = positions[e.from], b = positions[e.to];
+    if (!a || !b) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.globalAlpha = 0.2 + 0.8 * e.weight;
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  nodes.forEach(n => {
+    const p = positions[n.server_id];
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = n.trust_level === 'trusted' ? '#a78bfa'
+                  : n.trust_level === 'restricted' ? '#facc15'
+                  : '#5ac8fa';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.server_id, p.x, p.y + 28);
+  });
+}
+
+async function refresh() {
+  try {
+    await Promise.all([loadServers(), loadChannels(), loadEvents(), loadGraph()]);
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('handshake_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    await jpost(API + '/servers/handshake', { domain: fd.get('domain') });
+    e.target.reset();
+    await refresh();
+  } catch (err) { alert(err); }
+});
+
+document.getElementById('share_form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    await jpost(API + `/channels/${fd.get('channel_id')}/share`, {
+      with_server: fd.get('with_server'),
+      policy:      fd.get('policy'),
+    });
+    e.target.reset();
+    await refresh();
+  } catch (err) { alert(err); }
+});
+
+document.getElementById('refresh').addEventListener('click', refresh);
+refresh();
+setInterval(refresh, 12000);
+</script>
+</body>
+</html>

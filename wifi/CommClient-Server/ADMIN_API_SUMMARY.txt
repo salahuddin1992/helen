@@ -1,0 +1,207 @@
+═══════════════════════════════════════════════════════════════════════════════
+ADMIN API & DATABASE BACKUP SERVICE IMPLEMENTATION SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+PROJECT: CommClient-Server (LAN communication platform)
+LOCATION: /sessions/stoic-determined-tesla/mnt/wifi/CommClient-Server/
+
+═══════════════════════════════════════════════════════════════════════════════
+NEW FILES CREATED
+═══════════════════════════════════════════════════════════════════════════════
+
+1. app/services/metrics_service.py (88 lines)
+   ─────────────────────────────────────────
+   - MetricsService class for lightweight in-memory metrics collection
+   - Tracks: messages_sent_total, calls_initiated_total, files_uploaded_total,
+     socket_connections_total, api_requests_total
+   - Methods:
+     * async increment(metric_name, value=1)
+     * async get_all() → dict[str, int]
+     * get_uptime() → float
+     * async reset()
+   - Thread-safe via asyncio.Lock
+   - Singleton: metrics_service
+
+2. app/services/backup_service.py (254 lines)
+   ───────────────────────────────────────────
+   - BackupService class for SQLite database backup/restore operations
+   - Backup storage: data/backups/commclient_backup_YYYYMMDD_HHMMSS.db
+   - Methods:
+     * async create_backup() → str
+     * async list_backups() → list[dict]
+     * async restore_backup(backup_name: str) → bool
+     * async delete_backup(backup_name: str) → bool
+     * async auto_cleanup(keep_count: int = 10) → int
+     * async get_db_size() → int
+   - Path traversal protection against malicious backup names
+   - Creates protective backup before restore
+   - Thread-safe via asyncio.Lock
+   - Singleton: backup_service
+
+3. app/services/admin_service.py (324 lines)
+   ─────────────────────────────────────────
+   - AdminService class for server diagnostics and user management
+   - System metrics via optional psutil (gracefully degrades if unavailable)
+   - Methods:
+     * async get_server_stats() → dict[str, Any]
+     * async get_active_calls() → list[dict]
+     * async kick_user(user_id: str) → bool
+     * async ban_user(db: AsyncSession, user_id: str) → bool
+     * async unban_user(db: AsyncSession, user_id: str) → bool
+     * async get_audit_log(limit: int = 100) → list[dict]
+     * async cleanup_expired_sessions(db: AsyncSession) → int
+     * async cleanup_orphaned_files(db: AsyncSession) → int
+   - Helper: get_lan_ip() → str (network utility)
+   - Singleton: admin_service
+
+4. app/api/routes/admin.py (489 lines)
+   ──────────────────────────────────
+   - FastAPI router with 11 authenticated endpoints
+   - Prefix: /api/admin
+   - All endpoints require valid Bearer token
+   - Endpoints:
+     GET    /stats                    — Server statistics dashboard
+     GET    /active-calls             — List active calls
+     POST   /kick/{user_id}           — Force disconnect user
+     POST   /ban/{user_id}            — Ban user (soft)
+     POST   /unban/{user_id}          — Unban user
+     POST   /cleanup/sessions         — Clean expired JWT sessions
+     POST   /cleanup/files            — Clean orphaned files
+     GET    /backups                  — List backups
+     POST   /backups                  — Create backup
+     POST   /backups/{name}/restore   — Restore backup
+     DELETE /backups/{name}           — Delete backup
+   - Full error handling with HTTP status codes
+   - Security audit logging on all operations
+
+═══════════════════════════════════════════════════════════════════════════════
+MODIFIED FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. app/services/presence_service.py
+   ───────────────────────────────────
+   Added async-safe helper methods:
+   - async get_online_user_ids() → set[str]
+   - async get_socket_ids(user_id: str) → set[str]
+
+2. app/api/routes/__init__.py
+   ─────────────────────────────
+   Added admin router import and registration:
+   - from app.api.routes.admin import router as admin_router
+   - api_router.include_router(admin_router)
+
+═══════════════════════════════════════════════════════════════════════════════
+DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ADMIN_API_INTEGRATION.md (full documentation)
+   ──────────────────────────────────────────────
+   - Architecture overview
+   - Detailed API method documentation
+   - All REST endpoint specifications with cURL examples
+   - Audit logging details
+   - Implementation notes
+   - Future extensions
+   - Testing guide
+
+═══════════════════════════════════════════════════════════════════════════════
+DESIGN PATTERNS & ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+CONSISTENCY WITH EXISTING CODEBASE:
+✓ Logging via structlog (get_logger(__name__))
+✓ FastAPI router pattern with APIRouter + Depends
+✓ Async/await throughout
+✓ asyncio.Lock for thread-safety
+✓ Dependency injection (get_current_user_id, get_db)
+✓ Audit logging via app.core.audit
+✓ Error handling with HTTPException
+✓ Singleton services
+✓ Type hints (Python 3.10+ style)
+
+SECURITY FEATURES:
+✓ Bearer token authentication (all endpoints)
+✓ Path traversal protection (backup names validated)
+✓ Self-protection (can't kick/ban self)
+✓ Protective backups (before restore)
+✓ Audit trail (all operations logged)
+✓ Graceful degradation (psutil optional)
+
+PRODUCTION QUALITY:
+✓ Comprehensive error handling
+✓ Detailed logging at all levels
+✓ Input validation
+✓ Atomic operations via locks
+✓ Documented security considerations
+✓ Extensible for future features
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRATION STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+The implementation is ready to use:
+
+1. Services are singletons — imported where needed:
+   from app.services.admin_service import admin_service
+   from app.services.backup_service import backup_service
+   from app.services.metrics_service import metrics_service
+
+2. Routes are auto-registered via app.api.routes.__init__.py
+
+3. All endpoints accessible at: http://localhost:3000/api/admin/*
+
+4. Authentication required on all endpoints (Bearer token)
+
+5. Audit logging automatic via app.core.audit.audit_log()
+
+═══════════════════════════════════════════════════════════════════════════════
+OPTIONAL ENHANCEMENTS (FUTURE)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Role-Based Access Control
+   - Extend dependency to check user role (admin/moderator/user)
+   - Restrict certain endpoints (ban/kick/restore) to admins only
+
+2. Persistent Audit Log
+   - Create AuditLog model in database
+   - Store events for forensic analysis
+   - API endpoint to query audit logs
+
+3. Backup Scheduling
+   - Integrate with APScheduler or schedule library
+   - Automatic daily/weekly backups
+   - Auto-cleanup old backups
+
+4. Advanced Metrics
+   - Per-user message rates
+   - Call duration statistics
+   - File upload trends
+   - API endpoint latency tracking
+
+5. Health Checks
+   - Database connection health
+   - Disk space monitoring
+   - Memory pressure alerts
+   - Socket connection limits
+
+═══════════════════════════════════════════════════════════════════════════════
+FILES LOCATION REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Services:
+  /app/services/metrics_service.py
+  /app/services/backup_service.py
+  /app/services/admin_service.py
+
+Routes:
+  /app/api/routes/admin.py
+
+Modified:
+  /app/services/presence_service.py
+  /app/api/routes/__init__.py
+
+Documentation:
+  /ADMIN_API_INTEGRATION.md
+  /ADMIN_API_SUMMARY.txt
+
+═══════════════════════════════════════════════════════════════════════════════
