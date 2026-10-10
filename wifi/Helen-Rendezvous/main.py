@@ -277,7 +277,27 @@ def _gen_public_id() -> str:
 # ── FastAPI app ───────────────────────────────────────────
 
 
-app = FastAPI(title="Helen-Rendezvous", version="0.1.0")
+@contextlib.asynccontextmanager
+async def _lifespan(_app: "FastAPI"):
+    """Start the TCP blind relay + (optionally) the cluster stack on boot,
+    and tear everything down cleanly on shutdown.
+
+    Replaces the deprecated ``@app.on_event("startup"/"shutdown")`` hooks.
+    The relay-listener task is retained so it can be cancelled on shutdown
+    instead of being leaked.
+    """
+    relay_task = asyncio.create_task(_run_relay_listeners())
+    await _startup_cluster()
+    try:
+        yield
+    finally:
+        relay_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await relay_task
+        await _shutdown_cluster()
+
+
+app = FastAPI(title="Helen-Rendezvous", version="0.1.0", lifespan=_lifespan)
 
 
 @app.get("/")
@@ -765,10 +785,27 @@ async def _join_streams(reader_a: asyncio.StreamReader, writer_a: asyncio.Stream
 class RelayHub:
     """Waits for matching REGISTER/LOOKUP pairs and joins them."""
 
+    # How long a parked backend registration is held before it is dropped
+    # if no frontend ever claims it.
+    REGISTER_PARK_TIMEOUT = 300.0
+
     def __init__(self) -> None:
-        # public_id -> deque of pending backend (Helen-Server) streams
-        self._backends: dict[str, list[tuple[asyncio.StreamReader, asyncio.StreamWriter]]] = {}
+        # public_id -> list of pending backend (Helen-Server) registrations,
+        # each a (reader, writer, claimed) triple. `claimed` is set by a
+        # frontend the instant it takes ownership of the socket pair.
+        self._backends: dict[
+            str,
+            list[tuple[asyncio.StreamReader, asyncio.StreamWriter, asyncio.Event]],
+        ] = {}
         self._lock = asyncio.Lock()
+
+    def _drop(self, pid: str, reader: asyncio.StreamReader) -> None:
+        """Remove a specific backend registration; caller holds the lock."""
+        queue = [e for e in self._backends.get(pid, []) if e[0] is not reader]
+        if queue:
+            self._backends[pid] = queue
+        else:
+            self._backends.pop(pid, None)
 
     async def handle_backend(self, reader: asyncio.StreamReader,
                              writer: asyncio.StreamWriter) -> None:
@@ -779,27 +816,33 @@ class RelayHub:
         parts = line.decode("ascii", errors="replace").strip().split()
         if len(parts) != 2 or parts[0] != "REGISTER":
             writer.write(b"ERR bad greeting\n"); await writer.drain(); writer.close(); return
-        token = writer.get_extra_info("peercert") or None  # placeholder
         if not BOOTSTRAP_TOKEN:
             writer.write(b"ERR server not configured\n"); await writer.drain(); writer.close(); return
         pid = parts[1]
         writer.write(b"OK waiting\n"); await writer.drain()
 
-        async with self._lock:
-            self._backends.setdefault(pid, []).append((reader, writer))
-
         # Park — caller stays connected. When a frontend arrives and claims
-        # us, _pair() will consume the stream. If we're still here after,
-        # say, 5 minutes, time out and drop the registration.
+        # us it sets `claimed`, after which `_join_streams` becomes the sole
+        # owner of this socket. We deliberately do NOT read from `reader`
+        # while parked: a concurrent read here would race the relay pipe and
+        # silently steal bytes out of the backend→frontend direction. If no
+        # frontend shows up within the park timeout, drop the registration.
+        claimed = asyncio.Event()
+        async with self._lock:
+            self._backends.setdefault(pid, []).append((reader, writer, claimed))
+
         try:
-            await asyncio.wait_for(_wait_until_closed(reader), timeout=300)
+            await asyncio.wait_for(claimed.wait(), timeout=self.REGISTER_PARK_TIMEOUT)
         except asyncio.TimeoutError:
             pass
-        async with self._lock:
-            queue = self._backends.get(pid, [])
-            self._backends[pid] = [pair for pair in queue if pair[0] is not reader]
-        with contextlib.suppress(Exception):
-            writer.close()
+        finally:
+            async with self._lock:
+                self._drop(pid, reader)
+            # Once claimed, the frontend's `_join_streams` owns and will close
+            # the socket; closing it here would tear down a live relay.
+            if not claimed.is_set():
+                with contextlib.suppress(Exception):
+                    writer.close()
 
     async def handle_frontend(self, reader: asyncio.StreamReader,
                               writer: asyncio.StreamWriter) -> None:
@@ -817,7 +860,13 @@ class RelayHub:
             if not queue:
                 writer.write(b"ERR no backend registered\n")
                 await writer.drain(); writer.close(); return
-            back_reader, back_writer = queue.pop(0)
+            back_reader, back_writer, back_claimed = queue.pop(0)
+            if not queue:
+                self._backends.pop(pid, None)
+
+        # Claim the backend so `handle_backend` stops touching the socket and
+        # hands us exclusive ownership of the byte stream.
+        back_claimed.set()
 
         writer.write(b"OK joined\n"); await writer.drain()
         try:
@@ -825,16 +874,6 @@ class RelayHub:
         except Exception:
             writer.close(); return
         await _join_streams(reader, writer, back_reader, back_writer)
-
-
-async def _wait_until_closed(reader: asyncio.StreamReader) -> None:
-    while not reader.at_eof():
-        try:
-            data = await reader.read(1024)
-            if not data:
-                return
-        except Exception:
-            return
 
 
 relay_hub = RelayHub()
@@ -971,13 +1010,6 @@ async def _handle_cross_instance_tunnel_request(envelope: dict[str, Any]) -> Non
         )
 
 
-@app.on_event("startup")
-async def _startup() -> None:
-    """Bring up the TCP blind relay + (optionally) the cluster stack."""
-    asyncio.create_task(_run_relay_listeners())
-    await _startup_cluster()
-
-
 async def _startup_cluster() -> None:
     """Initialise storage backend + instance registry + cross-instance relay."""
     global backend, instance_registry, session_affinity, cross_instance
@@ -1015,8 +1047,7 @@ async def _startup_cluster() -> None:
     )
 
 
-@app.on_event("shutdown")
-async def _shutdown() -> None:
+async def _shutdown_cluster() -> None:
     """Best-effort graceful teardown of cluster + backend connections."""
     global backend, instance_registry, session_affinity, cross_instance
     if cross_instance is not None:

@@ -424,7 +424,14 @@ class RedisBackend:
             with contextlib.suppress(Exception):
                 await pubsub.unsubscribe(channel)
             with contextlib.suppress(Exception):
-                await pubsub.close()
+                # redis-py renamed close() → aclose() in 5.0.1 and deprecated
+                # the former; prefer aclose() but stay compatible with older
+                # clients that only expose close().
+                aclose = getattr(pubsub, "aclose", None)
+                if aclose is not None:
+                    await aclose()
+                else:
+                    await pubsub.close()
 
     # ── Locks ──────────────────────────────────────────────
 
